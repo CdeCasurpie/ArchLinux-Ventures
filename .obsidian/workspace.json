@@ -1,0 +1,293 @@
+{
+  "main": {
+    "id": "b435119d3ff24917",
+    "type": "split",
+    "children": [
+      {
+        "id": "e7b6191179a8ae66",
+        "type": "split",
+        "children": [
+          {
+            "id": "bb3b45bbcaa34184",
+            "type": "tabs",
+            "dimension": 52.2432701894317,
+            "children": [
+              {
+                "id": "2ba488879aed3821",
+                "type": "leaf",
+                "state": {
+                  "type": "markdown",
+                  "state": {
+                    "file": "2. Problemas/Generacion Manual de Reportes Fotograficos.md",
+                    "mode": "source",
+                    "source": false
+                  },
+                  "icon": "lucide-file",
+                  "title": "Generacion Manual de Reportes Fotograficos"
+                }
+              }
+            ]
+          },
+          {
+            "id": "6886e81963a7ecc6",
+            "type": "split",
+            "dimension": 47.756729810568295,
+            "children": [
+              {
+                "id": "4484b381c4a155a5",
+                "type": "tabs",
+                "children": [
+                  {
+                    "id": "8633e6c8ed503d99",
+                    "type": "leaf",
+                    "state": {
+                      "type": "markdown",
+                      "state": {
+                        "file": "1. Entidades y Contexto/ArchVentures (Index).md",
+                        "mode": "source",
+                        "source": false
+                      },
+                      "icon": "lucide-file",
+                      "title": "ArchVentures (Index)"
+                    }
+                  },
+                  {
+                    "id": "d3cf6fcf98d2a1f2",
+                    "type": "leaf",
+                    "state": {
+                      "type": "markdown",
+                      "state": {
+                        "file": "4. Entrevistas y Validacion/Flujo Adaptativo de Entrevista.md",
+                        "mode": "source",
+                        "source": false
+                      },
+                      "icon": "lucide-file",
+                      "title": "Flujo Adaptativo de Entrevista"
+                    }
+                  }
+                ],
+                "currentTab": 1
+              },
+              {
+                "id": "731871fe252cf5ea",
+                "type": "tabs",
+                "children": [
+                  {
+                    "id": "eb63cf56b9e7aea2",
+                    "type": "leaf",
+                    "state": {
+                      "type": "markdown",
+                      "state": {
+                        "file": "4. Entrevistas y Validacion/Matriz de Priorizacion de Problemas.md",
+                        "mode": "source",
+                        "source": false
+                      },
+                      "icon": "lucide-file",
+                      "title": "Matriz de Priorizacion de Problemas"
+                    }
+                  }
+                ]
+              }
+            ],
+            "direction": "vertical"
+          }
+        ],
+        "direction": "horizontal"
+      }
+    ],
+    "direction": "vertical"
+  },
+  "left": {
+    "id": "bc1512019582f56f",
+    "type": "split",
+    "children": [
+      {
+        "id": "d9f6ce6741249000",
+        "type": "tabs",
+        "children": [
+          {
+            "id": "0aa1a07ba61f5c2e",
+            "type": "leaf",
+            "state": {
+              "type": "file-explorer",
+              "state": {
+                "sortOrder": "alphabetical",
+                "autoReveal": false
+              },
+              "icon": "lucide-folder-closed",
+              "title": "Explorador de archivos"
+            }
+          },
+          {
+            "id": "460c12f13b44cd7a",
+            "type": "leaf",
+            "state": {
+              "type": "search",
+              "state": {
+                "query": "",
+                "matchingCase": false,
+                "explainSearch": false,
+                "collapseAll": false,
+                "extraContext": false,
+                "sortOrder": "alphabetical"
+              },
+              "icon": "lucide-search",
+              "title": "Buscar"
+            }
+          },
+          {
+            "id": "eb3a721a027eed00",
+            "type": "leaf",
+            "state": {
+              "type": "bookmarks",
+              "state": {},
+              "icon": "lucide-bookmark",
+              "title": "Marcadores"
+            }
+          }
+        ]
+      }
+    ],
+    "direction": "horizontal",
+    "width": 225.5
+  },
+  "right": {
+    "id": "70e58daa31b2cf3e",
+    "type": "split",
+    "children": [
+      {
+        "id": "9668b72e0e94926f",
+        "type": "tabs",
+        "children": [
+          {
+            "id": "bdba7955ab238de9",
+            "type": "leaf",
+            "state": {
+              "type": "backlink",
+              "state": {
+                "file": "4. Entrevistas y Validacion/Flujo Adaptativo de Entrevista.md",
+                "collapseAll": false,
+                "extraContext": false,
+                "sortOrder": "alphabetical",
+                "showSearch": false,
+                "searchQuery": "",
+                "backlinkCollapsed": false,
+                "unlinkedCollapsed": true
+              },
+              "icon": "links-coming-in",
+              "title": "Enlaces entrantes de Flujo Adaptativo de Entrevista"
+            }
+          },
+          {
+            "id": "b8e0e8bf41fe81fa",
+            "type": "leaf",
+            "state": {
+              "type": "outgoing-link",
+              "state": {
+                "file": "4. Entrevistas y Validacion/Flujo Adaptativo de Entrevista.md",
+                "linksCollapsed": false,
+                "unlinkedCollapsed": true
+              },
+              "icon": "links-going-out",
+              "title": "Enlaces salientes de Flujo Adaptativo de Entrevista"
+            }
+          },
+          {
+            "id": "04bf76fa9ce3902f",
+            "type": "leaf",
+            "state": {
+              "type": "tag",
+              "state": {
+                "sortOrder": "frequency",
+                "useHierarchy": true,
+                "showSearch": false,
+                "searchQuery": ""
+              },
+              "icon": "lucide-tags",
+              "title": "Etiquetas"
+            }
+          },
+          {
+            "id": "a4c63ce2e9b78eab",
+            "type": "leaf",
+            "state": {
+              "type": "all-properties",
+              "state": {
+                "sortOrder": "frequency",
+                "showSearch": false,
+                "searchQuery": ""
+              },
+              "icon": "lucide-archive",
+              "title": "Todas las propiedades"
+            }
+          },
+          {
+            "id": "4500b7827aa03ca2",
+            "type": "leaf",
+            "state": {
+              "type": "outline",
+              "state": {
+                "file": "4. Entrevistas y Validacion/Flujo Adaptativo de Entrevista.md",
+                "followCursor": false,
+                "showSearch": false,
+                "searchQuery": ""
+              },
+              "icon": "lucide-list",
+              "title": "Esquema de Flujo Adaptativo de Entrevista"
+            }
+          }
+        ]
+      }
+    ],
+    "direction": "horizontal",
+    "width": 300,
+    "collapsed": true
+  },
+  "left-ribbon": {
+    "hiddenItems": {
+      "switcher:Abrir selector rápido": false,
+      "graph:Abrir vista gráfica": false,
+      "canvas:Crear nuevo lienzo": false,
+      "daily-notes:Abrir la nota de hoy": false,
+      "templates:Insertar plantilla": false,
+      "command-palette:Abrir paleta de comandos": false,
+      "bases:Crear nueva base": false
+    }
+  },
+  "active": "2ba488879aed3821",
+  "lastOpenFiles": [
+    "1. Entidades y Contexto/ArchVentures (Index).md",
+    "4. Entrevistas y Validacion/Flujo Adaptativo de Entrevista.md",
+    "formulario-web/script.js",
+    "formulario-web/style.css",
+    "formulario-web/index.html",
+    "formulario-web",
+    "4. Entrevistas y Validacion/Matriz de Priorizacion de Problemas.md",
+    "2. Problemas/Generacion Manual de Reportes Fotograficos.md",
+    "2. Problemas/Revision Manual de Cumplimiento Normativo.md",
+    "2. Problemas/Retrabajo y Perdida de Datos en Exportacion 3D a 2D.md",
+    "2. Problemas/Falta de Control de Versiones en Modelos BIM.md",
+    "2. Problemas/Deteccion Ineficiente de Colisiones BIM.md",
+    "2. Problemas/Calco Manual de Planos Vectoriales.md",
+    "2. Problemas/Ausencia de Planos As-Built Automatizados.md",
+    "1. Entidades y Contexto/Hipotesis y Vision.md",
+    "3. Perfiles de Usuario/Perito Tecnico.md",
+    "3. Perfiles de Usuario/Arquitecto Proyectista.md",
+    "4. Entrevistas y Validacion/Guia de Entrevista - Proyectistas.md",
+    "4. Entrevistas y Validacion/Guia de Entrevista - ITSE e IMU.md",
+    "4. Entrevistas y Validacion/Guia de Entrevista - Estudiantes.md",
+    "4. Entrevistas y Validacion/Plantilla Base de Entrevista (The Mom Test).md",
+    "2. Problemas/Retrabajo CAD-SketchUp.md",
+    "2. Problemas/Calco Manual de Planos.md",
+    "3. Perfiles de Usuario/Estudiante de Arquitectura.md",
+    "1. Entidades y Contexto/Postulacion Pre-IncUVa w2026.md",
+    "3. Perfiles de Usuario/Delegado CAP.md",
+    "3. Perfiles de Usuario/Inspector Municipal de Obra (IMU).md",
+    "1. Entidades y Contexto/UTEC Ventures.md",
+    "3. Perfiles de Usuario/Inspector ITSE.md",
+    "4. Entrevistas y Validacion",
+    "3. Perfiles de Usuario",
+    "2. Problemas",
+    "1. Entidades y Contexto"
+  ]
+}
