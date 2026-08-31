@@ -1,4 +1,4 @@
-# Inspector Municipal de Obra (IMU)
+# Inspector Municipal de Obra (IMO)
 
 ## 1. Contexto del Rol
 El profesional encargado de fiscalizar que la obra se construya acorde a los planos de la licencia de edificación.

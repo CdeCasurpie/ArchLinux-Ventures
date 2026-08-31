@@ -1,18 +1,24 @@
 # ArchVentures (Índice Central)
 
-Bienvenido al sistema Zettelkasten de ArchVentures, diseñado para ser riguroso, científico y enfocado en la validación de problemas de la industria de la construcción y arquitectura.
+Bienvenido al sistema Zettelkasten de ArchVentures, diseñado para ser riguroso, científico y enfocado en la validación de problemas de la industria de la construcción y arquitectura (AEC).
 
 ## 🗂 Estructura de la Bóveda
 
-### 1. Contexto Core
-- [[Hipotesis y Vision]] -> La tesis central que buscamos validar ante UTEC Ventures.
+### 1. Entidades, Postulaciones y Contexto Core
+Aquí alojamos nuestra tesis, visión e iteraciones presentadas a aceleradoras.
+- [[Hipotesis y Vision]]
+- [[Postulacion RLE Emprendimiento]]
+- [[Postulacion Pre-IncUVa w2026]]
+- [[UTEC Ventures]]
 
-### 2. Backlog de Problemas (Un archivo por problema)
-Aquí desglosamos los "dolores" como fenómenos aislados para validarlos.
-- [[Retrabajo CAD-SketchUp]]
-- [[Generacion Manual de Reportes Fotograficos]]
-- [[Calco Manual de Planos]]
-- [[Ausencia de Planos As-Built]]
+### 2. Backlog de Problemas Técnicos (Investigación CS)
+Problemas rigurosamente definidos con sus respectivos cuellos de botella algorítmicos.
+- [[Busqueda Lineal Normativa (Inspecciones)]]
+- [[Error Humano en Formularios (FUE)]]
+- [[Ausencia de Control de Versiones]]
+- [[Efecto Cascada en Modificaciones en CAD]]
+- [[Extraccion de Datos Historicos (Peritaje)]]
+- [[Redaccion Mecanica de Actas (Inspectores y Delegados)]]
 
 ### 3. Perfiles de Usuario (Actores)
 Cada perfil tiene supuestos, hechos validados y sus respectivos flujos.
@@ -24,11 +30,12 @@ Cada perfil tiene supuestos, hechos validados y sus respectivos flujos.
 - [[Perito Tecnico]]
 
 ### 4. Guías de Entrevistas y Validación
-Documentación y flujos para salir a hablar con los usuarios sin sesgarlos (basado en The Mom Test).
+Documentación, scoring y el flujo principal (Mom Test) para recopilar datos sin sesgar al usuario.
+- [[Matriz de Priorizacion de Problemas]]
+- [[Flujo Adaptativo de Entrevista]]
 - [[Plantilla Base de Entrevista (The Mom Test)]]
 - [[Guia de Entrevista - Estudiantes]]
 - [[Guia de Entrevista - ITSE e IMU]]
 - [[Guia de Entrevista - Proyectistas]]
-
----
-*Nota sobre herramientas:* Como IA, no puedo usar los botones gráficos de Obsidian, pero puedo ejecutar comandos de búsqueda semántica o `grep` (expresiones regulares) en tu computadora para buscar palabras clave, encontrar conexiones entre entrevistas o cruzar datos en fracciones de segundo.
+- [[Entrevista - Vicky Rosales]] (Insights de campo reales)
+- [[Entrevista - Cesar Andres Perales]] (Flujo de Proyectista y Control de Versiones)
