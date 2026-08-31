@@ -1,0 +1,193 @@
+[0.03s -> 1.07s] SPEAKER_00:  ¿Cómo estás, Laura?
+[2.69s -> 3.03s] SPEAKER_01: ¿Qué tal?
+[3.05s -> 3.41s] SPEAKER_01: Buenas tardes.
+[3.45s -> 5.95s] SPEAKER_00: Vale, te comento un poquito.
+[6.57s -> 14.82s] SPEAKER_00: En esta entrevista queremos que nos cuentes un poco sobre tu flujo de trabajo para poder identificar como que esos puntos que implican más tiempo o esfuerzo, ¿sí?
+[15.74s -> 20.92s] SPEAKER_00: Como primera pregunta, ¿actualmente estás activa en arquitectura?
+[22.62s -> 23.16s] SPEAKER_01: Sí, correcto.
+[23.98s -> 25.54s] SPEAKER_00: ¿Cuántos años de experiencia tienes?
+[28.46s -> 31.74s] SPEAKER_01:  Cuenta desde el 2008.
+[31.82s -> 36.23s] SPEAKER_00: ¿Ha trabajado alguna vez como inspector de obra?
+[36.24s -> 38.83s] SPEAKER_01: ¿Supervisor?
+[40.21s -> 49.25s] SPEAKER_00: Sí, la persona que va... ¿Qué rol o roles desempeña parte de este?
+[55.81s -> 56.51s] SPEAKER_01: ¿En este momento?
+[57.19s -> 58.75s] SPEAKER_00:  Sí, o comúnmente, ¿no?
+[58.77s -> 62.47s] SPEAKER_00: Como que trabajo recientes que ha tenido en esos últimos años o este año.
+[62.49s -> 64.42s] SPEAKER_01: Ah, ya.
+[64.88s -> 68.18s] SPEAKER_01: A ver, proyectista, supervisor, residente.
+[69.08s -> 69.68s] SPEAKER_01: En esos tres.
+[69.94s -> 72.68s] SPEAKER_00: Y jefe.
+[73.04s -> 73.32s] SPEAKER_00: Ok.
+[73.34s -> 76.13s] SPEAKER_00: ¿Trabaja para la municipalidad o para clientes privados?
+[77.77s -> 79.81s] SPEAKER_01: Para mi empresa y para clientes privados.
+[81.13s -> 81.19s] SPEAKER_UNKNOWN:  Ok.
+[81.27s -> 90.24s] SPEAKER_00: Con respecto al trabajo de supervisor, ¿podría escribir en pasos qué es exactamente lo que se hace?
+[90.28s -> 92.14s] SPEAKER_01: Dependiendo de lo que se supervisa, en qué partida.
+[94.16s -> 99.67s] SPEAKER_01: Generalmente, en líneas generales, primero tienes que tener claro el alcance de lo que vas a supervisar.
+[99.89s -> 103.89s] SPEAKER_01: Ya sea en planos, el expediente, memorias, especificaciones técnicas.
+[105.51s -> 110.23s] SPEAKER_01: Luego de eso, tener claro el alcance de la contratista que le vas a supervisar.
+[112.00s -> 135.75s] SPEAKER_01:  Y luego que se marcha esos dos ingresos o igualizumos a tu trabajo, ya te dedicas a ver en campo y en la documentación qué es lo que le corresponde a la contratista entregar o qué es lo que le corresponde ejecutar, si lo está haciendo correctamente, siguiendo los procedimientos aprobados por el área de calidad.
+[138.00s -> 140.82s] SPEAKER_01:  Luego, las entregas, ¿no?
+[140.98s -> 156.86s] SPEAKER_01: Si es que el alcance está completo, ha habido cambios, si se han gestionado bien los cambios, si están aprobados los cambios, si ha habido no solamente cambios de alcance, tiempo, costo, calidad en el transcurso de la ejecución del servicio.
+[156.96s -> 157.16s] SPEAKER_UNKNOWN: OK.
+[160.18s -> 161.16s] SPEAKER_00:  ¿Qué herramientas usa?
+[161.20s -> 163.40s] SPEAKER_00: Usted me dice que es visitadora, ¿no?
+[163.42s -> 171.22s] SPEAKER_00: ¿Qué herramientas usa en la visitadora y qué herramientas digitales usa para la redacción de los informes posteriormente?
+[171.25s -> 172.83s] SPEAKER_01: Dependiendo qué estás revisando.
+[172.89s -> 185.56s] SPEAKER_01: Si estás revisando arquitectura, estructuras, instalaciones eléctricas, sanitarias, tienes diferentes herramientas digitales y físicas que usas para las inspecciones, depende de a qué te refieres.
+[186.86s -> 190.02s] SPEAKER_00:  Digamos el tipo de inspección que es más común para usted.
+[190.94s -> 192.72s] SPEAKER_00: ¿Cuál es lo que más se replica?
+[192.74s -> 194.10s] SPEAKER_01: Arquitectura, podría ser.
+[194.80s -> 195.04s] SPEAKER_00: Ok.
+[195.64s -> 196.62s] SPEAKER_00: ¿Qué herramientas se utiliza?
+[196.65s -> 201.05s] SPEAKER_01: Lexómetro, niveles de mano, escuadras.
+[202.35s -> 202.43s] SPEAKER_00: Ok.
+[202.45s -> 205.61s] SPEAKER_00: ¿Y qué herramientas digitales?
+[207.77s -> 209.59s] SPEAKER_01: Digitales... Para hacer el informe.
+[210.18s -> 212.68s] SPEAKER_01: A ver, todo el paquete de Office, puede ser...
+[215.10s -> 215.88s] SPEAKER_01:  ¿Algún programa de 3D?
+[215.90s -> 220.44s] SPEAKER_01: ¿El que use el cliente o el que esté en el proyecto especificado?
+[220.46s -> 225.35s] SPEAKER_01: ¿Qué más?
+[225.67s -> 231.55s] SPEAKER_00: Para arquitectura, cuando usted hace la redacción de informe, ¿qué secciones tiene este informe?
+[231.57s -> 236.16s] SPEAKER_00: ¿Y en qué momentos usa cada herramienta que me explique?
+[239.06s -> 241.02s] SPEAKER_01: ¿Herramienta digital o herramienta física?
+[241.14s -> 241.72s] SPEAKER_00: Digital, digital.
+[243.43s -> 243.95s] SPEAKER_01:  Ah, ya.
+[244.27s -> 247.19s] SPEAKER_01: Bueno, digital de todo el tiempo que haces el informe, que elaboras.
+[247.51s -> 259.74s] SPEAKER_01: Tienes el AutoCAD, los planos, o tienes el BIM, o lo que esté desarrollado, el Excel, donde está desarrollado el proyecto, ¿no?
+[259.78s -> 261.86s] SPEAKER_01: Las partes del informe me estás preguntando, ¿no?
+[265.43s -> 269.75s] SPEAKER_01: En línea general, ¿podrías ordenarlo como antecedentes al proyecto?
+[269.77s -> 269.83s] SPEAKER_01: Sí.
+[271.89s -> 277.33s] SPEAKER_01:  La normatividad que vas a usar para ese informe, ¿no?
+[277.43s -> 282.57s] SPEAKER_01: Si es un informe de arquitectura, especialidad, estructura, depende de la especialidad, ¿no?
+[282.61s -> 284.45s] SPEAKER_01: Luego vienen los términos que vas a usar.
+[284.75s -> 289.57s] SPEAKER_01: Si van a ser términos técnicos, tienes que tener tu vocabulario indicado ahí.
+[290.57s -> 295.15s] SPEAKER_01: Y ya luego viene el propio desarrollo del informe, ¿no?
+[295.86s -> 299.90s] SPEAKER_01: El avance que se ha tenido según las partidas, ¿no?
+[300.95s -> 301.67s] SPEAKER_01:  Según el alcance.
+[301.79s -> 306.00s] SPEAKER_01: Entonces lo puedes dividir según el alcance de la contratista o de lo que estés revisando.
+[307.12s -> 317.80s] SPEAKER_01: Luego vienen recomendaciones, conclusiones, haz como tú puedes poner evidencia fotográfica de tu supervisión y haz juntando los protocolos de liberación si te has encargado de eso.
+[317.82s -> 323.83s] SPEAKER_00: ¿La evidencia fotográfica es opcional o es como que obligatoria?
+[324.25s -> 324.71s] SPEAKER_00: No, es obligatoria.
+[326.13s -> 326.27s] SPEAKER_00: Ok.
+[326.29s -> 326.77s] SPEAKER_00: ¿Qué herramienta?
+[326.79s -> 327.23s] SPEAKER_00: Ah, no, perdón.
+[327.66s -> 337.36s] SPEAKER_00:  ¿Cuánto tiempo demora en obra y cuánto en su casa armando todo lo necesario para presentar el informe?
+[338.36s -> 340.30s] SPEAKER_01: Las inspecciones pueden durar días.
+[341.90s -> 344.08s] SPEAKER_01: La elaboración es que depende del alcance, ¿no?
+[345.50s -> 350.81s] SPEAKER_01: Si vas a ir a liberar en chape, es diferente que vas a ir a liberar, no sé, un vaciado de un piso, ¿no?
+[351.21s -> 352.93s] SPEAKER_01: Entonces no es...
+[353.75s -> 354.71s] SPEAKER_01:  No es comparable, ¿no?
+[354.73s -> 356.71s] SPEAKER_01: Va a depender mucho qué estás haciendo, ¿no?
+[356.73s -> 358.49s] SPEAKER_01: Qué tipo de sustitución haces.
+[359.43s -> 362.91s] SPEAKER_00: Ok, digamos, en la más fácil, ¿cuánto tiempo demora?
+[362.97s -> 366.42s] SPEAKER_00: Y en la más difícil, ¿cuánto?
+[366.50s -> 368.30s] SPEAKER_01: Un día y por lo menos una semana, ¿no?
+[368.38s -> 369.00s] SPEAKER_01: En ese rango.
+[370.44s -> 371.10s] SPEAKER_00: ¿Solo en obra?
+[373.44s -> 374.94s] SPEAKER_01: Claro, todo un día en obra, sí.
+[375.70s -> 376.32s] SPEAKER_00: Ok, ok.
+[376.96s -> 380.78s] SPEAKER_00: Y luego para la redacción del informe, o sea, ¿un día cuántos horas es?
+[380.80s -> 381.22s] SPEAKER_00: Tres días.
+[383.15s -> 385.34s] SPEAKER_00:  Perdón, en Obra, ¿un día cuánto tiempo es?
+[385.46s -> 385.96s] SPEAKER_00: ¿Cuántas horas?
+[387.84s -> 388.40s] SPEAKER_01: Ocho horas.
+[388.48s -> 388.98s] SPEAKER_00: Ocho horas.
+[389.38s -> 392.76s] SPEAKER_00: Y también ocho horas por tres en la redacción del informe.
+[394.32s -> 395.00s] SPEAKER_01: Sí.
+[395.02s -> 396.36s] SPEAKER_00: Ya.
+[396.38s -> 402.42s] SPEAKER_00: ¿Cuánto tiempo después de la visita a Obra decide redactar el informe en promedio?
+[402.46s -> 403.36s] SPEAKER_01: Al día siguiente.
+[403.42s -> 405.72s] SPEAKER_00: Al día siguiente, siempre.
+[405.78s -> 406.40s] SPEAKER_01: Sí, sí, sí.
+[406.64s -> 408.06s] SPEAKER_01: Todo está fresco, si no te olvides.
+[409.10s -> 412.20s] SPEAKER_01: Si no lograste anotar algo, o de repente se te escapa algo, ¿no?
+[413.80s -> 413.88s] SPEAKER_00:  Ok.
+[413.90s -> 421.38s] SPEAKER_00: Muchos me han comentado que hacen como una especie de pre-informe a mano en obra.
+[421.40s -> 424.12s] SPEAKER_00: ¿Es lo mismo en su caso también?
+[424.58s -> 425.56s] SPEAKER_00: ¿O cómo es su modo de trabajo?
+[426.29s -> 431.65s] SPEAKER_01: Sí, puedes tener anotaciones a mano, alzar de dudas, consultas.
+[432.65s -> 433.27s] SPEAKER_01: Sí, claro.
+[433.31s -> 440.21s] SPEAKER_00: Pero para el informe final ya lo transcribe, digamos.
+[440.23s -> 440.33s] SPEAKER_01: Ajá.
+[441.21s -> 446.42s] SPEAKER_00:  ¿Cuántas fotos puede llegar a tomar como mínimo y cuántas como máximo?
+[446.76s -> 452.84s] SPEAKER_00: De ese total de fotos, ¿qué porcentaje de ellas realmente termina colocando en el informe?
+[467.44s -> 471.59s] SPEAKER_01:  Ah, y será un 10%, tampoco es llenar el informe de muchas fotos.
+[471.91s -> 472.89s] SPEAKER_00: Claro, se selecciona, ¿no?
+[472.93s -> 473.89s] SPEAKER_01: Fotos claves nomás.
+[475.59s -> 478.07s] SPEAKER_00: ¿Cuánto tiempo se demora en todo el proceso de las fotos?
+[478.29s -> 480.73s] SPEAKER_00: Desde que las tomas hasta que finalmente aparecen en el informe.
+[480.75s -> 484.17s] SPEAKER_00: O sea, acomodando, seleccionando, comentando, lo que sea que haga con las fotos.
+[487.99s -> 489.41s] SPEAKER_01: Trabajo de gabinete, a eso te refieres.
+[489.47s -> 491.81s] SPEAKER_00: Ajá.
+[491.88s -> 495.20s] SPEAKER_01: Ahí serán tres horas, no es mucho.
+[495.24s -> 495.92s] SPEAKER_00: Tres horas, aquí.
+[496.80s -> 502.99s] SPEAKER_00:  ¿Cómo decide qué foto realmente colocar en el informe y cuál es descartar?
+[503.51s -> 505.39s] SPEAKER_01: Dependiendo qué quiero dar a conocer, ¿no?
+[506.41s -> 509.21s] SPEAKER_01: Si es una liberación, si es una observación, si es un...
+[512.72s -> 514.98s] SPEAKER_01: Tiene que ser relevante la foto, pues, ¿no?
+[515.00s -> 515.90s] SPEAKER_00: Claro, ok.
+[516.50s -> 519.20s] SPEAKER_00: ¿Cuál es la parte más mecánica de todo su proceso de trabajo?
+[521.79s -> 523.43s] SPEAKER_01:  Mecánica, ¿a qué te refieres?
+[523.45s -> 535.60s] SPEAKER_00: Mecánica me refiero a algo que ya ha hecho tanto tiempo que prácticamente lo hace ya sin pensar mucho, o sea, no se esfuerza y es muy, o sea, demora, ¿no?
+[535.62s -> 537.90s] SPEAKER_01: No, no tengo ese tipo de actividades.
+[537.98s -> 538.18s] SPEAKER_00: Ok.
+[539.54s -> 546.22s] SPEAKER_00: ¿Hay alguna parte de ese proceso, de todo su proceso de trabajo que haya intentado hacer de alguna otra manera para ahorrar tiempo?
+[546.24s -> 548.54s] SPEAKER_00: ¿Qué probó en todo caso y qué ocurrió?
+[551.73s -> 553.19s] SPEAKER_01:  Hacerlo de otra manera.
+[553.21s -> 564.01s] SPEAKER_00: ¿En algún momento de toda su vida, como que de sus años de experiencia, ha habido un cambio en su método de trabajo?
+[564.07s -> 564.29s] SPEAKER_01: A ver.
+[564.31s -> 570.85s] SPEAKER_01: Propor la inteligencia artificial a la elaboración de los informes, podría ser.
+[571.17s -> 571.83s] SPEAKER_01: Es un nuevo.
+[572.49s -> 573.27s] SPEAKER_00: Ahora es más fácil.
+[573.29s -> 578.28s] SPEAKER_01: Pero como proceso, como proceso, como proceso, nada más.
+[582.89s -> 584.68s] SPEAKER_01:  A ver, ¿qué puede ser?
+[587.26s -> 591.34s] SPEAKER_01: En vez de utilizar una wincha o un flexómetro, usas la digital, la láser.
+[591.40s -> 593.78s] SPEAKER_01: Una mejora en cuanto a una herramienta.
+[594.34s -> 596.52s] SPEAKER_01: Te facilita el tiempo, ¿no?
+[597.52s -> 597.88s] SPEAKER_00: OK, OK.
+[597.92s -> 602.59s] SPEAKER_00: Una pregunta más.
+[603.55s -> 604.79s] SPEAKER_00: No, bueno, más o menos.
+[604.81s -> 606.95s] SPEAKER_00: ¿Dónde exactamente redacta el informe?
+[607.69s -> 608.43s] SPEAKER_00: ¿En qué herramienta?
+[608.91s -> 609.25s] SPEAKER_01: En Word.
+[611.25s -> 611.57s] SPEAKER_00: En Word.
+[612.25s -> 612.37s] SPEAKER_00: OK.
+[613.16s -> 617.00s] SPEAKER_00:  ¿Ha probado alguna otra que se le haga más fácil o Word está bien?
+[619.24s -> 627.25s] SPEAKER_01: No por más fácil, sino porque es un documento que tienes que entregar impreso, no a la empresa, entonces el que más se adecua es Word.
+[628.75s -> 642.01s] SPEAKER_00: ¿Recuerda alguna aplicación que le haya resultado, o sea, una aplicación en general, me refiero, ya esto es fuera del trabajo, como que
+[646.39s -> 652.12s] SPEAKER_01:  ¿Recuerda alguna aplicación móvil que le haya resultado particularmente fácil o difícil de aprender?
+[652.14s -> 656.72s] SPEAKER_01: Sí, hay un aplicativo que se llama Report and Run, que sirve para...
+[657.68s -> 664.90s] SPEAKER_01: Tomas foto y le puedes dar anotaciones a la foto y te saca como que si fuese un informe, ¿no?
+[665.16s -> 667.89s] SPEAKER_01: Un informe de supervisión en campo, ¿no?
+[667.95s -> 668.47s] SPEAKER_01: Entonces...
+[669.27s -> 673.20s] SPEAKER_01:  Es bastante fácil y me ayuda para las inspecciones en campo.
+[673.42s -> 675.54s] SPEAKER_00: Ah, ¿sí la usa habitualmente?
+[676.02s -> 676.72s] SPEAKER_01: Sí.
+[676.76s -> 677.48s] SPEAKER_01: Sí, sí, sí la usa.
+[677.54s -> 678.38s] SPEAKER_01: Ripple and Run, sí.
+[678.64s -> 683.42s] SPEAKER_00: ¿Qué es lo que, o sea, qué parte de la aplicación es lo que la hace fácil de aprender?
+[688.12s -> 691.11s] SPEAKER_01: Cómo está ordenado el aplicativo.
+[691.59s -> 693.13s] SPEAKER_00: Su interfaz es como que sencilla.
+[693.15s -> 693.21s] SPEAKER_00: Sí.
+[694.40s -> 695.85s] SPEAKER_00:  Sí, sencilla.
+[698.09s -> 698.17s] SPEAKER_00: Ok.
+[698.19s -> 699.25s] SPEAKER_00: Y otra pregunta también general.
+[699.59s -> 704.58s] SPEAKER_00: Cuando empieza a utilizar una aplicación nueva, ¿qué suele hacer cuando no sabe cómo realizar una tarea?
+[708.63s -> 713.43s] SPEAKER_01:  O cuando no sé realizar las opciones del aplicativo.
+[713.55s -> 713.81s] SPEAKER_00: Claro.
+[714.15s -> 719.63s] SPEAKER_00: Ajá, es como que usted sabe que la aplicación podría hacer esto, pero no sabe exactamente cómo es que lo hace.
+[719.69s -> 721.33s] SPEAKER_00: O sea, ajá, cómo realizarlo.
+[721.35s -> 724.11s] SPEAKER_01: Ah, me voy a YouTube, de repente ahí, pues, hice algo.
+[724.37s -> 725.07s] SPEAKER_00: Un tutorial.
+[725.19s -> 726.59s] SPEAKER_01: De repente, por ahí me enseñan.
+[726.61s -> 728.37s] SPEAKER_01: Ajá, sí.
+[728.41s -> 730.10s] SPEAKER_00: Eso sería todo por entrevista.
+[730.12s -> 731.74s] SPEAKER_00: Muchas gracias.
+[731.80s -> 733.06s] SPEAKER_01: Ya, no, de qué, con mucho gusto.
+[733.64s -> 735.84s] SPEAKER_00: Muchas gracias, Cris.
+[735.86s -> 736.66s] SPEAKER_01: Que usted tenga un bonito día.
+[736.68s -> 736.82s] SPEAKER_00: Ya, ya.
+[736.84s -> 737.38s] SPEAKER_00: Un bonito día también.
+[737.40s -> 737.72s] SPEAKER_01: Hasta luego.
+[738.02s -> 738.43s] SPEAKER_00:  Chao, chao

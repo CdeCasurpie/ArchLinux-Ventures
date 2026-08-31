@@ -1,0 +1,183 @@
+[17.27s -> 18.25s] SPEAKER_01:  Ok.
+[18.65s -> 19.11s] SPEAKER_00: Ok.
+[19.14s -> 20.00s] SPEAKER_00: Le comento un poco.
+[20.65s -> 29.00s] SPEAKER_00:  En esa entrevista queremos que nos cuentes sobre su flujo de trabajo, como que para identificar esos puntos que implican más tiempo o esfuerzo en todo su proceso.
+[29.64s -> 36.26s] SPEAKER_00: Entonces, la primera pregunta es, ¿ahorita mismo es una arquitecta activa usted?
+[36.40s -> 43.40s] SPEAKER_01: Sí, yo soy arquitecta colegiada y estoy habilitada, así que cuenta cómo es que estoy activa.
+[44.98s -> 47.78s] SPEAKER_00: ¿Ha trabajado alguna vez, perdón, cuántos años de experiencia tiene?
+[50.12s -> 54.94s] SPEAKER_01:  Yo tengo trabajando dos años ya.
+[55.96s -> 61.66s] SPEAKER_01: Y bueno, casi siempre agarro trabajos independientes desde la universidad.
+[62.68s -> 64.97s] SPEAKER_01: Así que será unos tres, cuatro, ¿no?
+[65.01s -> 65.19s] SPEAKER_01: Más.
+[65.65s -> 66.03s] SPEAKER_01: Aquí.
+[66.05s -> 67.15s] SPEAKER_01: De trabajos independientes.
+[67.21s -> 70.11s] SPEAKER_00: ¿Ha trabajado alguna vez como inspectora de obra?
+[72.51s -> 76.29s] SPEAKER_01: He trabajado como supervisora de calidad de nombre, sí.
+[77.27s -> 78.09s] SPEAKER_00:  ¿Es diferente?
+[78.11s -> 80.15s] SPEAKER_00: ¿Podría decir en qué consiste el cargo?
+[80.17s -> 83.83s] SPEAKER_00: ¿Cuál es el objetivo del rol?
+[83.87s -> 98.31s] SPEAKER_01: Claro, una inspectora, o sea, es una enviada de la municipalidad, ella se encarga de verificar que todo esté en orden, específicamente lo que es seguridad, la seguridad de todos.
+[99.35s -> 112.74s] SPEAKER_01:  Entonces, cuando ella ingresa a la edificación, ya sea un multifamiliar, por ejemplo, ella revisa que todo está en orden, incluyendo los papeleos, la licencia de construcción, todo.
+[112.78s -> 119.71s] SPEAKER_01: Entonces, cuando ella ingresa, verifica que la escalera tenga las cintas de precaución correctas,
+[120.24s -> 124.61s] SPEAKER_01:  que todos los operarios, los obreros, estén utilizando los EPPs.
+[125.27s -> 132.66s] SPEAKER_01: Los EPPs son el casco, los lentes, las botas, todos sus implementos de seguridad.
+[134.26s -> 139.12s] SPEAKER_01: Por ejemplo, también orden y limpieza, que toda la obra esté completamente limpia.
+[140.94s -> 146.25s] SPEAKER_01:  Y bueno, hay ciertos requisitos específicos y eso va con todos, ¿no?
+[146.27s -> 148.69s] SPEAKER_01: Todos los que están implicados en la realización del proyecto.
+[149.71s -> 154.09s] SPEAKER_01: Y si todo está bien, pues entonces sigue la construcción.
+[154.93s -> 159.50s] SPEAKER_01: Pero en el caso no lo esté, la inspectora puede paralizar la obra, ¿no?
+[159.82s -> 166.38s] SPEAKER_01: Y tienen que hacer el levantamiento de las observaciones de lo que ha colocado la inspectora, ¿no?
+[167.54s -> 168.84s] SPEAKER_01:  en su registro.
+[168.86s -> 172.26s] SPEAKER_01: Entonces, es el levantamiento que dura tal vez, dependiendo la gravedad, ¿no?
+[172.56s -> 175.94s] SPEAKER_01: Una o dos semanas y se continúa con la obra.
+[176.00s -> 176.40s] SPEAKER_00: Ok.
+[176.78s -> 178.70s] SPEAKER_00: Ese es el rol que usted desempeña, ¿no?
+[179.48s -> 181.82s] SPEAKER_00: Aparte de ese rol, ¿tiene otros roles?
+[182.68s -> 183.88s] SPEAKER_00: O sea, como arquitecta.
+[186.19s -> 198.37s] SPEAKER_01:  Ah, bueno, yo como arquitecta, sí, pues el arquitecto por lo general es el que, en mi caso, la arquitecta diseñadora proyectista, ¿no?
+[198.41s -> 201.93s] SPEAKER_01: Que primero sería conocer al cliente y su necesidad.
+[202.89s -> 203.53s] SPEAKER_01: En mi caso, ¿no?
+[203.57s -> 209.30s] SPEAKER_01: Si yo quiero captar a algún cliente, porque el rol del arquitecto es ese.
+[209.34s -> 212.98s] SPEAKER_01: Nosotros es como que captamos al cliente
+[213.85s -> 215.67s] SPEAKER_01:  le diseñamos el anteproyecto.
+[215.69s -> 217.37s] SPEAKER_01: ¿Qué es el anteproyecto?
+[218.05s -> 228.07s] SPEAKER_01: Es, por ejemplo, todo lo que te pide para que la vivienda se construya, lo que te pide la municipalidad para que la vivienda se construya, o sea, sacar la licencia de construcción.
+[229.29s -> 235.70s] SPEAKER_01: Y para sacar la licencia de construcción del proyecto tiene varios procedimientos, ¿no?
+[235.74s -> 240.84s] SPEAKER_01: Que es el diseño arquitectónico, el diseño estructural,
+[241.67s -> 245.21s] SPEAKER_01:  Sanitario, eléctrico y un montón de requisitos más.
+[245.27s -> 249.05s] SPEAKER_01: Memorias descriptivas, cálculo de metrados y presupuestos.
+[249.07s -> 250.49s] SPEAKER_01: Ya, te piden un montón, ¿no?
+[250.55s -> 254.25s] SPEAKER_01: Fuera del hecho de que era propiedad de este instituto nacional y varias cosas que dieron el dueño.
+[254.31s -> 258.28s] SPEAKER_01: Entonces, ese sería el anteproyecto, ¿no?
+[258.30s -> 259.82s] SPEAKER_01: Lo que hace también el arquitecto.
+[262.14s -> 265.46s] SPEAKER_01: Después siguen lo que es los proyectos definitivos, que son los planos públicos.
+[266.29s -> 275.91s] SPEAKER_01:  Como te estaba comentando, los planos arquitectónicos detallados, los presupuestos, la licencia de construcción en sí.
+[275.93s -> 278.13s] SPEAKER_01: Y luego, después de eso, sigue la ejecución.
+[278.74s -> 286.42s] SPEAKER_01: Nosotros lo podemos ver, ya lo vemos con los ingenieros civiles estructurales, porque hay ingenieros civiles especialistas en cada rama.
+[287.02s -> 291.03s] SPEAKER_01: Nosotros los arquitectos trabajamos especialmente con ingeniero estructural.
+[292.86s -> 296.46s] SPEAKER_01:  nos ponemos de acuerdo con los dueños y empieza ya la construcción.
+[296.60s -> 299.99s] SPEAKER_01: Claro, también hablando con el maestro de obra, ¿no?
+[300.29s -> 308.17s] SPEAKER_01: Teniendo todo en regla, la licencia, también lo que son los EPPs, con el caso de los obreros, todo, ¿no?
+[308.19s -> 309.53s] SPEAKER_01: Ya para la ejecución de la obra.
+[310.37s -> 312.30s] SPEAKER_01: Y bueno, luego ya sigue lo que es la entrega final.
+[312.31s -> 315.32s] SPEAKER_01: O sea, son como cinco...
+[316.99s -> 318.10s] SPEAKER_01:  Cinco pasos.
+[318.15s -> 323.04s] SPEAKER_01: O sea, si quieres que te lo especifique, es flujo completo de paso a paso.
+[323.68s -> 326.02s] SPEAKER_01: El primero es conocer al cliente y su necesidad.
+[326.26s -> 330.46s] SPEAKER_01: El segundo es el anteproyecto, ideas y primeros bocetos.
+[330.94s -> 334.50s] SPEAKER_01: Luego es el proyecto definitivo, que son los planos completos.
+[334.93s -> 340.19s] SPEAKER_01: El cuarto es la ejecución en obra, o sea, lo que se concluye.
+[340.21s -> 343.59s] SPEAKER_01: Y el quinto es la entrega final, que es la revisión completa.
+[344.17s -> 347.00s] SPEAKER_01:  se corrigen detalles, se recibe la obra lista para usar.
+[348.16s -> 349.21s] SPEAKER_00: Ok.
+[349.45s -> 351.37s] SPEAKER_00: Eso es como proyectista, ¿no, Mays?
+[353.04s -> 353.58s] SPEAKER_01:  Claro.
+[354.00s -> 358.64s] SPEAKER_01: Ese es el flujo de trabajo del arquitecto, de un arquitecto.
+[358.70s -> 358.96s] SPEAKER_00: Ok.
+[360.20s -> 364.54s] SPEAKER_00: Ahora, concentrémonos en el rol de inspector de obra.
+[364.56s -> 374.67s] SPEAKER_00: ¿Podría describir en pasos qué es exactamente lo que... Bueno, sí me lo ha dicho, pero como que resumirme en unos cinco pasos lo que es un inspector de obra en su trabajo.
+[376.61s -> 378.93s] SPEAKER_01: A ver, en unos cinco pasos...
+[380.80s -> 386.74s] SPEAKER_01:  A ver, lo primero que hace es verificar.
+[386.76s -> 389.05s] SPEAKER_01: Ya, verifica que todo esté completamente en orden.
+[389.93s -> 396.25s] SPEAKER_01: También una de sus labores es el ingresar, o sea, primero verificar los documentos en silla.
+[396.49s -> 403.85s] SPEAKER_01: Hablo del PREP, que todo esté inscrito, que tenga su licencia y todos esos pequeños requisitos.
+[404.45s -> 413.92s] SPEAKER_01:  Luego él ingresa a la edificación ya con una cámara, el cual graba absolutamente todo, todo, todo, todo.
+[413.96s -> 422.89s] SPEAKER_01: Ya inspecciona absolutamente todo, es claro, crea un video, un video porque él tiene que rendirle cuentas a lo que es la municipalidad, ¿no?
+[424.56s -> 427.86s] SPEAKER_01:  Entonces él creó un video de absolutamente toda la obra.
+[427.94s -> 430.46s] SPEAKER_01: O sea, y ahí recopila toda la información.
+[430.84s -> 432.85s] SPEAKER_01: Porque obviamente hay requisitos, ¿no?
+[432.89s -> 435.63s] SPEAKER_01: Que tiene que cumplir la obra para que no sea paralizado.
+[436.33s -> 438.77s] SPEAKER_01: Entonces es como que cheque, cheque, cheque a todo.
+[438.81s -> 439.69s] SPEAKER_01: No cumple, cumple.
+[439.75s -> 441.25s] SPEAKER_01: O no cumple también puede ser.
+[441.43s -> 442.76s] SPEAKER_01: Y todo eso.
+[442.82s -> 444.62s] SPEAKER_01: Después de eso, él habla...
+[445.28s -> 447.50s] SPEAKER_01:  con el residente de obra.
+[447.88s -> 450.50s] SPEAKER_01: El residente de obra le informa todo lo que está pasando.
+[451.02s -> 455.90s] SPEAKER_01: Si es leve, en ese mismo momento se pueden alzar las observaciones y no hay problema.
+[456.40s -> 469.71s] SPEAKER_01: Pero si es fuerte, si son fuertes las faltas, entonces ahí ya, pues no, obviamente el inspector va a decir si se paralizó la obra y todo ello, pues no.
+[469.77s -> 469.85s] SPEAKER_01: Ok.
+[472.93s -> 485.58s] SPEAKER_01:  entonces informa a la municipalidad y en ese caso tampoco nadie se puede ir de la obra hasta que se hacen las observaciones y es todo un procedimiento por parte también de ellos que les presenta la municipalidad
+[487.11s -> 490.69s] SPEAKER_01:  Incluso tienen que pagar un impuesto.
+[492.03s -> 493.45s] SPEAKER_01: Hay una multa ahí, ¿verdad?
+[493.49s -> 495.33s] SPEAKER_01: Hay una multa que tienen que pagar.
+[496.01s -> 501.66s] SPEAKER_01: Ahí se les descuenta, por ejemplo, en un proyecto hay subcontratos también.
+[501.94s -> 503.68s] SPEAKER_01: Hay contratos y subcontratos.
+[503.70s -> 508.94s] SPEAKER_01: Y dependiendo de la falta de quien haya sido, lo cubre también, ¿no?
+[509.00s -> 511.30s] SPEAKER_01: Las contratos, las subcontratos.
+[511.34s -> 514.45s] SPEAKER_01: Entonces, ya todos tienen que pagar un multo.
+[515.65s -> 521.97s] SPEAKER_01:  para que puedan también alzarlos y liberarlos para que puedan seguir la obra.
+[522.03s -> 524.47s] SPEAKER_01: O sea, todo eso también es dinero.
+[525.69s -> 534.66s] SPEAKER_01: Luego el inspector viene y les dice, pues ya alzan sus observaciones, observa todo de nuevo si ya lo corrigieron.
+[535.42s -> 537.12s] SPEAKER_00: Tiene más visitas, sí.
+[539.34s -> 553.95s] SPEAKER_01:  Claro, pasan dos días y ya, si está bien todo, genial, pero tiene que volver a la municipalidad, hacer sus papeleos y sus trámites de que todo esté en orden, incluyendo el dinero que han tenido que aportar para, o es como una multa que te ponen, ¿no?
+[554.45s -> 557.59s] SPEAKER_01: Que han tenido que subsanar para que todo regrese de nuevo a la normalidad.
+[558.01s -> 559.37s] SPEAKER_00: Bueno, ok.
+[560.49s -> 564.21s] SPEAKER_00: Cuando usted va a la obra, ¿cuánto tiempo demora en obra exactamente?
+[564.23s -> 568.98s] SPEAKER_00: Y ¿cuánto tiempo demora en su casa armando todo lo necesario para presentar su entregable?
+[572.25s -> 579.62s] SPEAKER_01:  En mi caso, yo entro a las 7 y media y salimos a las 5.
+[581.54s -> 582.14s] SPEAKER_01: A las 5.
+[583.66s -> 586.28s] SPEAKER_01: Yo trato de avanzar todo lo que puedo en el trabajo.
+[586.74s -> 587.16s] SPEAKER_01: ¿Por qué?
+[587.22s -> 589.12s] SPEAKER_01: Porque varias cosas son en campo.
+[589.18s -> 593.78s] SPEAKER_01: Entonces, yo me encargo por lo general de supervisión de calidad y producción.
+[594.42s -> 598.33s] SPEAKER_01: Entonces, yo realizo en ese momento así, rápido también.
+[599.55s -> 600.37s] SPEAKER_01: Todo distinto el...
+[601.68s -> 611.63s] SPEAKER_01:  el control de todo, de todo, todo, en ese mismo día, porque lo clasifico por día, lunes, martes, miércoles, así todos los días tengo que hacer un informe, ¿no?
+[611.71s -> 613.23s] SPEAKER_01: Luego ya en mi casa...
+[614.63s -> 618.11s] SPEAKER_01:  cuando ya son las entregas que son prácticamente semanas.
+[618.17s -> 621.09s] SPEAKER_01: Entonces ya hago un mejor control.
+[621.57s -> 626.98s] SPEAKER_01: No voy colocando cuánto no avanzado, cuánto no por cada día y todo eso.
+[627.04s -> 629.42s] SPEAKER_01: Y posiblemente demore.
+[629.48s -> 639.33s] SPEAKER_01: Es como que trabajar de lunes a sábados porque de lunes a viernes son de siete y media a cinco y los sábados son de siete y media a una.
+[639.75s -> 642.51s] SPEAKER_01: Pero por llevar esos controles a veces uno se queda hasta acá.
+[644.18s -> 650.85s] SPEAKER_00:  Vale, pero o sea, en la visita a obra específicamente, ¿cuántas horas?
+[653.43s -> 667.56s] SPEAKER_01: Un inspector visita la obra más o menos, digamos que toda la, puede ser que venga desde las 10 hasta la hora de almuerzo, que son las 12 o las 1, algo así.
+[667.62s -> 669.18s] SPEAKER_01: Unas 2, 3 horas entonces.
+[670.46s -> 672.26s] SPEAKER_01:  dos, tres horas aproximadamente.
+[672.48s -> 675.84s] SPEAKER_00: Y para la redacción del informe, ¿cuánto tiempo se demora?
+[677.06s -> 681.82s] SPEAKER_00: O sea, no solo redactar, sino organizando toda la información necesaria que tiene que ir dentro del informe.
+[684.92s -> 691.12s] SPEAKER_01: Ah, bueno, lo que yo te puedo decir es que cuando fue el inspector se quedó prácticamente toda la tarde.
+[691.92s -> 695.40s] SPEAKER_01:  Ya, toda la tarde de ese mismo día, se quedó toda la tarde.
+[695.42s -> 695.87s] SPEAKER_00: Trabajando.
+[695.91s -> 702.19s] SPEAKER_01: Después, claro, después es que no sé cuánto tiempo más o menos le habrá costado, ¿no?
+[702.41s -> 705.21s] SPEAKER_01: Recomendar todo, pero en ese mismo rato, ¿no?
+[705.35s -> 706.27s] SPEAKER_01: Fue como que al toque.
+[706.61s -> 707.43s] SPEAKER_01: Informó, tal.
+[708.39s -> 730.34s] SPEAKER_01:  en el mismo momento y en forma de los inspectores porque él llega hace su informe mismo y luego listo eso decide si es que sigue la obra o no claro en los toles que se me comenta es este como que el observador
+[732.99s -> 735.23s] SPEAKER_01:  o lo presenta la municipalidad, no, él informa.
+[735.55s -> 735.97s] SPEAKER_01: Claro.
+[736.01s -> 741.85s] SPEAKER_01: Claro que ya ahí tiene todos sus cheques y todo, si se concluyó o no, pero él informa ahí de inmediato.
+[741.93s -> 745.00s] SPEAKER_00: Ok.
+[745.03s -> 756.60s] SPEAKER_00: Bueno, así personalmente ya de usted, no del inspector, ¿cuál es la parte más mecánica de su trabajo y qué parte le conlleva más tiempo?
+[756.62s -> 759.26s] SPEAKER_01: Más mecánica sería el caso de los metrados.
+[760.80s -> 763.44s] SPEAKER_01:  El metrado y el presupuesto de toda la edificación.
+[764.46s -> 771.40s] SPEAKER_01: Después, la producción para algunas personas puede ser tediosa, pero es pura coordinación.
+[771.76s -> 776.33s] SPEAKER_01: Coordinación y que a nadie le falte material porque así no avanza el proyecto.
+[776.64s -> 779.93s] SPEAKER_01: Pero no es tan complicado a nivel personal, ¿no?
+[780.31s -> 783.68s] SPEAKER_01:  Lo que sí puede ser más tedioso es hacer el metrado de todo, ¿no?
+[783.92s -> 785.24s] SPEAKER_01: Metrar absolutamente todo.
+[785.90s -> 786.70s] SPEAKER_01: Y el presupuesto.
+[787.54s -> 789.06s] SPEAKER_01: Eso creo que nada más.
+[789.60s -> 798.91s] SPEAKER_00: Como última pregunta, le quería decir, ¿en algún momento de estos años ha cambiado algo en su método de trabajo que le ha hecho ahorrar tiempo?
+[802.43s -> 803.07s] SPEAKER_01: Claro que sí.
+[804.30s -> 805.48s] SPEAKER_01: Por ejemplo, cuando yo empecé,
+[806.33s -> 809.21s] SPEAKER_01:  En un principio, o sea, me costó, pues, ¿no?
+[809.25s -> 815.85s] SPEAKER_01: Cuando ya vas evolucionando en el trabajo, lo haces mucho más rápido y ya sabes en qué momento hacerlo.
+[815.89s -> 819.62s] SPEAKER_01: Por ejemplo, a mí, a veces yo no almorzaba porque me demoraba, ¿no?
+[819.88s -> 824.86s] SPEAKER_01: Me demoraba o lo hacía, este, muy tarde.
+[824.92s -> 830.78s] SPEAKER_01: O sea, es como que almorzábamos a las 12 y yo a las 11 estaba empezando y pensé que una hora lo iba a hacer, ¿no?
+[831.01s -> 833.25s] SPEAKER_01:  Pero no es así.
+[833.27s -> 837.33s] SPEAKER_01: O sea, ya tengo que empezar desde las 9 o 10 a hacer todos mis trabajos, ¿no?
+[837.39s -> 840.73s] SPEAKER_01: Entonces ahí es como que ya, eso te enseña ya la experiencia, ¿no?
+[840.77s -> 842.11s] SPEAKER_01: De ir y visitar y todo eso.
+[842.35s -> 845.43s] SPEAKER_01: Que puede parecer fácil, pero no lo es, ¿no?
+[845.47s -> 852.01s] SPEAKER_01: Entonces ahí vas calculando tus horarios para que no te afecte luego en el almuerzo, ¿no?
+[852.17s -> 854.36s] SPEAKER_01: Y todas esas cositas.
+[854.41s -> 856.86s] SPEAKER_01: Eso fue para ahorrar tiempo, ¿no?
+[856.94s -> 857.08s] SPEAKER_00: Ok.
+[857.24s -> 858.46s] SPEAKER_00: Eso sería todo.
+[858.52s -> 859.00s] SPEAKER_00: Muchas gracias.
+[860.55s -> 863.50s] SPEAKER_01:  Ok, espero que les haya servido mucho.
+[863.62s -> 865.29s] SPEAKER_00: Sí, muchas gracias por su tiempo.
+[865.31s -> 865.83s] SPEAKER_00: Saludos.

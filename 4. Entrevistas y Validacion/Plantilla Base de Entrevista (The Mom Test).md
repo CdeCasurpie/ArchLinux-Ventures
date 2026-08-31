@@ -22,6 +22,11 @@ Para evitar que los entrevistados mientan por cortesía, debemos seguir 3 reglas
 - ¿Qué otras herramientas o "trucos" (Excel, plugins) usas actualmente para hacerlo más llevadero?
 
 ## 3. Registro de Entrevistas
-*(Añadir aquí enlaces a los resúmenes de las entrevistas realizadas)*
-- Entrevista 1: [Pendiente]
-- Entrevista 2: [Pendiente]
+- [[Entrevista - Vicky Rosales]]
+- [[Entrevista - Cesar Andres Perales]]
+- [[Entrevista - Miguel Luna]]
+- [[Entrevista - Israel]]
+- [[Entrevista - Flores]]
+- [[Entrevista - Laura Rojas]]
+- [[Entrevista - Daniel Nuñez]]
+- [[Sintesis Cruzada - Batch Entrevistas]]

@@ -1,0 +1,108 @@
+[0.31s -> 2.99s] SPEAKER_00:  y digamos los puntos que más le cuestan a usted hacer.
+[3.91s -> 6.66s] SPEAKER_00: Pero para empezar, ¿es usted un arquitecto activo actualmente?
+[8.58s -> 12.60s] SPEAKER_01: Sí, soy un arquitecto que proyecta constantemente.
+[12.62s -> 17.91s] SPEAKER_00: ¿Cuántos años de experiencia tiene?
+[17.95s -> 24.35s] SPEAKER_01: Más o menos unos 35 años.
+[24.37s -> 26.71s] SPEAKER_00: ¿Ha trabajado alguna vez como inspector de obra?
+[29.07s -> 31.80s] SPEAKER_01:  Como inspector de obra en sí, no.
+[32.30s -> 37.97s] SPEAKER_01: Pero como revisor de mis propias obras, sí.
+[38.05s -> 39.99s] SPEAKER_00: ¿Cuál es la diferencia con el cargo de inspector?
+[41.03s -> 46.32s] SPEAKER_01: Simplemente con un tema de supervisar ciertos detalles, ¿no?
+[47.57s -> 57.92s] SPEAKER_01:  Cuando están en la etapa de los acabados, me pide que vaya para ver cómo ha quedado el diseño o el acabado que están planteando según los problemas que he hecho.
+[57.98s -> 65.96s] SPEAKER_00: Ah, pero es como para que, porque quieren su opinión, digamos, su firma.
+[65.98s -> 66.46s] SPEAKER_01: Correcto.
+[66.54s -> 70.95s] SPEAKER_01: No es para el tema de la clínica, es un tema más constante en obra.
+[71.01s -> 71.61s] SPEAKER_00: Ok.
+[72.83s -> 79.57s] SPEAKER_00:  ¿En qué rol o roles se desempeña comúnmente en estos últimos años o este año?
+[79.69s -> 93.96s] SPEAKER_01: Normalmente, lo que hacemos en la oficina, nos desempeñamos en hacer expedientes técnicos municipales y expedientes técnicos para el sector público.
+[94.02s -> 101.40s] SPEAKER_01: Entonces, el expediente técnico consta de todo el expediente de arquitectura y además de las especialidades.
+[103.30s -> 125.18s] SPEAKER_01:  en la consultoría consta de hacer todo el expediente y coordinar con todos los ingenieros y ya se contrata directamente de la oficina y con una coordinación con la arquitectura constante ¿un expediente que incluye?
+[125.22s -> 129.42s] SPEAKER_01: un expediente técnico formal que incluye todo lo que es
+[130.21s -> 156.32s] SPEAKER_01:  el proyecto arquitectónico, con su memoria descriptiva, sus especificaciones técnicas, así como también el expediente de estructuras, de la misma forma, memoria y situaciones, el expediente de instalaciones sanitarias, eléctricas, mecánicas, metros y presupuestos, y al final una memoria determinada.
+[156.42s -> 157.66s] SPEAKER_01: Eso es todo un expediente complicado.
+[158.43s -> 164.13s] SPEAKER_00:  ¿Cuánto tiempo le demora culminar con todo el expediente?
+[164.22s -> 166.54s] SPEAKER_01: Eso depende mucho de la actitud del trabajo.
+[166.98s -> 173.26s] SPEAKER_01: Por ejemplo, no es igual hacer un edificio multifamiliar de 5 pisos que hacer un edificio multifamiliar de 30 pisos.
+[173.34s -> 174.86s] SPEAKER_01: O hacer, por ejemplo, un colegio.
+[175.60s -> 186.11s] SPEAKER_01: Entonces, cada uno de estos expedientes demora, pues, uno puede demorar 6 meses, otro puede demorar 3 meses.
+[186.99s -> 196.04s] SPEAKER_01:  Otros pueden demorar ocho meses porque depende mucho de la magnitud.
+[196.06s -> 199.04s] SPEAKER_00: ¿Podría describir en pasos qué es exactamente lo que hace?
+[199.08s -> 204.16s] SPEAKER_00: Yo me imagino que usted tiene un proceso creativo, pero también técnico.
+[204.36s -> 205.98s] SPEAKER_00: ¿Podría describirlo más ahí?
+[208.31s -> 212.71s] SPEAKER_01: La arquitectura es una rama, ¿no?
+[213.52s -> 224.84s] SPEAKER_01:  que para cualquier expediente técnico es la parte primordial, o sea, no se puede hacer ningún proyecto de infraestructura si no hay arquitectura, ¿no?
+[224.87s -> 229.71s] SPEAKER_01: Por lo cual es la primera especialidad que se realiza, ¿no?
+[229.83s -> 238.81s] SPEAKER_01: Inclusive hay dos etapas en lo que es arquitectura, una etapa que es anteproyecto y otra etapa que es proyecto, ¿ya?
+[239.55s -> 242.24s] SPEAKER_01: En el anteproyecto, para iniciar, ¿no?
+[242.61s -> 245.39s] SPEAKER_01:  uno necesita realmente insumos para poder proyectar.
+[246.29s -> 260.52s] SPEAKER_01: Yo no puedo proyectar si no tengo, por ejemplo, la topografía, no tengo la normativa del lugar, no tengo documentos que me, digamos, me dicen la ciencia cierta que esto pertenece a otra persona, lindero, etcétera.
+[260.92s -> 268.52s] SPEAKER_01: Documentos que, digamos, pueda tener yo que me den la viabilidad y que el terreno pues tiene cierta configuración, ¿no?
+[270.23s -> 279.32s] SPEAKER_01:  A partir de esos documentos, arranco a plantear primero el programa arquitectónico.
+[279.36s -> 285.96s] SPEAKER_01: A veces ya el cliente tiene el programa definido, pero en otros casos no tiene el programa.
+[286.20s -> 292.25s] SPEAKER_01: Por ejemplo, cuando me dicen enseñar un edificio multifamiliar, el cliente no tiene el programa.
+[292.44s -> 296.09s] SPEAKER_01: Lo que tiene es el terreno, por lo cual a través de la alternativa yo le digo
+[297.47s -> 314.35s] SPEAKER_01:  que acá puede construir tantos pisos con tanta cantidad de departamentos hago un programa inicial y le explico a la validación recibe comienzo a hacer la propuesta arquitectónica al hacer la propuesta arquitectónica tengo que ver variables por ejemplo
+[315.39s -> 338.06s] SPEAKER_01:  de forma, el diseño de los espacios, circulaciones, normativas, y planteo recién ahí, ¿no?, a través, bueno, del análisis del lugar, ¿no?, del entorno, pues dónde van a estar las circulaciones principales, cuál es el ingreso, las vistas, cuál es, digamos, el diseño que quiero hacer en ese lugar.
+[338.08s -> 343.11s] SPEAKER_01: Y planteo la propuesta arquitectónica a nivel de anteproyecto, ¿ya?,
+[345.18s -> 374.75s] SPEAKER_01:  esa pasa a una revisión ya sea municipal o también puede ser interna a través de un agente público cuando me aprueban ese anteproyecto recién arranco a hacer el proyecto y en conjunto con los especialistas se le entrega el anteproyecto ese anteproyecto ya hay una viabilidad estructural o sea yo por la experiencia que tengo yo ya planteo mi estructura básicamente para que el ingeniero en la etapa ya siguiente
+[375.58s -> 391.67s] SPEAKER_01:  El valido me estructuró, me diga, bueno, más que ambiental y estas cosas, etc. Y el sanitario también me da todos los requerimientos que necesita, aparte de los que yo he considerado, igual el eléctrico, igual el mecánico, y a través de ellos se conforma ya un protocolo.
+[397.05s -> 408.49s] SPEAKER_01:  y obviamente compatibilizado con todo para que se termine el expediente, porque cada unidad especialista va a entregar su plano, su memoria y sus especificaciones.
+[409.21s -> 419.74s] SPEAKER_01: Y pasaría un proceso, si es público, a hacer un presupuesto, un metro de presupuesto, y si es una entidad privada, tal vez no requiera presupuesto, simplemente...
+[420.45s -> 424.55s] SPEAKER_01:  los planos, las memorias y las especificaciones.
+[424.57s -> 431.77s] SPEAKER_01: Bueno, ahí pasaría a aprobaciones municipales, si viene el caso, donde ya es un proceso de licencia.
+[432.71s -> 438.07s] SPEAKER_01: Y bueno, también pasa por observaciones, porque también en la municipalidad hay otra etapa de revisión.
+[438.83s -> 442.48s] SPEAKER_01: Igual cada especialista es consciente de que cualquier observación
+[444.10s -> 447.98s] SPEAKER_01:  digamos, municipal, no tenemos que levantar cualquier cosa de la etapa.
+[448.20s -> 453.96s] SPEAKER_01: Inclusive, si es que ya me han cancelado, yo tengo que seguir con el proyecto hasta el final.
+[453.98s -> 458.74s] SPEAKER_01: Y ahora también, si hay alguna revisión en la obra, también yo tengo que...
+[458.78s -> 459.86s] SPEAKER_01: Si hay algo que está mal, ¿no?
+[460.10s -> 466.08s] SPEAKER_01: O hay algo que no está bien compatibilizado, tengo que, digamos, levantar esa observación, si es que hubiera.
+[466.34s -> 466.50s] SPEAKER_UNKNOWN: Ok.
+[466.56s -> 467.72s] SPEAKER_00: Una última pregunta.
+[467.74s -> 472.86s] SPEAKER_00: Yo sé que, obviamente...
+[473.47s -> 482.14s] SPEAKER_00:  Toda la parte de su proceso es importante, pero ¿ha podido identificar alguna que sea mecánica o que tal vez se podría delegar a un asistente?
+[482.16s -> 494.43s] SPEAKER_00: ¿Alguna parte de su trabajo es mecánica o es algo que podría ser delegado a un asistente en vez de hacerlo usted?
+[496.43s -> 497.57s] SPEAKER_01: Estamos ahorita...
+[498.18s -> 501.92s] SPEAKER_01:  Por ejemplo, trabajando cosas con la IA.
+[501.94s -> 510.91s] SPEAKER_01: Todas estas memorias ejecutivas las limitamos a la IA y decimos, bueno, tenemos un edificio de tantas cosas, háganme con esta memoria que tengo.
+[510.93s -> 521.33s] SPEAKER_01: O sea, si la IA sí es, si en ese caso nos sirve como para hacer memoria, alimentarla con especificaciones técnicas, ese tipo de cosas nos ahorra tiempo.
+[521.35s -> 524.59s] SPEAKER_00: Y en comparación, ¿cuál es tu tiempo?
+[524.75s -> 527.33s] SPEAKER_01: El tema arquitectónico es un poco difícil.
+[528.76s -> 535.26s] SPEAKER_01:  decirle a la IA, bueno, a ver, trata de hacer algún diseño, ¿no?
+[536.08s -> 537.44s] SPEAKER_01: Eso sí.
+[537.62s -> 543.56s] SPEAKER_01: Lo que sí vemos también importante o tema que se puede ya mejorar es el tema de los 3D, ¿no?
+[544.96s -> 550.36s] SPEAKER_01: Antes era muy complicado buscar un especialista en 3D, ¿no?
+[551.02s -> 555.97s] SPEAKER_01: Porque implicaba conocimiento, máquinas mucho más potentes, etc.
+[556.42s -> 557.30s] SPEAKER_01: Cosa que ahora como muy
+[558.59s -> 567.00s] SPEAKER_01:  No es un esquema, pero uno puede trabajar en un programa mucho más versátil, como SketchUp, y sacar un cliente rápido de la propuesta que uno quiere.
+[567.08s -> 574.50s] SPEAKER_01: Eso nos ha, digamos, nos ha visto ahorrar tiempo.
+[574.56s -> 579.74s] SPEAKER_01: Otra vez nos demorábamos demasiado, no sé, pues, dos semanas, ¿no?
+[579.80s -> 581.46s] SPEAKER_01: Ahora trabajamos, no sé, dos días.
+[581.58s -> 583.34s] SPEAKER_01: ¿Me entienden?
+[583.40s -> 585.50s] SPEAKER_00: Eso sí es tanto el ahorro de tiempo.
+[587.61s -> 590.31s] SPEAKER_01:  Por el tema del proceso.
+[590.59s -> 600.85s] SPEAKER_01: El proceso de hacer los renders era un proceso largo y implicaba las máquinas mucho más potentes.
+[601.53s -> 612.38s] SPEAKER_01: O sea, mucha memoria, gráficas, etc. Y la máquina de trabajar, en cambio, era hacer los árboles básicos para que sacaran el 3D.
+[613.46s -> 614.22s] SPEAKER_01: Lo trabajaban así.
+[615.29s -> 623.97s] SPEAKER_01:  Pero le damos información a la guía como para que nos salga como esta referencia y la materialidad lo saca más rápido.
+[624.03s -> 625.03s] SPEAKER_01: Es mucho más sencillo.
+[625.05s -> 626.06s] SPEAKER_01: No salga de minutos, ¿no?
+[626.14s -> 627.18s] SPEAKER_01: Y puedo hacer varias.
+[628.40s -> 629.30s] SPEAKER_01: Y lo voy corrigiendo, ¿no?
+[629.62s -> 634.20s] SPEAKER_01: Entonces yo puedo hacer una buena vista en 3D y lo puedo sacar en un día bien trabajado.
+[634.62s -> 635.74s] SPEAKER_01: Lo que hace es demorar más tiempo.
+[636.78s -> 641.51s] SPEAKER_00: Eso sería todo.
+[641.53s -> 642.31s] SPEAKER_01: Como diseño, no.
+[642.35s -> 644.09s] SPEAKER_01: O sea, como asistente de diseño, no lo
+[645.13s -> 654.03s] SPEAKER_01:  no lo utilizo porque, no sé, la verdad no llega al punto de darle un terreno y decir, a ver, quiero que me organices esto, ¿no?
+[655.03s -> 662.34s] SPEAKER_01: Lo hace, pero de manera muy burda, no sé, lo haga más rápido, por la experiencia, no sé, no me sirve.
+[662.36s -> 667.30s] SPEAKER_00: Ok, eso sería todo, muchas gracias.
+[668.99s -> 671.61s] SPEAKER_01: Y aún una pregunta, ¿para qué se estudia esta teoría de creencia?
+[672.92s -> 678.76s] SPEAKER_00:  Ahorita mismo estamos tratando de validar problemas que arquitectos pueden tener porque queremos trabajar en su rodura.
+[678.78s -> 683.06s] SPEAKER_00: Y nada, quería ver qué dolores, en general, cómo era su flujo de trabajo.
+[685.30s -> 689.40s] SPEAKER_01: Bueno, ese es el flujo, más o menos, dependiendo de cada oficina.
+[689.42s -> 692.47s] SPEAKER_01: Cada oficina tiene una diferente forma de trabajar.
+[692.49s -> 692.57s] SPEAKER_01: Sí.
+[692.85s -> 696.41s] SPEAKER_01: Sí, muchas gracias.
+[696.45s -> 699.91s] SPEAKER_00: Cuídense mucho.
+[700.07s -> 700.61s] SPEAKER_01: A usted.

@@ -1,0 +1,103 @@
+[0.63s -> 0.99s] SPEAKER_00:  Buenos días.
+[1.01s -> 1.25s] SPEAKER_00: ¿Hola?
+[2.73s -> 4.71s] SPEAKER_00: Hola, ¿se me escucha?
+[6.05s -> 7.09s] SPEAKER_00: Sí, ahora sí.
+[7.13s -> 7.74s] SPEAKER_00: Ya, genial.
+[8.42s -> 11.72s] SPEAKER_00: Bueno, nada, le comento un poco para empezar con la entrevista.
+[12.48s -> 21.02s] SPEAKER_00: En general lo que queremos es que nos cuente sobre su flujo de trabajo, como que para poder identificar juntos aquellos puntos que aplican más tiempo o esfuerzo de parte suya.
+[22.00s -> 27.29s] SPEAKER_00: Bueno, la primera pregunta que le quería hacer es, ¿es usted un arquitecto activo en este momento?
+[27.45s -> 27.51s] SPEAKER_UNKNOWN: Sí.
+[28.50s -> 32.64s] SPEAKER_01:  Sí, trabajo como asesor independiente en diversas consultorías.
+[33.38s -> 39.75s] SPEAKER_00: ¿Cuántos años de experiencia tiene?
+[39.85s -> 44.63s] SPEAKER_01: O sea, como arquitecto en general, no en su rol actual.
+[44.69s -> 47.55s] SPEAKER_01: Como arquitecto tengo 26 años de experiencia.
+[48.37s -> 54.38s] SPEAKER_00: ¿Ha trabajado alguna vez como inspector de obra?
+[54.40s -> 58.28s] SPEAKER_01: Como inspector de obra no, pero he tenido bajo mi cargo a inspectores de obra.
+[58.72s -> 58.96s] SPEAKER_00:  Ok, ok.
+[58.98s -> 69.40s] SPEAKER_00: ¿En qué rol o roles se ha desempeñado comúnmente o cuál es su rol actual?
+[69.42s -> 84.39s] SPEAKER_01: Bueno, yo tengo una experiencia mixta, tanto en el sector privado, de manera independiente o en empresas inmobiliarias en jefaturas, y también en el sector público, como gerente de desarrollo urbano en
+[85.52s -> 87.40s] SPEAKER_01:  varias municipalidades a través de todos estos años.
+[87.42s -> 87.66s] SPEAKER_01: Ok, ok, ok.
+[87.68s -> 87.92s] SPEAKER_01: Gracias.
+[87.94s -> 100.97s] SPEAKER_00: Luego, en su trabajo actual, ¿tiene algún entregable final o cómo es la dinámica para demostrar cómo que hizo el trabajo?
+[101.01s -> 104.96s] SPEAKER_01: Actualmente yo me desempeño, como te dije, como consultor independiente.
+[104.98s -> 113.98s] SPEAKER_01: Yo trabajo por proyectos por encargos a diferentes órganos privados y públicos en la elaboración de
+[114.79s -> 120.84s] SPEAKER_01:  expedientes técnicos y expedientes de análisis urbano en Lima, ¿no?
+[121.50s -> 123.74s] SPEAKER_01: Esa es ahorita mi actividad actual.
+[125.74s -> 126.86s] SPEAKER_01: Eso me tendría que hacer, ¿no?
+[126.94s -> 127.78s] SPEAKER_00: Ok.
+[128.61s -> 133.81s] SPEAKER_00: ¿Podría describirme en pasos, en unos cinco o seis pasos, qué es exactamente lo que haces?
+[135.54s -> 136.10s] SPEAKER_01:  Sí, claro.
+[136.90s -> 156.68s] SPEAKER_01: Yo a nivel ya sea de un encargo para elaborar un expediente técnico de alguna construcción, un edificio multifamiliar o un encargo comercial, y también en el tema de elaboración de expedientes de renovación urbana, como cambios de zonificaciones o planes específicos, los procesos son similares.
+[156.78s -> 161.40s] SPEAKER_01: O sea, primero se toma contacto con el cliente para recibir el encargo,
+[162.34s -> 175.50s] SPEAKER_01:  Una vez que se recibe el encargo, uno hace una propuesta económica, la propuesta económica es aceptada y con la información base se empieza a elaborar un primer esquema, digamos así, una estructura general.
+[176.07s -> 179.56s] SPEAKER_01: En el caso de una construcción se hace lo que se denomina una cabida.
+[180.52s -> 195.39s] SPEAKER_01:  es una cabida, una cabida es una idea general de cómo se desarrollaría la construcción y especificando los metros cuadrados construidos y vendibles de esa, por ejemplo, un edificio multifamiliar.
+[196.07s -> 200.93s] SPEAKER_01: Una vez que la cabida es aceptada por el cliente, o sea, está de acuerdo a su
+[201.93s -> 230.74s] SPEAKER_01:  expectativas se empieza el desarrollo de un anteproyecto arquitectónico que vendría a ser la parte de la distribución piso por piso y todo lo relacionado a convertir en algo tangible esta idea de proyecto una vez que se tiene el anteproyecto y es aprobado por la persona que hace el encargo este se tramita en las municipalidades para obtener su aprobación
+[232.37s -> 243.25s] SPEAKER_01:  Una vez obtenida la aprobación, ya se hace el desarrollo del proyecto completo que incluye las especialidades de estructuras eléctricas, sanitarias, gas y seguridad.
+[244.70s -> 272.08s] SPEAKER_01:  al igual que con el detallante proyecto se hace el desarrollo y una vez que es aceptado por el cliente ya se empieza a hacer el trámite de la licencia de obra que es el paso previo para la ejecución tangible del proyecto una vez obtenida la licencia ya se entrega los planos de obra junto con la licencia en este caso el ejecutor de obra que podría ser otra empresa postratista
+[273.01s -> 279.87s] SPEAKER_01:  o también en las sociedades que yo tengo, también me dedico al proceso constructivo y para allá la ejecución propia de la hoja.
+[281.10s -> 286.92s] SPEAKER_01: En el caso de los temas de planeamiento urbano, es similar, sino que tiene menos pasos.
+[287.46s -> 295.38s] SPEAKER_01: Igual se hace el contacto con el cliente y una vez que se aprueba, digamos, el esquema preliminar, se empieza la elaboración del plan.
+[296.34s -> 300.79s] SPEAKER_01: Estos planes, ya sea un plan específico o cambio de zonificación, ingresan a la municipalidad
+[301.59s -> 308.37s] SPEAKER_01:  Y hasta la obtención del cambio de sonificación o aprobación del plan específico es que se le da por concluido el encargo.
+[308.81s -> 318.31s] SPEAKER_01: En este caso no hay ejecución de obra porque se están hablando de proyectos a nivel de planeamiento urbano, no conllevan una ejecución física.
+[320.25s -> 326.63s] SPEAKER_00:  Ok, ¿y cuánto tiempo total invierte desde el inicio hasta el final para culminar con su entregable?
+[326.75s -> 332.68s] SPEAKER_00: O sea, ¿no tiene que contar los tiempos de espera, por ejemplo, el tiempo de espera en que la municipalidad le da una respuesta?
+[332.96s -> 335.48s] SPEAKER_00: Eso no, solamente como que horas netas de su trabajo.
+[335.60s -> 336.90s] SPEAKER_01: Ah, ya.
+[336.92s -> 349.61s] SPEAKER_01: Ya, solamente el trabajo propio de nosotros, más o menos, desde la etapa de inicio del que es el, digamos, la aceptación y la obtención de los documentos base para el desarrollo, toma alrededor de
+[350.87s -> 357.75s] SPEAKER_01:  En el caso de que son construcciones, toma alrededor de tres meses para la elaboración de un anteproyecto.
+[358.39s -> 363.45s] SPEAKER_01: Luego podemos agregarle unos dos meses adicionales para la elaboración de las especialidades.
+[363.94s -> 369.66s] SPEAKER_01: Es decir, nos tomará cinco meses en la elaboración de un proyecto hasta la obtención de su licencia.
+[370.42s -> 374.70s] SPEAKER_01: En el caso de los temas de planeamiento urbano, el tiempo es menor.
+[375.38s -> 379.06s] SPEAKER_01: Aproximadamente es de un mes a un mes y medio para la elaboración de los planes.
+[380.08s -> 384.36s] SPEAKER_01:  Claro, en ambos casos, excluyendo los tiempos de trámite municipal.
+[384.38s -> 394.35s] SPEAKER_00: Vale, pero ya de esos cinco meses, digamos, obviamente no trabajan las ocho horas al día, ¿cuántas horas le dedican al día para culminar en cinco meses?
+[396.43s -> 404.39s] SPEAKER_01: Nosotros tenemos jornadas laborales, bueno, manejamos varios proyectos, pero en un promedio...
+[405.75s -> 407.83s] SPEAKER_01:  En un promedio diría que son unas seis horas diarias.
+[408.11s -> 408.85s] SPEAKER_00: Seis horas diarias.
+[408.91s -> 410.27s] SPEAKER_00: Me dice que son un equipo, ¿no?
+[410.31s -> 417.16s] SPEAKER_00: Entonces, ¿cuántas personas más o menos necesitan en promedio para culminar un proyecto de cinco meses con seis horas diarias?
+[417.88s -> 427.32s] SPEAKER_01: En este caso soy yo y mi asistente en la parte gráfica y tenemos otra persona encargada de lo que son las tramitologías.
+[427.58s -> 428.48s] SPEAKER_00: Ok.
+[429.56s -> 434.85s] SPEAKER_00: Y personalmente, o sea, de su rol como de usted, ¿cuál es la parte más mecánica de su trabajo?
+[436.65s -> 441.82s] SPEAKER_01:  La elaboración, la parte gráfica, o sea, como arquitectos nosotros elaboramos planos, ¿no?
+[441.86s -> 444.84s] SPEAKER_01: Entonces esa es la parte más mecánica, la elaboración de planos.
+[444.88s -> 452.01s] SPEAKER_00: ¿Es como que la parte que a usted le resulta más fácil o sí?
+[452.03s -> 459.22s] SPEAKER_01: Bueno, lo que pasa es que no lleva mucho, o sea, si bien todo trabajo lleva un desarrollo, una atención al trabajo,
+[459.92s -> 464.25s] SPEAKER_01:  al proceso, digamos que la pasé menos pensante, ¿no?
+[464.27s -> 470.33s] SPEAKER_01: La parte preliminar de concepción del proyecto, la idea del proyecto es de lo más complicado, digamos así, ¿no?
+[470.35s -> 470.43s] SPEAKER_01: Ok.
+[470.45s -> 475.55s] SPEAKER_00: ¿Cuál es la parte que le conlleva más tiempo?
+[478.03s -> 479.31s] SPEAKER_01: La elaboración, la parte mecánica.
+[479.37s -> 479.45s] SPEAKER_01: Ok.
+[482.62s -> 495.03s] SPEAKER_00:  José, antes de lo que hace ahorita, o sea, su proceso actual, ¿ha tenido, digamos, algún cambio en su metodología que le ha llevado a que se demore menos?
+[496.11s -> 505.86s] SPEAKER_01: Bueno, lo que pasa es que dentro, obviamente, del desarrollo de un proyecto arquitectónico siempre van a haber contratiempos, ¿no?
+[506.58s -> 512.06s] SPEAKER_01: En el sentido de ajustes de acuerdo al requerimiento del cliente.
+[513.06s -> 516.30s] SPEAKER_01:  Pero que haya conllevado, no, más que todo es la práctica.
+[516.32s -> 524.23s] SPEAKER_01: O sea, una vez que, por ejemplo, los asistentes están más acostumbrados a la manera como yo trabajo, los procesos son más rápidos.
+[524.97s -> 534.51s] SPEAKER_01: Pienso que en cualquier equipo, cuando todos están sincronizados y entienden cómo se trabaja, es más rápido las cosas.
+[534.53s -> 539.08s] SPEAKER_00: ¿Qué tecnologías usan?
+[540.54s -> 552.24s] SPEAKER_01:  Bueno, nosotros el AutoCAD, el 3D, el Adobe 3D, el SketchUp, que son programas gráficos, sobre todo, para la elaboración de los proyectos.
+[552.90s -> 565.67s] SPEAKER_00: Ok, y en el uso de esos programas, ¿usted nota alguna dificultad o algo que digamos podría, tal vez una herramienta que desearía que exista y no existe en esos programas que le ahorraría tiempo?
+[568.13s -> 572.95s] SPEAKER_01:  No, yo pienso que los programas, nosotros nos dedicamos a los programas.
+[573.01s -> 578.03s] SPEAKER_01: Obviamente todo va a depender sobre todo de la potencia de los equipos, ¿no?
+[578.05s -> 578.81s] SPEAKER_01: Del hardware, ¿no?
+[579.25s -> 591.36s] SPEAKER_01: Que sean equipos con mucha memoria, con una buena tarjeta gráfica, porque todo lo que es generar planos conlleva, y cuanto más complejos son los proyectos, conlleva una mayor demanda de esas características.
+[591.44s -> 591.50s] SPEAKER_01: Ok.
+[591.52s -> 592.50s] SPEAKER_00: Eso sería todo por la entrevista.
+[592.60s -> 595.78s] SPEAKER_00: Muchas gracias.
+[597.05s -> 597.77s] SPEAKER_01:  Ya, igual, igual.
+[597.86s -> 601.94s] SPEAKER_01: Juanfita, quería hacer una consulta, ¿cómo así llegaste a mí, a mi contacto?
+[602.26s -> 616.78s] SPEAKER_00: Ah, una colega suya, una colega suya de la municipalidad creo me dijo, que me pasó su contacto, y el de unos dos más arquitectos, sí.
+[619.18s -> 620.85s] SPEAKER_01: Ah, ya, ya, listo.
+[620.87s -> 621.37s] SPEAKER_00: ¿Quién era mi colega?
+[621.39s -> 621.63s] SPEAKER_00: Vicky.
+[621.69s -> 622.01s] SPEAKER_01: Ah, ya, ya.
+[622.03s -> 622.21s] SPEAKER_01: Gracias.
+[622.23s -> 623.75s] SPEAKER_01: Que tengas un buen día, que te sirva la información.
+[624.29s -> 624.95s] SPEAKER_00: Sí, muchas gracias.
+[625.91s -> 626.41s] SPEAKER_01: Ya, hasta luego.
+[626.77s -> 627.08s] SPEAKER_00:  Saludos.

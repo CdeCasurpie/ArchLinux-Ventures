@@ -21,21 +21,29 @@ Problemas rigurosamente definidos con sus respectivos cuellos de botella algorí
 - [[Redaccion Mecanica de Actas (Inspectores y Delegados)]]
 
 ### 3. Perfiles de Usuario (Actores)
-Cada perfil tiene supuestos, hechos validados y sus respectivos flujos.
-- [[Estudiante de Arquitectura]]
-- [[Arquitecto Proyectista]]
-- [[Inspector ITSE]]
-- [[Inspector Municipal de Obra (IMU)]]
-- [[Delegado CAP]]
-- [[Perito Tecnico]]
+Cada perfil tiene supuestos, hechos validados, estadísticas de dolores y Customer Journey Map.
+- [[Estudiante de Arquitectura]] · Journey: ⏳ Pendiente
+- [[Arquitecto Proyectista]] · [[Journey - Arquitecto Proyectista]]
+- [[Inspector ITSE]] · Journey: ⏳ Pendiente
+- [[Inspector Municipal de Obra (IMO)]] · [[Journey - Inspector IMO y Supervisor]]
+- [[Delegado CAP]] · [[Journey - Delegado CAP]]
+- [[Perito Tecnico]] · [[Journey - Perito Tecnico]]
 
 ### 4. Guías de Entrevistas y Validación
-Documentación, scoring y el flujo principal (Mom Test) para recopilar datos sin sesgar al usuario.
+- [[Inventario de Validacion]] — Hub central (journeys, entrevistas, guías, estado)
+- [[Analisis Estrategico - Microproblemas y Monetizacion]]
 - [[Matriz de Priorizacion de Problemas]]
-- [[Flujo Adaptativo de Entrevista]]
+- [[Sintesis Cruzada - Batch Entrevistas]]
 - [[Plantilla Base de Entrevista (The Mom Test)]]
 - [[Guia de Entrevista - Estudiantes]]
 - [[Guia de Entrevista - ITSE e IMU]]
+- [[Guia de Entrevista - Delegados CAP y Peritos]]
 - [[Guia de Entrevista - Proyectistas]]
 - [[Entrevista - Vicky Rosales]] (Insights de campo reales)
 - [[Entrevista - Cesar Andres Perales]] (Flujo de Proyectista y Control de Versiones)
+- [[Entrevista - Miguel Luna]] (Proyectista senior, adopción IA en memorias)
+- [[Entrevista - Israel]] (Inspector eficiente — outlier de 1h por informe)
+- [[Entrevista - Flores]] (Supervisora de calidad + metrados)
+- [[Entrevista - Laura Rojas]] (Supervisora, usa Report and Run)
+- [[Entrevista - Daniel Nuñez]] (Consultor senior, expedientes urbanos)
+- [[Sintesis Cruzada - Batch Entrevistas]] (Consolidado de hallazgos Marzo 2026)

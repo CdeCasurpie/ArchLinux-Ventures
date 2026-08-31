@@ -1,0 +1,21 @@
+[0.32s -> 11.26s] SPEAKER_00:  Bueno, me ha dicho que en sus trabajos de inspector de obra, él es una persona muy eficiente y en un entregable, él demora cuatro horas, considerando que tres horas de visita.
+[11.72s -> 13.42s] SPEAKER_00: O sea, él en una hora es el informe.
+[14.06s -> 21.38s] SPEAKER_00: Y hace muy pocas observaciones, bueno, toma muy pocas fotos, dice que solamente un cinco, no, me dijo...
+[22.34s -> 24.18s] SPEAKER_00:  La mitad de las que toma, las usa.
+[24.91s -> 32.15s] SPEAKER_00: Pero no es una cuestión de que se equivoque en la observación, sino una cuestión de que toma tal vez muchos ángulos y luego elige el que más le guste.
+[33.47s -> 37.55s] SPEAKER_00: Al momento de organizar las fotos, dice que le es muy fácil.
+[38.63s -> 39.19s] SPEAKER_00: Lo comenta.
+[39.25s -> 42.08s] SPEAKER_00: También me mencionó algo sobre un formato.
+[42.10s -> 47.84s] SPEAKER_00: Dice que cuando va a la obra, él tiene que llegar a un formato proporcionado por el Ministerio de Vivienda.
+[48.96s -> 53.28s] SPEAKER_00:  Y nada, simplemente a veces lo imprime y luego se pone a llenar, a redactar.
+[53.30s -> 57.68s] SPEAKER_00: Y también tiene como que checksitos de hacer cosas que cumplió o que no cumplió.
+[59.98s -> 64.22s] SPEAKER_00: ¿Qué más me dijo?
+[64.26s -> 66.97s] SPEAKER_00: Luego también le pregunté como que en general, en todos sus roles.
+[68.28s -> 72.92s] SPEAKER_00:  También es proyectista y me dijo dos cosas más.
+[73.00s -> 74.94s] SPEAKER_00: Su mayor dolor es el tema de gestión.
+[75.34s -> 78.90s] SPEAKER_00: Odia coordinar horarios con ingenieros o con muchos especialistas.
+[80.18s -> 83.97s] SPEAKER_00: Porque no tienen tiempo, no coinciden, algunos lo hacen.
+[84.00s -> 86.03s] SPEAKER_00: O sea, es para el rol de proyectista.
+[86.05s -> 88.09s] SPEAKER_00: Algunos equipos son virtuales, otros presenciales.
+[88.73s -> 89.97s] SPEAKER_00: Para él es un dolor de cabeza.
+[93.45s -> 94.05s] SPEAKER_00: Nada más eso.

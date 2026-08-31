@@ -10,4 +10,4 @@ Para que esta startup funcione, debemos validar que los siguientes supuestos sea
 3. **Supuesto de Adopción:** Los profesionales peruanos y latinoamericanos están dispuestos a cambiar parte de su flujo de trabajo si la herramienta les asegura un ahorro de tiempo sustancial.
 
 ## 3. Estado de Validación
-- **Estado Actual:** 🟡 En exploración. Tenemos evidencia cualitativa inicial (investigación documental e informal), pero faltan métricas duras obtenidas a través de entrevistas profundas estructuradas. Ver [[Plantilla Base de Entrevista (The Mom Test)]].
+- **Estado Actual:** 🟡 En validación activa. 7 entrevistas documentadas (Vicky, César, Miguel Luna, Israel, Flores, Laura Rojas, Daniel Nuñez). P6 y P1 validados fuertemente en ICP (inspectores/delegados sin herramientas). El dolor **no es uniforme**: supervisores con apps (Report and Run) reportan 3h; inspectores eficientes 1h; proyectistas senior no sienten el dolor. Ver [[Sintesis Cruzada - Batch Entrevistas]].
