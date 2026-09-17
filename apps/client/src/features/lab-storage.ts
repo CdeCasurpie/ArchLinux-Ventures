@@ -138,3 +138,31 @@ export async function clearLabData(photos: LabPhoto[], clips: AudioClip[]) {
   ])
   await Promise.all([Preferences.remove({ key: PHOTO_KEY }), Preferences.remove({ key: AUDIO_KEY })])
 }
+
+const GROUP_KEY = 'archforms-lab-groups-v1'
+
+export type CaptureGroup = {
+  id: string
+  visitaId: string
+  photos: LabPhoto[]
+  audio: AudioClip
+  createdAt: string
+}
+
+export async function loadCaptureGroups(visitaId: string): Promise<CaptureGroup[]> {
+  const rows = await readIndex<CaptureGroup>(GROUP_KEY)
+  return rows.filter(g => g.visitaId === visitaId)
+}
+
+export async function saveCaptureGroup(visitaId: string, photos: LabPhoto[], audio: AudioClip): Promise<CaptureGroup> {
+  const id = crypto.randomUUID()
+  const group: CaptureGroup = {
+    id,
+    visitaId,
+    photos,
+    audio,
+    createdAt: new Date().toISOString()
+  }
+  await writeIndex(GROUP_KEY, [...await readIndex<CaptureGroup>(GROUP_KEY), group])
+  return group
+}
