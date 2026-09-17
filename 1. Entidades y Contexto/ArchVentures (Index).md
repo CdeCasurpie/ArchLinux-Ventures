@@ -11,6 +11,7 @@ Aquí alojamos nuestra tesis, visión e iteraciones presentadas a aceleradoras.
 - [[Esquema BD - Demo Informes de Visita]] — DBML relacional para dbdiagram.io
 - [[Diseno BD Simplificado - Informes de Visita]] — jerarquía, responsabilidades y mapeo completo del flujo
 - [[Plan Tecnico - ArchForms Funcional]] — arquitectura, tecnologías, rutas, sincronización y plan de implementación sin mocks
+- [[Estado del Proyecto y Roadmap MVP ArchForms]] — estado actual, decisiones congeladas, arquitectura modular e iteraciones hasta piloto/MVP vendible
 - [[Analisis de Formatos Reales de Informes]] — revisión de muestras de Vicky y César
 - [[Postulacion RLE Emprendimiento]]
 - [[Postulacion Pre-IncUVa w2026]]

@@ -125,4 +125,4 @@ Debe probar la fricción, no resolver todavía IA normativa, colaboración multi
 - `3. Perfiles de Usuario/Journey Maps/Journey - Inspector IMO y Supervisor.md`
 - `2. Problemas/Redaccion Mecanica de Actas (Inspectores y Delegados).md`
 
-No se encontraron dentro del repositorio los dos informes de ejemplo mencionados en la conversación. Cuando se añadan, hay que contrastar sus campos exactos, su paginación y si el área de firmas se repite por página antes de congelar el esquema de plantilla/renderizado.
+Los informes de ejemplo se revisaron desde `~/Descargas/informesmami` y `~/Descargas/informespapi`; sus hallazgos y el contraste de campos están consolidados en [[Analisis de Formatos Reales de Informes]]. Los binarios fuente no se copiaron al repositorio.

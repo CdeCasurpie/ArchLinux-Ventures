@@ -1,4 +1,4 @@
-# ArchForms Android Lab — Iteración 0
+# ArchForms Android Lab — Iteración 0.2
 
 Laboratorio funcional para validar en un teléfono Android real los riesgos de ArchForms antes de construir el producto completo.
 
@@ -6,7 +6,7 @@ Laboratorio funcional para validar en un teléfono Android real los riesgos de A
 
 | Capacidad | Estado |
 |---|---|
-| Cámara real | Implementada con `@capacitor/camera` |
+| Cámara real | Visor embebido con `@capacitor-community/camera-preview` |
 | Fotos en almacenamiento privado | Implementada con `@capacitor/filesystem` |
 | Descriptores locales binarios + matching geométrico | Implementados en el dispositivo |
 | Grabación real | Plugin Android propio: PCM/WAV mono, 16 kHz |
@@ -15,7 +15,7 @@ Laboratorio funcional para validar en un teléfono Android real los riesgos de A
 | Recuperación tras cerrar la app | Implementada con archivos + `@capacitor/preferences` |
 | `whisper.cpp` nativo | Siguiente hito; no se simula transcripción |
 
-La grabación inicial permite comprobar permisos y persistencia. El hito Whisper añadirá captura PCM nativa para alimentar el modelo local.
+La grabación nativa comprueba permisos y persistencia y ya produce PCM/WAV a 16 kHz para alimentar el futuro modelo local.
 
 ## Preparar el teléfono
 
