@@ -7,6 +7,9 @@ Bienvenido al sistema Zettelkasten de ArchVentures, diseñado para ser riguroso,
 ### 1. Entidades, Postulaciones y Contexto Core
 Aquí alojamos nuestra tesis, visión e iteraciones presentadas a aceleradoras.
 - [[Hipotesis y Vision]]
+- [[Contexto Demo de Informes de Visita]] — flujo, alcance y decisiones del MVP de informes
+- [[Esquema BD - Demo Informes de Visita]] — DBML relacional para dbdiagram.io
+- [[Analisis de Formatos Reales de Informes]] — revisión de muestras de Vicky y César
 - [[Postulacion RLE Emprendimiento]]
 - [[Postulacion Pre-IncUVa w2026]]
 - [[UTEC Ventures]]
