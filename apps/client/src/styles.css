@@ -32,10 +32,10 @@ button:disabled{cursor:not-allowed;opacity:.55}
 }
 
 /* Camera Hole Punching */
-body.camera-active {
+html.camera-active, body.camera-active {
   background: transparent !important;
 }
-body.camera-active #root,
+html.camera-active body, html.camera-active #root,
 body.camera-active .app-shell,
 body.camera-active .app-area,
 body.camera-active .main-content,

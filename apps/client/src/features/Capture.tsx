@@ -5,6 +5,18 @@ import { extractLocalFeatures } from './local-features';
 import { savePhoto, saveNativeAudio, loadPhotos, loadAudioClips, type LabPhoto, type AudioClip } from './lab-storage';
 import type { Visita } from '@archforms/domain';
 
+const MicIcon = () => (
+  <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
+    <path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3zm5-3c0 2.76-2.24 5-5 5s-5-2.24-5-5H5c0 3.53 2.61 6.43 6 6.92V21h2v-3.08c3.39-.49 6-3.39 6-6.92h-2z"/>
+  </svg>
+);
+
+const StopIcon = () => (
+  <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
+    <path d="M6 6h12v12H6z"/>
+  </svg>
+);
+
 export function VisitCapture({ visita }: { visita: Visita }) {
   const [photos, setPhotos] = useState<LabPhoto[]>([]);
   const [clips, setClips] = useState<AudioClip[]>([]);
@@ -19,6 +31,7 @@ export function VisitCapture({ visita }: { visita: Visita }) {
     loadAudioClips().then(setClips);
     return () => {
       document.body.classList.remove('camera-active');
+      document.documentElement.classList.remove('camera-active');
       CameraPreview.stop().catch(() => {});
     };
   }, []);
@@ -34,6 +47,7 @@ export function VisitCapture({ visita }: { visita: Visita }) {
   useEffect(() => {
     if (!cameraOn) return;
     document.body.classList.add('camera-active');
+    document.documentElement.classList.add('camera-active');
 
     const synchronizeCamera = () => {
       requestAnimationFrame(() => {
@@ -50,6 +64,7 @@ export function VisitCapture({ visita }: { visita: Visita }) {
     window.addEventListener('resize', synchronizeCamera, { passive: true });
     return () => {
       document.body.classList.remove('camera-active');
+      document.documentElement.classList.remove('camera-active');
       window.removeEventListener('scroll', synchronizeCamera);
       window.removeEventListener('resize', synchronizeCamera);
     };
@@ -67,6 +82,7 @@ export function VisitCapture({ visita }: { visita: Visita }) {
     await CameraPreview.stop(); 
     setCameraOn(false); 
     document.body.classList.remove('camera-active');
+    document.documentElement.classList.remove('camera-active');
   };
   
   const takePhoto = async () => {
@@ -128,7 +144,9 @@ export function VisitCapture({ visita }: { visita: Visita }) {
         {/* Grabación de Audio */}
         <div className="audio-section" style={{ marginBottom: 25 }}>
           <button className={`btn ${recorderState === 'recording' ? 'btn-danger' : 'btn-secondary'}`} style={{ width: '100%', minHeight: 65, fontSize: 16, display: 'flex', alignItems: 'center', justifyItems: 'center', gap: 12, justifyContent: 'center', borderRadius: 16, background: recorderState === 'recording' ? '' : 'white' }} onClick={recorderState === 'recording' ? stopRecording : startRecording} disabled={recorderState === 'saving'}>
-            <span style={{ fontSize: 24 }}>🎤</span> 
+            <span style={{ display: 'flex', opacity: 0.8 }}>
+              {recorderState === 'recording' ? <StopIcon /> : <MicIcon />}
+            </span>
             {recorderState === 'recording' ? `Detener (${formatDuration(elapsed)})` : recorderState === 'saving' ? 'Guardando...' : 'Grabar audio'}
           </button>
         </div>
