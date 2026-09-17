@@ -1,6 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
 import { CameraPreview } from '@capacitor-community/camera-preview';
-import { Capacitor } from '@capacitor/core';
 import { ArchFormsAudio } from './native-audio';
 import { extractLocalFeatures } from './local-features';
 import { savePhoto, saveNativeAudio, loadPhotos, loadAudioClips, type LabPhoto, type AudioClip } from './lab-storage';
@@ -10,6 +9,7 @@ export function VisitCapture({ visita }: { visita: Visita }) {
   const [photos, setPhotos] = useState<LabPhoto[]>([]);
   const [clips, setClips] = useState<AudioClip[]>([]);
   const [cameraOn, setCameraOn] = useState(false);
+  const [flash, setFlash] = useState(false);
   const [recorderState, setRecorderState] = useState<'idle'|'recording'|'saving'>('idle');
   const [elapsed, setElapsed] = useState(0);
   const viewportRef = useRef<HTMLDivElement>(null);
@@ -17,6 +17,10 @@ export function VisitCapture({ visita }: { visita: Visita }) {
   useEffect(() => {
     loadPhotos().then(setPhotos);
     loadAudioClips().then(setClips);
+    return () => {
+      document.body.classList.remove('camera-active');
+      CameraPreview.stop().catch(() => {});
+    };
   }, []);
 
   useEffect(() => {
@@ -29,6 +33,8 @@ export function VisitCapture({ visita }: { visita: Visita }) {
 
   useEffect(() => {
     if (!cameraOn) return;
+    document.body.classList.add('camera-active');
+
     const synchronizeCamera = () => {
       requestAnimationFrame(() => {
         const rect = viewportRef.current?.getBoundingClientRect();
@@ -43,6 +49,7 @@ export function VisitCapture({ visita }: { visita: Visita }) {
     window.addEventListener('scroll', synchronizeCamera, { passive: true });
     window.addEventListener('resize', synchronizeCamera, { passive: true });
     return () => {
+      document.body.classList.remove('camera-active');
       window.removeEventListener('scroll', synchronizeCamera);
       window.removeEventListener('resize', synchronizeCamera);
     };
@@ -52,19 +59,27 @@ export function VisitCapture({ visita }: { visita: Visita }) {
     try {
       const rect = viewportRef.current?.getBoundingClientRect();
       if (!rect) throw new Error('No se encontró el visor.');
-      await CameraPreview.start({ position: 'rear', x: Math.round(rect.x), y: Math.round(rect.y), width: Math.round(rect.width), height: Math.round(rect.height), toBack: false, storeToFile: false, enableZoom: true, lockAndroidOrientation: true });
+      await CameraPreview.start({ position: 'rear', x: Math.round(rect.x), y: Math.round(rect.y), width: Math.round(rect.width), height: Math.round(rect.height), toBack: true, storeToFile: false, enableZoom: true, lockAndroidOrientation: true });
       setCameraOn(true);
     } catch (caught) { console.error(caught); }
   };
-  const stopCamera = async () => { await CameraPreview.stop(); setCameraOn(false); };
+  const stopCamera = async () => { 
+    await CameraPreview.stop(); 
+    setCameraOn(false); 
+    document.body.classList.remove('camera-active');
+  };
   
   const takePhoto = async () => {
     try {
+      setFlash(true);
+      setTimeout(() => setFlash(false), 150);
+      
       const result = await CameraPreview.capture({ quality: 88 });
       const displayUrl = `data:image/jpeg;base64,${result.value}`;
       const features = await extractLocalFeatures(displayUrl);
       const saved = await savePhoto({ base64: result.value, mimeType: 'image/jpeg', features });
-      setPhotos(current => [...current, saved]);
+      
+      setPhotos(current => [saved, ...current]);
     } catch (caught) { console.error(caught); }
   };
 
@@ -77,7 +92,7 @@ export function VisitCapture({ visita }: { visita: Visita }) {
     setRecorderState('saving');
     try { 
       const saved = await saveNativeAudio(await ArchFormsAudio.stopRecording()); 
-      setClips(current => [...current, saved]); 
+      setClips(current => [saved, ...current]); 
     }
     catch (caught) { console.error(caught); }
     finally { setElapsed(0); setRecorderState('idle'); }
@@ -89,53 +104,59 @@ export function VisitCapture({ visita }: { visita: Visita }) {
   };
 
   return (
-    <article className="card checklist-card capture-card">
-      <p className="eyebrow">Evidencias de visita</p>
-      <h2>Cámara y Audio</h2>
-      <p>Captura fotografías y dicta tus comentarios. Todo se guarda offline.</p>
+    <article className="capture-layout" style={{ margin: '-18px', paddingBottom: '40px', display: 'flex', flexDirection: 'column' }}>
       
-      <div className="camera-section">
-        <div className="actions">
-          <button className="btn btn-secondary" onClick={cameraOn ? stopCamera : startCamera}>
+      {/* Viewport Fijo */}
+      <div style={{ position: 'sticky', top: '70px', zIndex: 10, background: cameraOn ? 'transparent' : '#f2f5f9', padding: '15px' }}>
+        <div ref={viewportRef} className={`camera-viewport ${cameraOn ? 'live' : ''}`} style={{ width: '100%', height: '50vh', background: cameraOn ? 'transparent' : '#e7eef4', display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative', borderRadius: '16px', overflow: 'hidden', boxShadow: cameraOn ? 'none' : 'inset 0 2px 10px rgba(0,0,0,.05)' }}>
+          {!cameraOn && <span style={{color: '#81909d', fontWeight: 800, textTransform: 'uppercase', fontSize: 11, letterSpacing: 1}}>Visor apagado</span>}
+          {flash && <div style={{ position: 'absolute', inset: 0, border: '6px solid white', background: 'rgba(255,255,255,0.6)', zIndex: 100, transition: '0.1s' }}></div>}
+        </div>
+      </div>
+
+      <div style={{ padding: '20px 15px', background: '#f2f5f9', flex: 1, zIndex: 11, position: 'relative' }}>
+        {/* Botones */}
+        <div className="actions" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 25 }}>
+          <button className="btn btn-secondary" style={{ padding: '16px 0', fontSize: 13, background: 'white' }} onClick={cameraOn ? stopCamera : startCamera}>
             {cameraOn ? 'Apagar cámara' : 'Encender cámara'}
           </button>
-          <button className="btn btn-primary" onClick={takePhoto} disabled={!cameraOn}>
+          <button className="btn btn-primary" style={{ padding: '16px 0', fontSize: 13 }} onClick={takePhoto} disabled={!cameraOn}>
             Tomar foto
           </button>
         </div>
-        <div ref={viewportRef} className={`camera-viewport ${cameraOn ? 'live' : ''}`} style={{ width: '100%', aspectRatio: '16/10', background: cameraOn ? 'transparent' : '#e7eef4', borderRadius: 12, marginTop: 16, display: 'grid', placeItems: 'center' }}>
-          {!cameraOn && <span style={{color: '#81909d'}}>Visor apagado</span>}
+
+        {/* Grabación de Audio */}
+        <div className="audio-section" style={{ marginBottom: 25 }}>
+          <button className={`btn ${recorderState === 'recording' ? 'btn-danger' : 'btn-secondary'}`} style={{ width: '100%', minHeight: 65, fontSize: 16, display: 'flex', alignItems: 'center', justifyItems: 'center', gap: 12, justifyContent: 'center', borderRadius: 16, background: recorderState === 'recording' ? '' : 'white' }} onClick={recorderState === 'recording' ? stopRecording : startRecording} disabled={recorderState === 'saving'}>
+            <span style={{ fontSize: 24 }}>🎤</span> 
+            {recorderState === 'recording' ? `Detener (${formatDuration(elapsed)})` : recorderState === 'saving' ? 'Guardando...' : 'Grabar audio'}
+          </button>
         </div>
+
+        {/* Fotos (nuevas arriba) */}
+        {photos.length > 0 && (
+          <div className="photos-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 25 }}>
+            {photos.map((photo, index) => (
+              <div key={photo.id} style={{ borderRadius: 12, overflow: 'hidden', background: 'white', border: '1px solid var(--line)', animation: 'pop 0.3s ease both' }}>
+                <img src={photo.displayUrl} alt="Foto" style={{ width: '100%', aspectRatio: '1', objectFit: 'cover', display: 'block' }} />
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* Audios */}
+        {clips.length > 0 && (
+          <div className="audio-list" style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+            {clips.map((clip, index) => (
+              <div key={clip.id} style={{ padding: 12, borderRadius: 12, background: 'white', border: '1px solid var(--line)', animation: 'pop 0.3s ease both' }}>
+                <div style={{ marginBottom: 8, fontSize: 12, fontWeight: 'bold' }}>Audio ({formatDuration(clip.durationMs)})</div>
+                <audio controls src={clip.displayUrl} style={{ width: '100%', height: 32 }} />
+              </div>
+            ))}
+          </div>
+        )}
+
       </div>
-
-      {photos.length > 0 && (
-        <div className="photos-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginTop: 16 }}>
-          {photos.map((photo, index) => (
-            <div key={photo.id} style={{ borderRadius: 8, overflow: 'hidden', background: '#f2f5f8' }}>
-              <img src={photo.displayUrl} alt={`Foto ${index + 1}`} style={{ width: '100%', aspectRatio: '4/3', objectFit: 'cover' }} />
-              <div style={{ padding: 8, fontSize: 10 }}>Foto {index + 1}</div>
-            </div>
-          ))}
-        </div>
-      )}
-
-      <div className="audio-section" style={{ marginTop: 32, borderTop: '1px solid var(--line)', paddingTop: 16 }}>
-        <h3>Grabación de comentarios</h3>
-        <button className={`btn ${recorderState === 'recording' ? 'btn-danger' : 'btn-secondary'}`} onClick={recorderState === 'recording' ? stopRecording : startRecording} disabled={recorderState === 'saving'}>
-          {recorderState === 'recording' ? `Detener (${formatDuration(elapsed)})` : recorderState === 'saving' ? 'Guardando...' : 'Grabar audio'}
-        </button>
-      </div>
-
-      {clips.length > 0 && (
-        <div className="audio-list" style={{ marginTop: 16, display: 'flex', flexDirection: 'column', gap: 10 }}>
-          {clips.map((clip, index) => (
-            <div key={clip.id} style={{ padding: 12, borderRadius: 8, background: '#f8fafc', border: '1px solid var(--line)' }}>
-              <div style={{ marginBottom: 8, fontSize: 12, fontWeight: 'bold' }}>Audio {index + 1} ({formatDuration(clip.durationMs)})</div>
-              <audio controls src={clip.displayUrl} style={{ width: '100%', height: 32 }} />
-            </div>
-          ))}
-        </div>
-      )}
     </article>
   );
 }

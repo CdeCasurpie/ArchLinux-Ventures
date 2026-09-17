@@ -30,3 +30,25 @@ button:disabled{cursor:not-allowed;opacity:.55}
  .template-card { padding: 18px; }
  .visit-tabs { top: 12px; }
 }
+
+/* Camera Hole Punching */
+body.camera-active {
+  background: transparent !important;
+}
+body.camera-active #root,
+body.camera-active .app-shell,
+body.camera-active .app-area,
+body.camera-active .main-content,
+body.camera-active .page-enter,
+body.camera-active .checklist-card {
+  background: transparent !important;
+}
+
+/* Make sure the header and other elements remain solid if we scroll */
+body.camera-active .topbar,
+body.camera-active .visit-header { background: #f2f5f9 !important; }
+
+body.camera-active .visit-tabs,
+body.camera-active .mobile-nav {
+  background: white !important;
+}
