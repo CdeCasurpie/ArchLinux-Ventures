@@ -10,6 +10,7 @@
     "supabase": "supabase",
     "dev": "npm run dev -w @archforms/client",
     "build": "npm run build -w @archforms/client",
+    "deploy:android": "JAVA_HOME=/usr/lib/jvm/java-21-temurin ANDROID_HOME=$HOME/Android/Sdk PATH=/usr/lib/jvm/java-21-temurin/bin:$HOME/Android/Sdk/platform-tools:$PATH npm run android:build -w @archforms/client && adb install -r apps/client/android/app/build/outputs/apk/debug/app-debug.apk && adb shell am force-stop com.archventures.archforms && adb shell monkey -p com.archventures.archforms -c android.intent.category.LAUNCHER 1",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:e2e": "playwright test",
