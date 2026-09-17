@@ -1,8 +1,8 @@
 # Estado del proyecto y roadmap MVP — ArchForms
 
 **Actualizado:** 2026-09-17  
-**Estado actual:** Iteración 0.2 terminada técnicamente; falta prueba manual final del visor sincronizado y del audio prolongado.  
-**Próxima iteración:** Iteración 1 — cimientos de producto, Supabase y primer corte vertical.
+**Estado actual:** Iteración 1 terminada y desplegada en Supabase; APK de validación instalada en el Android objetivo.
+**Próxima iteración:** Iteración 2 — expedientes, checklist configurable y creación de visitas.
 
 Este documento es la referencia operativa para continuar el desarrollo. Resume qué se decidió, qué ya existe, qué no debe rediseñarse sin evidencia nueva y cómo convertir el laboratorio actual en un MVP vendible y ampliable para un piloto con dos arquitectos.
 
@@ -220,6 +220,8 @@ Objetivo: iniciar sesión y sincronizar una entidad real de extremo a extremo.
 
 Salida: un usuario inicia sesión, crea un dato local y lo sincroniza; otro usuario no puede leerlo.
 
+**Estado: terminada el 2026-09-17.** La evidencia técnica y las decisiones de implementación están en [[Iteracion 1 - Cimientos ArchForms]].
+
 ### Iteración 2 — expedientes, checklist y visitas
 
 Objetivo: completar el núcleo administrativo antes de entrar a obra.
@@ -343,16 +345,7 @@ Una historia está terminada cuando:
 
 ## 8. Próximo paso exacto
 
-Antes de programar la Iteración 1, el propietario del proyecto debe:
-
-1. crear o terminar de aprovisionar el proyecto Supabase;
-2. habilitar Auth por email/password;
-3. conservar localmente la contraseña de base de datos;
-4. obtener el `project_ref`;
-5. ejecutar `supabase login` personalmente;
-6. confirmar si para la demo se desactiva temporalmente la verificación de correo.
-
-Después se implementará Iteración 1 sobre el esquema congelado, empezando con migraciones, Auth/RLS y un corte mínimo de sincronización.
+Iniciar la Iteración 2 con un corte vertical pequeño: listar expedientes del usuario, crear uno offline con una copia independiente del checklist, sincronizarlo y comprobar que aparece en otro cliente. Después se añadirá edición del esquema y creación de visitas. El esquema congelado no cambia.
 
 ## 9. Fuentes de contexto relacionadas
 
@@ -361,4 +354,3 @@ Después se implementará Iteración 1 sobre el esquema congelado, empezando con
 - [[Diseno BD Simplificado - Informes de Visita]]
 - [[Plan Tecnico - ArchForms Funcional]]
 - `spikes/archforms-android-lab/README.md`
-

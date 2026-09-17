@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">ArchForms</string>
+    <string name="title_activity_main">ArchForms</string>
+    <string name="package_name">com.archventures.archforms</string>
+    <string name="custom_url_scheme">com.archventures.archforms</string>
+</resources>

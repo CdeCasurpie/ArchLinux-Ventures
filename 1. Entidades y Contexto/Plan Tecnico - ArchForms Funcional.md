@@ -148,18 +148,13 @@ Cambiar una plantilla del catálogo no altera expedientes existentes. Personaliz
 
 ### Ajustes mínimos para una aplicación funcional
 
-Estos cambios no representan nuevas entidades del negocio; son infraestructura:
+La implementación inicial conserva exactamente las nueve tablas del DBML congelado. No añade entidades remotas especulativas para operaciones, cambios, exportaciones o trabajos PDF.
 
 1. `Profesional.id` referencia `auth.users.id` y usa el mismo UUID.
-2. Las tablas sincronizables reciben:
-   - `version bigint not null default 1` para concurrencia optimista.
-   - `updated_at timestamptz not null` asignado por servidor.
-   - `deleted_at timestamptz null` para propagar eliminaciones sin borrarlas antes de sincronizar.
-3. `Archivo` recibe un estado de subida detallado: `LOCAL`, `EN_COLA`, `SUBIENDO`, `SINCRONIZADO`, `ERROR` y su intento/error más reciente.
-4. Se añade `Operacion_Procesada`, infraestructura de idempotencia para que repetir un `push` no duplique datos.
-5. Se añade `Cambio_Sync`, un log pequeño con secuencia creciente para implementar `pull?cursor=` correctamente, incluidas eliminaciones.
-6. Se añade `Exportacion_Informe` para conservar cada PDF emitido, su versión de documento, checksum y fecha. `Visita.pdf_archivo_id` puede seguir apuntando al último.
-7. Opcionalmente se añade `Trabajo_PDF` si la generación se procesa de forma asíncrona; puede unificarse con `Exportacion_Informe.estado` en la primera versión.
+2. Los constraints, índices, triggers, permisos y políticas RLS se incorporan en migraciones sin alterar el modelo conceptual.
+3. La idempotencia de la primera iteración usa UUID estables y `upsert`; la cola outbox es exclusivamente local.
+4. `Visita.documento_json` conserva el documento editable y `Visita.pdf_archivo_id` apunta al PDF vigente.
+5. Una tabla nueva solo se evaluará después del piloto si existe evidencia de que las nueve tablas no pueden representar un requisito real.
 
 ### Tablas exclusivas del dispositivo
 

@@ -1,0 +1,41 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "lib": [
+      "ES2022",
+      "DOM",
+      "DOM.Iterable"
+    ],
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "jsx": "react-jsx",
+    "strict": true,
+    "skipLibCheck": true,
+    "noEmit": true,
+    "allowImportingTsExtensions": true,
+    "types": [
+      "vite/client",
+      "node"
+    ],
+    "paths": {
+      "@archforms/domain": [
+        "./packages/domain/src/index.ts"
+      ],
+      "@archforms/application": [
+        "./packages/application/src/index.ts"
+      ],
+      "@archforms/data-local": [
+        "./packages/data-local/src/index.ts"
+      ],
+      "@archforms/data-supabase": [
+        "./packages/data-supabase/src/index.ts"
+      ]
+    }
+  },
+  "include": [
+    "apps/client/src",
+    "packages",
+    "tests",
+    "*.config.ts"
+  ]
+}

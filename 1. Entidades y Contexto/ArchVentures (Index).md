@@ -12,6 +12,7 @@ Aquí alojamos nuestra tesis, visión e iteraciones presentadas a aceleradoras.
 - [[Diseno BD Simplificado - Informes de Visita]] — jerarquía, responsabilidades y mapeo completo del flujo
 - [[Plan Tecnico - ArchForms Funcional]] — arquitectura, tecnologías, rutas, sincronización y plan de implementación sin mocks
 - [[Estado del Proyecto y Roadmap MVP ArchForms]] — estado actual, decisiones congeladas, arquitectura modular e iteraciones hasta piloto/MVP vendible
+- [[Iteracion 1 - Cimientos ArchForms]] — implementación, pruebas y estado desplegado del primer corte funcional
 - [[Analisis de Formatos Reales de Informes]] — revisión de muestras de Vicky y César
 - [[Postulacion RLE Emprendimiento]]
 - [[Postulacion Pre-IncUVa w2026]]

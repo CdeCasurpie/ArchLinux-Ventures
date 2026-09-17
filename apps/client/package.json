@@ -1,0 +1,22 @@
+{
+  "name": "@archforms/client",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite --host 0.0.0.0",
+    "build": "vite build",
+    "preview": "vite preview --host 0.0.0.0",
+    "cap:sync": "npm run build && cap sync android",
+    "android:build": "npm run cap:sync && cd android && ./gradlew assembleDebug"
+  },
+  "dependencies": {
+    "@capacitor/android": "^8.5.2",
+    "@capacitor/core": "^8.5.2",
+    "@capacitor-community/sqlite": "^8.1.1",
+    "@archforms/domain": "*",
+    "@archforms/application": "*",
+    "@archforms/contracts": "*",
+    "@archforms/data-local": "*",
+    "@archforms/data-supabase": "*"
+  }
+}
