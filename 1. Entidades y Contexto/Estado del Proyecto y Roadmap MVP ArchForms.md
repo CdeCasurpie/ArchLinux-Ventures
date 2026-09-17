@@ -256,6 +256,12 @@ Objetivo: permitir una inspección real en el celular.
 
 Salida: completar una visita real en modo avión sin perder información.
 
+**Estado: terminada parcialmente el 2026-09-17.** (Falta integrar Whisper local, pero el flujo UI/UX de captura y persistencia en disco está completo).
+Se implementó en `lab-storage.ts` la lógica de transacciones: los `CaptureGroup` (Hallazgos). 
+En `Capture.tsx` la cámara (`CameraPreview` de Capacitor con `toBack: true`) perfora el DOM con CSS avanzado (box-shadow) para integrarse orgánicamente con bordes redondeados y resolver el fondo negro. 
+La grabación de audio genera un grupo y resetea las fotos, permitiendo el trabajo sin fricción.
+La pestaña 3 (`Summary.tsx`) lista los Hallazgos cronológicamente con sus fotos y notas de voz.
+
 ### Iteración 4 — sincronización y medios robustos
 
 Objetivo: trasladar de forma fiable una visita del celular a la nube y al escritorio.
