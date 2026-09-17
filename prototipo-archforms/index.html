@@ -1,0 +1,89 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#01437a">
+  <title>ArchForms · Prototipo</title>
+  <link rel="icon" href="assets/archforms-mark.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div class="prototype-ribbon">Prototipo navegable · datos de ejemplo</div>
+
+  <div class="app-shell">
+    <aside class="sidebar" aria-label="Navegación principal">
+      <a class="brand" href="#" data-view="dashboard" aria-label="ArchForms, ir al inicio">
+        <img src="assets/archforms-mark.png" alt="">
+        <span><strong>ARCH</strong>FORMS</span>
+      </a>
+
+      <nav class="sidebar-nav">
+        <button class="nav-item active" data-view="dashboard">
+          <span class="nav-icon">⌂</span><span>Inicio</span>
+        </button>
+        <button class="nav-item" data-view="expedientes">
+          <span class="nav-icon">▤</span><span>Expedientes</span><span class="nav-count">4</span>
+        </button>
+        <button class="nav-item" data-view="borradores">
+          <span class="nav-icon">◫</span><span>Borradores</span><span class="nav-count lavender">2</span>
+        </button>
+        <button class="nav-item" data-view="plantillas">
+          <span class="nav-icon">✓</span><span>Plantillas</span>
+        </button>
+      </nav>
+
+      <div class="sidebar-spacer"></div>
+      <div class="sync-card">
+        <div class="sync-icon">✓</div>
+        <div><strong>Todo sincronizado</strong><span>Última copia hace 2 min</span></div>
+      </div>
+      <button class="profile-card">
+        <span class="avatar">VR</span>
+        <span class="profile-copy"><strong>Vicky Rosales</strong><small>Arquitecta IMO</small></span>
+        <span>•••</span>
+      </button>
+    </aside>
+
+    <section class="app-area">
+      <header class="topbar">
+        <a class="mobile-brand" href="#" data-view="dashboard">
+          <img src="assets/archforms-mark.png" alt=""><span><strong>ARCH</strong>FORMS</span>
+        </a>
+        <div class="breadcrumbs" id="breadcrumbs"><span>Inicio</span></div>
+        <div class="topbar-actions">
+          <button class="icon-button" aria-label="Buscar">⌕</button>
+          <button class="icon-button notification" aria-label="Notificaciones">♢<i></i></button>
+          <span class="top-avatar">VR</span>
+        </div>
+      </header>
+
+      <main id="app" class="main-content" tabindex="-1"></main>
+    </section>
+  </div>
+
+  <nav class="mobile-nav" aria-label="Navegación móvil">
+    <button class="active" data-view="dashboard"><span>⌂</span>Inicio</button>
+    <button data-view="expedientes"><span>▤</span>Expedientes</button>
+    <button class="mobile-create" data-view="crear-expediente"><span>＋</span></button>
+    <button data-view="borradores"><span>◫</span>Borradores</button>
+    <button data-view="plantillas"><span>✓</span>Plantillas</button>
+  </nav>
+
+  <div class="toast" id="toast" role="status" aria-live="polite">
+    <span class="toast-check">✓</span><span id="toastText">Cambios guardados</span>
+  </div>
+
+  <div class="modal-backdrop" id="modal" aria-hidden="true">
+    <section class="modal-card" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
+      <button class="modal-close" data-close-modal aria-label="Cerrar">×</button>
+      <div id="modalContent"></div>
+    </section>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>

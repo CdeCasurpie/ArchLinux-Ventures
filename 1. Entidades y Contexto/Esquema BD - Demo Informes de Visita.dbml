@@ -1,6 +1,7 @@
-// ArchVentures — Demo de informes de visita
+// ArchVentures — esquema simplificado para la demo/MVP
 // PostgreSQL / dbdiagram.io
-// Profesional es la cuenta arquitecto que usa la plataforma y es dueño de expedientes.
+// Decisión central: la plantilla se copia al expediente (sin FK) y el expediente
+// copia su checklist personalizado a cada visita. Una visita tiene 1 informe editable.
 
 Enum estado_visita {
   BORRADOR
@@ -12,24 +13,21 @@ Enum estado_visita {
 
 Enum estado_grupo_captura {
   ABIERTO
-  TRANSCRIBIENDO
-  LISTO
-  REVISADO
+  GRABANDO
+  PENDIENTE_CONFIRMACION
+  CONFIRMADO
 }
 
-Enum estado_informe {
+Enum estado_documento {
   BORRADOR
-  LISTO_PARA_FIRMAR
-  EMITIDO
-  ARCHIVADO
+  GENERADO
 }
 
 Enum tipo_archivo {
   IMAGEN
   AUDIO
   DOCUMENTO
-  VIDEO
-  EXPORTACION
+  PDF
 }
 
 Enum estado_sincronizacion {
@@ -39,53 +37,91 @@ Enum estado_sincronizacion {
   ERROR
 }
 
-Enum tipo_bloque_informe {
-  CABECERA
-  CHECKLIST
-  GRUPO_MULTIMEDIA
-  CONCLUSIONES
-  ADJUNTO
-  CARTA_REMISION
-  TEXTO
-  FECHA
-  INPUT
-  FIRMAS
-}
-
-Enum tipo_adjunto_visita {
+Enum tipo_adjunto {
   CUADERNO_OBRA
   POLIZA
   PLANO
   ACTA
-  DOCUMENTO_SOPORTE
   OTRO
 }
 
+// Cuenta del arquitecto/inspector que utiliza la plataforma.
 Table Profesional {
   id uuid [pk]
   nombre_completo varchar [not null]
-  email varchar [not null, unique, note: 'Credencial de acceso']
+  email varchar [not null, unique]
   nro_colegiatura varchar
   cargo varchar
-  firma_predeterminada_archivo_id uuid [note: 'Opcional; solo una sugerencia al crear un informe']
+  firma_archivo_id uuid [note: 'Firma predeterminada opcional del usuario']
   activo boolean [not null, default: true]
   created_at timestamp [not null]
   updated_at timestamp [not null]
 }
 
+// Registro único para fotos, audios, firmas, anexos y PDF generado.
+// El mismo UUID se crea localmente para permitir captura sin conexión.
+Table Archivo {
+  id uuid [pk]
+  profesional_id uuid [not null]
+  tipo tipo_archivo [not null]
+  local_uri varchar [note: 'Ruta temporal en el dispositivo mientras trabaja offline']
+  storage_key varchar [unique, note: 'Null hasta que el archivo se sincronice con la nube']
+  nombre_original varchar
+  mime_type varchar [not null]
+  tamanio_bytes bigint
+  checksum_sha256 varchar
+  estado_sincronizacion estado_sincronizacion [not null, default: 'LOCAL']
+  created_at timestamp [not null]
+  sincronizado_at timestamp
+}
+
+// Catálogo de formularios reutilizables. Al elegir una plantilla se copia su JSON
+// al expediente; no queda ninguna relación entre el expediente y esta tabla.
+Table Plantilla_Checklist {
+  id uuid [pk]
+  profesional_id uuid [note: 'Null cuando es una plantilla proporcionada por la plataforma']
+  codigo varchar [not null]
+  nombre varchar [not null]
+  version integer [not null]
+  esquema_json jsonb [not null, note: 'Secciones, checks, inputs, opciones, observaciones y reglas básicas de renderizado']
+  activa boolean [not null, default: true]
+  created_at timestamp [not null]
+
+  indexes {
+    (profesional_id, codigo, version) [unique]
+  }
+}
+
+// Caso/obra persistente. Sus datos alimentan la cabecera de todas sus visitas.
 Table Expediente {
   id uuid [pk]
-  profesional_id uuid [not null, note: 'Dueño: arquitecto/usuario de la plataforma']
+  profesional_id uuid [not null, note: 'Dueño del expediente']
   nro_expediente varchar [not null]
   nro_licencia varchar
+  modalidad varchar
+  entidad_destinataria varchar [note: 'Municipalidad, subgerencia u otra entidad receptora']
+  fecha_emision_licencia date
+  vigencia_desde date
+  vigencia_hasta date
   propietario varchar
   ubicacion varchar [not null]
   distrito varchar
   provincia varchar
   departamento varchar
   tipo_obra varchar
-  poliza_metadata jsonb
-  estado varchar [not null, default: 'ACTIVO']
+  uso_predio varchar
+  detalle_obra text
+  valor_obra decimal
+  total_visitas_programadas integer
+  responsable_obra_nombre varchar [note: 'Valor predeterminado; una visita puede reemplazarlo']
+  responsable_obra_colegiatura varchar
+  poliza_car_json jsonb [note: 'Número, compañía, vigencia y otros datos variables de la póliza CAR']
+  datos_cabecera_extra jsonb [note: 'Campos particulares de una municipalidad o formato']
+
+  checklist_nombre varchar [not null, note: 'Nombre copiado desde el catálogo y editable para este expediente']
+  checklist_esquema_json jsonb [not null, note: 'Copia independiente y personalizable; no enlazada con Plantilla_Checklist']
+
+  activo boolean [not null, default: true]
   created_at timestamp [not null]
   updated_at timestamp [not null]
 
@@ -94,19 +130,42 @@ Table Expediente {
   }
 }
 
+// La visita engloba también su único informe editable.
+// checklist_respuestas_json es la instancia rellenada de la plantilla del expediente.
+// documento_json es el state-tree de bloques estilo Colab.
 Table Visita {
   id uuid [pk]
   expediente_id uuid [not null]
   nro_visita integer [not null]
+  codigo_informe varchar [note: 'Código impreso, p. ej. 6-2026-VERC/MDLM']
   fecha date [not null]
   hora_inicio timestamp
   hora_fin timestamp
+  estado estado_visita [not null, default: 'BORRADOR']
+
+  checklist_nombre varchar [not null, note: 'Copia del nombre configurado en el expediente al crear la visita']
+  checklist_esquema_json jsonb [not null, note: 'Snapshot del esquema personalizado del expediente']
+  checklist_respuestas_json jsonb [not null, note: 'Respuestas compatibles con el esquema copiado en esta visita']
+  checklist_completado boolean [not null, default: false]
+
   avance_general decimal
   nivel_riesgo varchar
-  proxima_visita_fecha date
+  calificacion varchar [note: 'Por ejemplo: CONFORME u OBSERVADO']
+  responsable_obra_nombre varchar [note: 'Override/snapshot si cambió respecto al expediente']
+  responsable_obra_colegiatura varchar
+  fecha_entrega_residente date
   asiento_cuaderno_obra varchar
-  estado estado_visita [not null, default: 'BORRADOR']
-  observaciones_generales text
+  proxima_visita_fecha date
+
+  conclusiones_texto text [note: 'Texto final editable, escrito o corregido después de transcribir']
+  conclusiones_transcripcion text [note: 'Transcripción original del audio de conclusiones']
+  conclusiones_audio_archivo_id uuid
+
+  documento_json jsonb [not null, note: 'Lista ordenada de bloques: cabecera, checklist, grupos, conclusiones, adjuntos y firmas']
+  estado_documento estado_documento [not null, default: 'BORRADOR']
+  pdf_archivo_id uuid [note: 'Último PDF generado; puede regenerarse después de editar']
+  generado_at timestamp
+
   created_at timestamp [not null]
   updated_at timestamp [not null]
 
@@ -115,116 +174,19 @@ Table Visita {
   }
 }
 
-// Personas que cambian o intervienen en una visita (residente, responsable, propietario).
-// Los campos impresos son snapshot para que el informe histórico no cambie.
-Table Visita_Participante {
-  id uuid [pk]
-  visita_id uuid [not null]
-  rol varchar [not null, note: 'INSPECTOR, RESIDENTE, RESPONSABLE_OBRA, PROPIETARIO u otro rol del formato']
-  nombre_impreso varchar [not null]
-  colegiatura_impresa varchar
-  entidad varchar
-  orden integer [not null]
-  created_at timestamp [not null]
-
-  indexes {
-    (visita_id, orden) [unique]
-  }
-}
-
-// Definición lógica reutilizable de un formulario.
-Table Plantilla_Checklist {
-  id uuid [pk]
-  profesional_id uuid [note: 'Null para plantillas provistas por la plataforma']
-  codigo varchar
-  nombre varchar [not null]
-  descripcion text
-  activa boolean [not null, default: true]
-  created_at timestamp [not null]
-  updated_at timestamp [not null]
-
-  indexes {
-    (profesional_id, codigo) [unique]
-  }
-}
-
-// Una versión nunca se edita después de ser usada; se crea otra fila.
-Table Plantilla_Checklist_Version {
-  id uuid [pk]
-  plantilla_checklist_id uuid [not null]
-  version integer [not null]
-  esquema_json jsonb [not null, note: 'Secciones, campos, tipos, opciones, requeridos y reglas de renderizado']
-  publicada_at timestamp
-  created_at timestamp [not null]
-
-  indexes {
-    (plantilla_checklist_id, version) [unique]
-  }
-}
-
-// Checklist(s) configurados una vez al crear el expediente.
-// Normalmente habrá uno; soporta varios sin obligar a rediseñar después.
-Table Expediente_Checklist {
-  id uuid [pk]
-  expediente_id uuid [not null]
-  plantilla_checklist_version_id uuid [not null]
-  orden integer [not null]
-  obligatorio boolean [not null, default: true]
-  created_at timestamp [not null]
-
-  indexes {
-    (expediente_id, orden) [unique]
-    (expediente_id, plantilla_checklist_version_id) [unique]
-  }
-}
-
-// Instancia creada automáticamente al abrir una visita desde cada Expediente_Checklist.
-Table Visita_Checklist {
-  id uuid [pk]
-  visita_id uuid [not null]
-  expediente_checklist_id uuid [not null]
-  plantilla_checklist_version_id uuid [not null]
-  titulo_snapshot varchar [not null]
-  orden integer [not null]
-  respuestas_json jsonb [not null, note: 'Respuestas por id estable de campo de la versión elegida']
-  estado varchar [not null, default: 'BORRADOR']
-  completado_at timestamp
-  created_at timestamp [not null]
-  updated_at timestamp [not null]
-
-  indexes {
-    (visita_id, orden) [unique]
-    (visita_id, expediente_checklist_id) [unique]
-  }
-}
-
-// Metadatos de todos los binarios; el archivo físico vive en object storage.
-Table Archivo {
-  id uuid [pk]
-  profesional_id uuid [not null, note: 'Propietario para autorización y sincronización']
-  tipo tipo_archivo [not null]
-  storage_key varchar [not null, unique]
-  nombre_original varchar
-  mime_type varchar [not null]
-  tamanio_bytes bigint
-  checksum_sha256 varchar
-  estado_sincronizacion estado_sincronizacion [not null, default: 'PENDIENTE']
-  created_at timestamp [not null]
-  sincronizado_at timestamp
-}
-
-// Un grupo se abre con la primera foto y se cierra al concluir el audio/comentario.
+// El comentario de voz confirma y delimita un grupo de fotos.
 Table Grupo_Captura {
   id uuid [pk]
   visita_id uuid [not null]
   orden integer [not null]
   estado estado_grupo_captura [not null, default: 'ABIERTO']
-  audio_archivo_id uuid [note: 'Audio original; se conserva incluso si se edita la transcripción']
-  transcripcion_parcial text
-  transcripcion_final text
+  audio_archivo_id uuid
+  transcripcion_parcial text [note: 'Texto mostrado mientras se habla']
+  transcripcion_original text [note: 'Resultado final de la transcripción local']
+  comentario_editado text [note: 'Versión corregida por el usuario; no destruye la transcripción original']
   audio_duracion_ms integer
   iniciado_at timestamp [not null]
-  cerrado_at timestamp
+  confirmado_at timestamp
   created_at timestamp [not null]
   updated_at timestamp [not null]
 
@@ -233,91 +195,35 @@ Table Grupo_Captura {
   }
 }
 
+// La foto pertenece siempre a una visita. grupo_captura_id permanece null
+// mientras está en la pila de fotos pendientes y se asigna al confirmar el audio.
 Table Foto {
   id uuid [pk]
-  grupo_captura_id uuid [note: 'Null solo mientras la foto está pendiente de que un audio cree su grupo']
+  visita_id uuid [not null]
+  grupo_captura_id uuid
   archivo_id uuid [not null, unique]
-  orden integer [not null]
-  hash_contenido varchar
-  hash_perceptual varchar [note: 'Sugiere fotos similares dentro del grupo; no elimina automáticamente']
+  orden_captura integer [not null]
+  orden_en_grupo integer
+  hash_perceptual varchar [note: 'Permite sugerir fotos casi iguales dentro del mismo grupo']
   seleccionada_para_informe boolean [not null, default: true]
-  capturada_at timestamp
+  capturada_at timestamp [not null]
   latitud decimal
   longitud decimal
   created_at timestamp [not null]
 
   indexes {
-    (grupo_captura_id, orden) [unique]
+    (visita_id, orden_captura) [unique]
+    (grupo_captura_id, orden_en_grupo) [unique]
   }
 }
 
-// Un único cierre/observación final por visita, escrito o dictado.
-Table Conclusiones_Visita {
-  id uuid [pk]
-  visita_id uuid [not null, unique]
-  texto_directo text
-  audio_archivo_id uuid
-  transcripcion_parcial text
-  transcripcion_final text
-  updated_at timestamp [not null]
-  created_at timestamp [not null]
-}
-
-// Soportes que no son evidencia fotográfica de un hallazgo: cuaderno, póliza, planos, etc.
-Table Adjunto_Visita {
+// Personas que aparecen en el pie de firma. Pueden tener imagen o firmar en papel.
+Table Firmante_Visita {
   id uuid [pk]
   visita_id uuid [not null]
-  archivo_id uuid [not null]
-  tipo tipo_adjunto_visita [not null]
-  titulo varchar [not null]
-  descripcion text
-  orden integer [not null]
-  created_at timestamp [not null]
-
-  indexes {
-    (visita_id, orden) [unique]
-  }
-}
-
-// Se crea como borrador al crear la visita. Sus bloques son el state-tree del editor.
-Table Informe {
-  id uuid [pk]
-  visita_id uuid [not null, unique]
-  estado estado_informe [not null, default: 'BORRADOR']
-  version integer [not null, default: 1]
-  cabecera_snapshot jsonb [not null, note: 'Valores de Expediente + Visita al generar; evita que un cambio posterior altere un informe emitido']
-  creado_at timestamp [not null]
-  updated_at timestamp [not null]
-  emitido_at timestamp
-}
-
-// Los bloques se pueden reordenar o editar. Las FKs opcionales mantienen trazabilidad
-// con la fuente; data_contenido guarda layout, textos y snapshots de renderizado.
-Table Bloque_Informe {
-  id uuid [pk]
-  informe_id uuid [not null]
-  tipo tipo_bloque_informe [not null]
-  orden integer [not null]
-  visita_checklist_id uuid
-  grupo_captura_id uuid
-  conclusiones_visita_id uuid
-  adjunto_visita_id uuid
-  data_contenido jsonb [not null, note: 'Contenido editable y configuración visual; para multimedia incluye foto_ids y orden elegidos']
-  visible boolean [not null, default: true]
-  created_at timestamp [not null]
-  updated_at timestamp [not null]
-
-  indexes {
-    (informe_id, orden) [unique]
-  }
-}
-
-// Firmantes del informe: pueden ser usuarios o terceros y pueden firmar en papel.
-Table Firma_Informe {
-  id uuid [pk]
-  informe_id uuid [not null]
-  profesional_id uuid [note: 'Opcional, si el firmante también usa la plataforma']
-  archivo_firma_id uuid [note: 'Opcional; null deja el espacio para firma física']
+  profesional_id uuid [note: 'Opcional; normalmente el inspector usuario de la plataforma']
+  firma_archivo_id uuid [note: 'Null deja el espacio de firma vacío en el PDF']
+  rol varchar [not null, note: 'INSPECTOR, RESIDENTE, RESPONSABLE_OBRA u otro']
   nombre_impreso varchar [not null]
   cargo_impreso varchar
   colegiatura_impresa varchar
@@ -326,48 +232,47 @@ Table Firma_Informe {
   created_at timestamp [not null]
 
   indexes {
-    (informe_id, orden) [unique]
+    (visita_id, orden) [unique]
   }
 }
 
-// Historial de PDF/Word emitidos; no reemplaza el documento editable.
-Table Exportacion_Informe {
+// Documento soporte. Si visita_id es null, pertenece al expediente y puede
+// reutilizarse en varias visitas (p. ej. póliza o planos). Si tiene visita_id,
+// es propio de esa visita (p. ej. foto del cuaderno de obra de ese día).
+Table Adjunto {
   id uuid [pk]
-  informe_id uuid [not null]
-  archivo_id uuid [not null, unique]
-  formato varchar [not null, note: 'PDF o DOCX']
-  version_informe integer [not null]
+  expediente_id uuid [not null]
+  visita_id uuid
+  archivo_id uuid [not null]
+  tipo tipo_adjunto [not null]
+  titulo varchar [not null]
+  descripcion text
+  orden integer [not null]
+  incluir_en_informe boolean [not null, default: true]
   created_at timestamp [not null]
 }
 
-Ref: Expediente.profesional_id > Profesional.id
-Ref: Visita.expediente_id > Expediente.id
-Ref: Visita_Participante.visita_id > Visita.id
-Ref: Plantilla_Checklist.profesional_id > Profesional.id
-Ref: Plantilla_Checklist_Version.plantilla_checklist_id > Plantilla_Checklist.id
-Ref: Expediente_Checklist.expediente_id > Expediente.id
-Ref: Expediente_Checklist.plantilla_checklist_version_id > Plantilla_Checklist_Version.id
-Ref: Visita_Checklist.visita_id > Visita.id
-Ref: Visita_Checklist.expediente_checklist_id > Expediente_Checklist.id
-Ref: Visita_Checklist.plantilla_checklist_version_id > Plantilla_Checklist_Version.id
+Ref: Profesional.firma_archivo_id > Archivo.id
 Ref: Archivo.profesional_id > Profesional.id
-Ref: Profesional.firma_predeterminada_archivo_id > Archivo.id
+
+Ref: Plantilla_Checklist.profesional_id > Profesional.id
+Ref: Expediente.profesional_id > Profesional.id
+
+Ref: Visita.expediente_id > Expediente.id
+Ref: Visita.conclusiones_audio_archivo_id > Archivo.id
+Ref: Visita.pdf_archivo_id > Archivo.id
+
 Ref: Grupo_Captura.visita_id > Visita.id
 Ref: Grupo_Captura.audio_archivo_id > Archivo.id
+
+Ref: Foto.visita_id > Visita.id
 Ref: Foto.grupo_captura_id > Grupo_Captura.id
 Ref: Foto.archivo_id > Archivo.id
-Ref: Conclusiones_Visita.visita_id > Visita.id
-Ref: Conclusiones_Visita.audio_archivo_id > Archivo.id
-Ref: Adjunto_Visita.visita_id > Visita.id
-Ref: Adjunto_Visita.archivo_id > Archivo.id
-Ref: Informe.visita_id > Visita.id
-Ref: Bloque_Informe.informe_id > Informe.id
-Ref: Bloque_Informe.visita_checklist_id > Visita_Checklist.id
-Ref: Bloque_Informe.grupo_captura_id > Grupo_Captura.id
-Ref: Bloque_Informe.conclusiones_visita_id > Conclusiones_Visita.id
-Ref: Bloque_Informe.adjunto_visita_id > Adjunto_Visita.id
-Ref: Firma_Informe.informe_id > Informe.id
-Ref: Firma_Informe.profesional_id > Profesional.id
-Ref: Firma_Informe.archivo_firma_id > Archivo.id
-Ref: Exportacion_Informe.informe_id > Informe.id
-Ref: Exportacion_Informe.archivo_id > Archivo.id
+
+Ref: Firmante_Visita.visita_id > Visita.id
+Ref: Firmante_Visita.profesional_id > Profesional.id
+Ref: Firmante_Visita.firma_archivo_id > Archivo.id
+
+Ref: Adjunto.expediente_id > Expediente.id
+Ref: Adjunto.visita_id > Visita.id
+Ref: Adjunto.archivo_id > Archivo.id

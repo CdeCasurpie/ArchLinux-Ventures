@@ -38,7 +38,7 @@ flowchart TD
 
 El arquitecto crea o abre un **expediente**. Contiene los datos de cabecera que se repiten en todos sus informes de visita: número de expediente/licencia, propietario, ubicación, tipo de obra y demás datos estables.
 
-Al crearlo, escoge del catálogo una o más **plantillas de checklist**. Esta selección pertenece al expediente, no a una visita: normalmente habrá un checklist base, con pequeñas variaciones entre expedientes, pero se conservará entre todas las visitas del mismo expediente. Cada visita recibe automáticamente una instancia vacía de los checklist asignados, usando la versión vigente al momento de crearla.
+Al crearlo, escoge una **plantilla de checklist** del catálogo. La aplicación copia su nombre y esquema JSON dentro del expediente y no conserva un enlace con la plantilla original. El arquitecto puede agregar, quitar o modificar campos para ese expediente sin afectar el catálogo ni otros expedientes. Al crear una visita, se vuelve a copiar el esquema que el expediente tenga en ese momento, junto con una instancia vacía de respuestas.
 
 ### 1. Crear e iniciar una visita
 
@@ -54,7 +54,7 @@ La app abre inicialmente la sección 1 por conveniencia, pero no bloquea tomar f
 
 ### 2. Sección checklist
 
-El profesional llena el formulario básico (checks, observaciones y datos propios de la visita). Puede dejarlo parcialmente completado, cambiar a cámara y regresar después. Las respuestas quedan en la instancia `Visita_Checklist`; no modifican la plantilla ni los valores de otras visitas.
+El profesional llena el formulario básico (checks, observaciones y datos propios de la visita). Puede dejarlo parcialmente completado, cambiar a cámara y regresar después. Las respuestas quedan en `Visita.checklist_respuestas_json`; no modifican la plantilla ni los valores de otras visitas.
 
 ### 3. Sección cámara y transcriptor
 
@@ -95,22 +95,22 @@ El editor de gabinete se parece a un Colab: bloques ordenables/editables de cabe
 | Expediente | Caso/obra persistente con datos repetidos de cabecera | Una plantilla ni un informe |
 | Visita | Una inspección fechada dentro del expediente | El expediente completo |
 | Plantilla de checklist | Definición versionada de un formulario | El checklist llenado |
-| Expediente_Checklist | Asignación del checklist base a un expediente | El checklist llenado de una visita |
-| Visita_Checklist | Instancia rellenable que una visita hereda de `Expediente_Checklist` | Una plantilla reutilizable |
+| Checklist del expediente | Copia JSON independiente y editable guardada en `Expediente.checklist_esquema_json` | Una referencia viva al catálogo |
+| Respuestas del checklist | JSONB dentro de `Visita`, creado vacío desde la plantilla del expediente | Una plantilla reutilizable |
 | Grupo de captura | Fotos tomadas antes de un comentario de voz; el audio delimita el grupo | El bloque visual del informe, aunque puede originarlo |
 | Conclusiones de visita | Texto y/o audio final propios de una visita | Un comentario de un grupo de fotos |
 | Adjunto de visita | Cuaderno de obra, póliza, plano u otro documento soporte | Una foto de hallazgo dentro de un grupo |
-| Informe | Documento editable generado desde una visita | El expediente ni el checklist |
-| Bloque de informe | Unidad ordenable/renderizable del informe (cabecera, checklist, grupo multimedia, firma, etc.) | La fuente de verdad de fotos, audio o respuestas |
+| Informe | Documento editable 1:1 guardado dentro de `Visita.documento_json` | Una entidad adicional separada de la visita |
+| Bloque de informe | Elemento del state-tree JSON (cabecera, checklist, grupo, conclusión, adjunto o firmas) | La fuente de verdad de fotos, audio o respuestas |
 
 ## Decisiones de modelo
 
-- Las plantillas y sus versiones son inmutables una vez usadas. Al crear una visita, el sistema crea los `Visita_Checklist` desde las asignaciones `Expediente_Checklist` y guarda la versión exacta; una edición posterior de una plantilla no cambia visitas ni informes históricos.
-- La respuesta del checklist se mantiene en JSONB porque sus campos son dinámicos. La estructura y validaciones viven en `Plantilla_Checklist_Version.esquema_json`.
+- `Plantilla_Checklist` funciona solo como catálogo. Al seleccionarla, el expediente duplica el JSON y queda completamente desconectado; puede personalizarlo libremente.
+- Cada visita copia `Expediente.checklist_esquema_json` a `Visita.checklist_esquema_json`. Sus respuestas viven en `Visita.checklist_respuestas_json`, por lo que una modificación posterior del expediente no altera visitas existentes.
 - `Archivo` centraliza metadatos de almacenamiento. Fotos, audios y firmas no deben depender solo de una URL; se requiere clave de storage, MIME, tamaño, hash y estado de sincronización para soportar el modo offline.
 - Durante captura, una foto puede estar pendiente y sin grupo. Al confirmar el comentario, todas las fotos pendientes pasan al grupo creado por ese audio. Si quedan fotos pendientes al finalizar, la UI debe pedir que se les grabe un comentario o que se confirme explícitamente un grupo sin comentario; no debe perderlas.
 - `Foto.hash_perceptual` se usa solamente para sugerir duplicados/similitud. `hash_contenido` sirve para detectar el mismo archivo.
-- El informe nace junto con la visita como borrador editable y guarda bloques propios/snapshots de cabecera. Por ello se puede editar sin alterar el expediente o la evidencia original, y conservar la versión que se exportó.
+- El informe nace junto con la visita como `documento_json`. Guarda la lista ordenada de bloques y snapshots/overrides editables sin requerir tablas `Informe` y `Bloque_Informe` para una relación que siempre es 1:1.
 - Una firma es una persona que debe aparecer en el informe, no necesariamente una cuenta. Puede tener imagen de firma o quedar sin imagen para imprimir y firmar a mano. Se pueden registrar 2, 3 o más firmantes.
 
 ## Alcance de la demo de esta semana

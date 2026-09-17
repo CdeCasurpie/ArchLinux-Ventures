@@ -9,6 +9,7 @@ Aquí alojamos nuestra tesis, visión e iteraciones presentadas a aceleradoras.
 - [[Hipotesis y Vision]]
 - [[Contexto Demo de Informes de Visita]] — flujo, alcance y decisiones del MVP de informes
 - [[Esquema BD - Demo Informes de Visita]] — DBML relacional para dbdiagram.io
+- [[Diseno BD Simplificado - Informes de Visita]] — jerarquía, responsabilidades y mapeo completo del flujo
 - [[Analisis de Formatos Reales de Informes]] — revisión de muestras de Vicky y César
 - [[Postulacion RLE Emprendimiento]]
 - [[Postulacion Pre-IncUVa w2026]]
@@ -50,3 +51,7 @@ Cada perfil tiene supuestos, hechos validados, estadísticas de dolores y Custom
 - [[Entrevista - Laura Rojas]] (Supervisora, usa Report and Run)
 - [[Entrevista - Daniel Nuñez]] (Consultor senior, expedientes urbanos)
 - [[Sintesis Cruzada - Batch Entrevistas]] (Consolidado de hallazgos Marzo 2026)
+
+### 5. Prototipos
+
+- [ArchForms — mock responsive navegable](../../prototipo-archforms/index.html)

@@ -57,12 +57,12 @@ Se revisaron los libros `VISITA 01`, `VISITA 04` y `VISITA 09` del expediente 65
 
 | Necesidad observada | Decisión de producto/modelo |
 |---|---|
-| El mismo expediente mantiene checklist entre visitas | `Expediente_Checklist` asigna la plantilla; cada visita crea su `Visita_Checklist`. |
+| El mismo expediente mantiene checklist entre visitas | El expediente guarda una copia JSON personalizable y cada visita vuelve a copiar el esquema vigente al ser creada. |
 | Los formatos municipales son distintos | La plantilla versionada define secciones/campos/renderizado. No hardcodear G.050 como única forma. |
 | Responsable de obra puede cambiar | Guardar participantes/responsables con snapshot por visita/informe; no depender solo de un campo fijo de expediente. |
 | Observaciones se repiten o se levantan con el tiempo | Conservar texto por visita ahora; una fase posterior puede modelar observaciones rastreables. |
 | Fotos con varias composiciones en una hoja | El bloque de grupo multimedia necesita layout editable; el PDF calcula distribución conservando proporción. |
-| Cuaderno, póliza, planos y otros escaneos | `Adjunto_Visita` + bloque `ADJUNTO`; no mezclarlos con `Foto` de captura. |
+| Cuaderno, póliza, planos y otros escaneos | `Adjunto` puede pertenecer al expediente o a una visita; no se mezcla con `Foto` de captura. |
 | Carta/FUT son documentos de remisión | Tratarlos como paquete de entrega opcional, fuera del núcleo de captura MVP. |
 | Firmas de dos roles por página | Configurar firmantes requeridos por plantilla/formato y repetir el pie en el renderizador. |
 
