@@ -38,6 +38,31 @@ function App() {
     return () => window.clearInterval(timer)
   }, [startedAt])
 
+  useEffect(() => {
+    if (!cameraOn) return
+    let scheduled = false
+    const synchronizeCamera = () => {
+      if (scheduled) return
+      scheduled = true
+      window.requestAnimationFrame(() => {
+        scheduled = false
+        const rect = viewportRef.current?.getBoundingClientRect()
+        if (!rect) return
+        void ArchFormsAudio.updateCameraRect({
+          x: Math.round(rect.x), y: Math.round(rect.y),
+          width: Math.round(rect.width), height: Math.round(rect.height),
+        }).catch(() => undefined)
+      })
+    }
+    synchronizeCamera()
+    window.addEventListener('scroll', synchronizeCamera, { passive: true })
+    window.addEventListener('resize', synchronizeCamera, { passive: true })
+    return () => {
+      window.removeEventListener('scroll', synchronizeCamera)
+      window.removeEventListener('resize', synchronizeCamera)
+    }
+  }, [cameraOn])
+
   const similarPairs = useMemo(() => {
     const result: Array<{ a: number; b: number; score: number; matches: number }> = []
     for (let a = 0; a < photos.length; a += 1) for (let b = a + 1; b < photos.length; b += 1) {

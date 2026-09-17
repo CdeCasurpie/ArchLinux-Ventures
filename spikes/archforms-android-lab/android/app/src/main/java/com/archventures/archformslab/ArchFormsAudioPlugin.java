@@ -5,6 +5,10 @@ import android.media.AudioFormat;
 import android.media.AudioRecord;
 import android.media.MediaRecorder;
 import android.net.Uri;
+import android.util.DisplayMetrics;
+import android.util.TypedValue;
+import android.view.View;
+import android.widget.FrameLayout;
 import com.getcapacitor.JSObject;
 import com.getcapacitor.PermissionState;
 import com.getcapacitor.Plugin;
@@ -104,6 +108,36 @@ public class ArchFormsAudioPlugin extends Plugin {
         File file = new File(Uri.parse(uri).getPath());
         if (file.exists() && !file.delete()) { call.reject("No se pudo eliminar el audio."); return; }
         call.resolve();
+    }
+
+    @PluginMethod
+    public void updateCameraRect(PluginCall call) {
+        Integer x = call.getInt("x");
+        Integer y = call.getInt("y");
+        Integer width = call.getInt("width");
+        Integer height = call.getInt("height");
+        if (x == null || y == null || width == null || height == null) {
+            call.reject("Faltan las dimensiones del visor.");
+            return;
+        }
+        getActivity().runOnUiThread(() -> {
+            View cameraContainer = getActivity().findViewById(20);
+            int frameId = getActivity().getResources().getIdentifier("frame_container", "id", getActivity().getPackageName());
+            View cameraFrame = cameraContainer == null ? null : cameraContainer.findViewById(frameId);
+            if (cameraFrame == null) {
+                call.reject("El visor nativo no está activo.");
+                return;
+            }
+            DisplayMetrics metrics = getActivity().getResources().getDisplayMetrics();
+            int pxX = (int) TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, x, metrics);
+            int pxY = (int) TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, y, metrics);
+            int pxWidth = (int) TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, width, metrics);
+            int pxHeight = (int) TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, height, metrics);
+            FrameLayout.LayoutParams params = new FrameLayout.LayoutParams(pxWidth, pxHeight);
+            params.setMargins(pxX, pxY, 0, 0);
+            cameraFrame.setLayoutParams(params);
+            call.resolve();
+        });
     }
 
     private void releaseRecorder() {
