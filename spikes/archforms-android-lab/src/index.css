@@ -1,0 +1,16 @@
+@import url('https://fonts.googleapis.com/css2?family=Google+Sans+Flex:opsz,wght@6..144,400..800&display=swap');
+
+:root {
+  font-family: 'Google Sans Flex', 'Google Sans', Inter, system-ui, sans-serif;
+  color: #18364f;
+  background: radial-gradient(circle at 10% 0%, rgba(17,108,186,.08), transparent 34%), #edf3f8;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+}
+
+* { box-sizing: border-box; }
+html, body, #root { min-width: 320px; min-height: 100%; }
+body { margin: 0; }
+button { font: inherit; }
+code { color: #3f5ba2; }

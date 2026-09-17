@@ -10,6 +10,7 @@ Aquí alojamos nuestra tesis, visión e iteraciones presentadas a aceleradoras.
 - [[Contexto Demo de Informes de Visita]] — flujo, alcance y decisiones del MVP de informes
 - [[Esquema BD - Demo Informes de Visita]] — DBML relacional para dbdiagram.io
 - [[Diseno BD Simplificado - Informes de Visita]] — jerarquía, responsabilidades y mapeo completo del flujo
+- [[Plan Tecnico - ArchForms Funcional]] — arquitectura, tecnologías, rutas, sincronización y plan de implementación sin mocks
 - [[Analisis de Formatos Reales de Informes]] — revisión de muestras de Vicky y César
 - [[Postulacion RLE Emprendimiento]]
 - [[Postulacion Pre-IncUVa w2026]]
