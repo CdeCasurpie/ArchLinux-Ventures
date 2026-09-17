@@ -21,7 +21,7 @@ export function VisitCapture({ visita, onGroupSaved }: { visita: Visita, onGroup
   const [photos, setPhotos] = useState<LabPhoto[]>([]);
   const [cameraOn, setCameraOn] = useState(false);
   const [flash, setFlash] = useState(false);
-  const [recorderState, setRecorderState] = useState<'idle'|'recording'|'saving'>('idle');
+  const [recorderState, setRecorderState] = useState<'idle'|'recording'|'saving'|'saved'>('idle');
   const [elapsed, setElapsed] = useState(0);
   const viewportRef = useRef<HTMLDivElement>(null);
   
@@ -108,9 +108,11 @@ export function VisitCapture({ visita, onGroupSaved }: { visita: Visita, onGroup
       await saveCaptureGroup(visita.id, photos, audioSaved);
       setPhotos([]); // Clear evidence for the next iteration!
       onGroupSaved(); // Tell parent we have a new group (to advance progress or notify)
+      setRecorderState('saved');
+      setTimeout(() => setRecorderState('idle'), 3000);
+      setElapsed(0);
     }
-    catch (caught) { console.error(caught); }
-    finally { setElapsed(0); setRecorderState('idle'); }
+    catch (caught) { console.error(caught); setRecorderState('idle'); setElapsed(0); }
   };
 
   const formatDuration = (ms: number) => {
@@ -145,11 +147,11 @@ export function VisitCapture({ visita, onGroupSaved }: { visita: Visita, onGroup
         </div>
 
         <div className="audio-section" style={{ marginBottom: 25 }}>
-          <button className={`btn ${recorderState === 'recording' ? 'btn-danger' : 'btn-secondary'}`} style={{ width: '100%', minHeight: 65, fontSize: 16, display: 'flex', alignItems: 'center', justifyItems: 'center', gap: 12, justifyContent: 'center', borderRadius: 16, background: recorderState === 'recording' ? '' : 'white' }} onClick={recorderState === 'recording' ? stopRecording : startRecording} disabled={recorderState === 'saving' || (!cameraOn && photos.length === 0 && recorderState === 'idle')}>
+          <button className={`btn ${recorderState === 'recording' ? 'btn-danger' : 'btn-secondary'}`} style={{ width: '100%', minHeight: 65, fontSize: 16, display: 'flex', alignItems: 'center', justifyItems: 'center', gap: 12, justifyContent: 'center', borderRadius: 16, background: recorderState === 'recording' ? '' : 'white' }} onClick={recorderState === 'recording' ? stopRecording : startRecording} disabled={recorderState === 'saving' || recorderState === 'saved' || (!cameraOn && photos.length === 0 && recorderState === 'idle')}>
             <span style={{ display: 'flex', opacity: 0.8 }}>
               {recorderState === 'recording' ? <StopIcon /> : <MicIcon />}
             </span>
-            {recorderState === 'recording' ? `Detener y agrupar (${formatDuration(elapsed)})` : recorderState === 'saving' ? 'Guardando...' : 'Grabar audio y agrupar'}
+            {recorderState === 'recording' ? `Detener y agrupar (${formatDuration(elapsed)})` : recorderState === 'saving' ? 'Guardando...' : recorderState === 'saved' ? '¡Hallazgo guardado!' : 'Grabar audio y agrupar'}
           </button>
           {photos.length === 0 && recorderState === 'idle' && <p style={{ fontSize: 11, textAlign: 'center', marginTop: 10, color: '#81909d' }}>Toma al menos una foto para iniciar un hallazgo.</p>}
         </div>
