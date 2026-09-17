@@ -52,3 +52,12 @@ body.camera-active .visit-tabs,
 body.camera-active .mobile-nav {
   background: white !important;
 }
+
+.visit-header {
+  position: relative;
+  z-index: 50;
+}
+.visit-tabs {
+  position: sticky;
+  z-index: 40;
+}
