@@ -4,11 +4,11 @@ Aplicación offline-first para crear expedientes, registrar visitas de obra y ge
 
 ## Estado
 
-La **Iteración 1 — cimientos** está terminada: autenticación Supabase, esquema SQL versionado, RLS, Storage privado, persistencia local, outbox, sincronización de perfil, PWA y aplicación Android.
+Las **iteraciones 1 y 2** están terminadas: autenticación, backend seguro, persistencia offline, expedientes, checklist configurable por expediente y creación de visitas con snapshots independientes. El diseño funcional utiliza `prototipo-archforms` como fuente visual canónica.
 
 ## Desarrollo
 
-Requisitos: Node.js 22+, Docker, Java 21 y Android SDK para compilar Android.
+Requisitos: Node.js 22+, Docker, Java 21 y Android SDK para compilar Android. En Arch Linux, si Java 26 es el predeterminado, define `JAVA_HOME=/usr/lib/jvm/java-21-temurin` para Gradle.
 
 ```bash
 npm ci

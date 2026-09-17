@@ -1,8 +1,8 @@
 # Estado del proyecto y roadmap MVP — ArchForms
 
 **Actualizado:** 2026-09-17  
-**Estado actual:** Iteración 1 terminada y desplegada en Supabase; APK de validación instalada en el Android objetivo.
-**Próxima iteración:** Iteración 2 — expedientes, checklist configurable y creación de visitas.
+**Estado actual:** Iteración 2 terminada; expedientes, checklist configurable y visitas funcionan offline y sincronizan con Supabase.
+**Próxima iteración:** Iteración 3 — captura de campo completa con cámara, audio y las tres secciones persistentes.
 
 Este documento es la referencia operativa para continuar el desarrollo. Resume qué se decidió, qué ya existe, qué no debe rediseñarse sin evidencia nueva y cómo convertir el laboratorio actual en un MVP vendible y ampliable para un piloto con dos arquitectos.
 
@@ -238,6 +238,8 @@ Objetivo: completar el núcleo administrativo antes de entrar a obra.
 
 Salida: crear expediente y visita sin conexión, sincronizar y verlos desde web.
 
+**Estado: terminada el 2026-09-17.** Implementación y evidencia en [[Iteracion 2 - Expedientes Checklists y Visitas]]. El diseño visual quedó alineado con `prototipo-archforms`, que se considera fuente canónica de interfaz.
+
 ### Iteración 3 — captura de campo completa
 
 Objetivo: permitir una inspección real en el celular.
@@ -345,7 +347,7 @@ Una historia está terminada cuando:
 
 ## 8. Próximo paso exacto
 
-Iniciar la Iteración 2 con un corte vertical pequeño: listar expedientes del usuario, crear uno offline con una copia independiente del checklist, sincronizarlo y comprobar que aparece en otro cliente. Después se añadirá edición del esquema y creación de visitas. El esquema congelado no cambia.
+Iniciar la Iteración 3 integrando el laboratorio nativo detrás de los puertos de captura. El primer corte debe abrir una visita existente, conservar las tres secciones navegables y capturar fotos/audio en modo avión sin perder el checklist ya implementado.
 
 ## 9. Fuentes de contexto relacionadas
 

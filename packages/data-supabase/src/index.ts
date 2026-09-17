@@ -1,6 +1,6 @@
 import { createClient,type SupabaseClient } from '@supabase/supabase-js';
-import { ConflictError,type Profile,type Pending } from '@archforms/domain';
-import type { RemoteRepository } from '@archforms/application';
+import { ConflictError,type Profile,type Pending,type WorkspacePending,type Expediente,type Visita,type ChecklistTemplate } from '@archforms/domain';
+import type { RemoteRepository,WorkspaceRemoteRepository } from '@archforms/application';
 import type {Database} from '@archforms/contracts';
 export {createClient};
 export class SupabaseProfileRepository implements RemoteRepository {
@@ -14,4 +14,13 @@ export class SupabaseProfileRepository implements RemoteRepository {
   if(error?.code==='40001')throw new ConflictError();
   if(error)throw new Error(error.message);return data as Profile;
  }
+}
+export class SupabaseWorkspaceRepository implements WorkspaceRemoteRepository{
+ constructor(private client:SupabaseClient<Database>){}
+ async fetchAll(){
+  const [cases,visits,templates]=await Promise.all([this.client.from('expediente').select('*').order('updated_at',{ascending:false}),this.client.from('visita').select('*').order('fecha',{ascending:false}),this.client.from('plantilla_checklist').select('*').eq('activa',true).order('nombre')]);
+  const error=cases.error??visits.error??templates.error;if(error)throw new Error(error.message);
+  return {expedientes:cases.data as unknown as Expediente[],visitas:visits.data as unknown as Visita[],plantillas:(templates.data??[]).map(row=>({id:row.id,codigo:row.codigo,nombre:row.nombre,version:row.version,esquema:row.esquema_json,profesional_id:row.profesional_id})) as unknown as ChecklistTemplate[]};
+ }
+ async push(operation:WorkspacePending){const {error}=await this.client.from(operation.entity).upsert(operation.record as never);if(error)throw new Error(error.message)}
 }

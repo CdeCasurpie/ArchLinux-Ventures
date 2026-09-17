@@ -24,6 +24,12 @@ describeWithSupabase('RLS por propietario',()=>{
   expect(insertError).toBeNull();
   const {data:foreignRows,error:foreignError}=await b.client.from('expediente').select().eq('id',id);
   expect(foreignError).toBeNull();expect(foreignRows).toEqual([]);
+  const visitId=crypto.randomUUID();
+  const {error:visitError}=await a.client.from('visita').insert({id:visitId,expediente_id:id,nro_visita:1,fecha:'2026-09-17',checklist_nombre:'Base',checklist_esquema_json:{version:1,sections:[]},checklist_respuestas_json:{},documento_json:{version:1,blocks:[]}});
+  expect(visitError).toBeNull();
+  const {data:foreignVisits}=await b.client.from('visita').select().eq('id',visitId);expect(foreignVisits).toEqual([]);
+  const {data:catalog,error:catalogError}=await b.client.from('plantilla_checklist').select('codigo').is('profesional_id',null);
+  expect(catalogError).toBeNull();expect(catalog?.length).toBeGreaterThanOrEqual(3);
   const {error:spoofError}=await b.client.from('expediente').insert({profesional_id:a.user.id,nro_expediente:'SUPLANTADO',ubicacion:'Lima',checklist_nombre:'Base',checklist_esquema_json:{}});
   expect(spoofError).not.toBeNull();
  });

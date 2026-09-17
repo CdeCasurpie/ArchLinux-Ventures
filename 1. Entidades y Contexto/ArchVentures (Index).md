@@ -13,6 +13,7 @@ Aquí alojamos nuestra tesis, visión e iteraciones presentadas a aceleradoras.
 - [[Plan Tecnico - ArchForms Funcional]] — arquitectura, tecnologías, rutas, sincronización y plan de implementación sin mocks
 - [[Estado del Proyecto y Roadmap MVP ArchForms]] — estado actual, decisiones congeladas, arquitectura modular e iteraciones hasta piloto/MVP vendible
 - [[Iteracion 1 - Cimientos ArchForms]] — implementación, pruebas y estado desplegado del primer corte funcional
+- [[Iteracion 2 - Expedientes Checklists y Visitas]] — flujo administrativo offline, snapshots de checklist y alineación visual con el prototipo
 - [[Analisis de Formatos Reales de Informes]] — revisión de muestras de Vicky y César
 - [[Postulacion RLE Emprendimiento]]
 - [[Postulacion Pre-IncUVa w2026]]
