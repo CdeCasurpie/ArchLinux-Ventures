@@ -1,4 +1,4 @@
-@import "../../../prototipo-archforms/styles.css";
+@import "../../../docs/context/prototipo-archforms/styles.css";
 @font-face{font-family:"Google Sans Flex";src:local("Google Sans Flex");font-display:swap}
 
 button,input,select,textarea{font-family:var(--font)}

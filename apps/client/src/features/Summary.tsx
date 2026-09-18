@@ -6,10 +6,14 @@ export function VisitSummary({ visita }: { visita: Visita }) {
   const [groups, setGroups] = useState<CaptureGroup[]>([]);
 
   useEffect(() => {
-    loadCaptureGroups(visita.id).then(g => {
-      // Sort newest first
-      setGroups(g.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()));
-    });
+    const fetchGroups = () => {
+      loadCaptureGroups(visita.id).then(g => {
+        setGroups(g.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()));
+      });
+    };
+    fetchGroups();
+    const interval = setInterval(fetchGroups, 2000);
+    return () => clearInterval(interval);
   }, [visita.id]);
 
   return (
@@ -32,7 +36,17 @@ export function VisitSummary({ visita }: { visita: Visita }) {
               {/* Audio Principal */}
               <div style={{ marginBottom: 16 }}>
                 <p style={{ margin: '0 0 12px 0', fontSize: 14, color: 'var(--navy)', lineHeight: 1.5 }}>
-                  <i style={{ color: '#81909d' }}>[Transcripción automática pendiente. El dictado se procesará para generar la descripción del hallazgo.]</i>
+                  {group.transcripcion ? (
+                    <span>{group.transcripcion}</span>
+                  ) : (
+                    <i style={{ color: '#81909d' }}>
+                      {group.transcripcionStatus === 'downloading_model' && '⏳ Descargando modelo de IA...'}
+                      {group.transcripcionStatus === 'transcribing' && '⏳ Transcribiendo el audio localmente...'}
+                      {group.transcripcionStatus === 'error' && `❌ Error en Whisper: ${group.transcripcionError}`}
+                      {group.transcripcionStatus === 'pending' && '⏳ Transcripción en cola...'}
+                      {!group.transcripcionStatus && '[Transcripción automática pendiente. El dictado se procesará para generar la descripción del hallazgo.]'}
+                    </i>
+                  )}
                 </p>
                 {group.audio && (
                   <div style={{ padding: '8px 12px', background: '#f8fafc', borderRadius: 10, border: '1px solid #e2e8f0' }}>
@@ -70,6 +84,14 @@ export function VisitSummary({ visita }: { visita: Visita }) {
           <h3 style={{ margin: '0 0 12px 0', fontSize: 15, color: 'var(--navy)' }}>Firmantes y Adjuntos</h3>
           <p style={{ margin: 0, fontSize: 14, color: '#81909d' }}>El panel para añadir firmas en pantalla y adjuntar el cuaderno de obra estará disponible en futuras actualizaciones.</p>
         </div>
+      </div>
+
+      {/* DEBUG VIEW */}
+      <div style={{ marginTop: 32, background: '#2d3748', borderRadius: 16, padding: 20 }}>
+        <h3 style={{ margin: '0 0 12px 0', fontSize: 12, color: '#a0aec0', textTransform: 'uppercase' }}>🔧 Debug Base de Datos Local (Lab Storage)</h3>
+        <pre style={{ margin: 0, fontSize: 11, color: '#e2e8f0', overflowX: 'auto', whiteSpace: 'pre-wrap' }}>
+          {JSON.stringify(groups, null, 2)}
+        </pre>
       </div>
     </article>
   );

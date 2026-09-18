@@ -105,10 +105,36 @@ export function VisitCapture({ visita, onGroupSaved }: { visita: Visita, onGroup
     setRecorderState('saving');
     try { 
       const audioSaved = await saveNativeAudio(await ArchFormsAudio.stopRecording()); 
-      await saveCaptureGroup(visita.id, photos, audioSaved);
+      const group = await saveCaptureGroup(visita.id, photos, audioSaved);
       setPhotos([]); // Clear evidence for the next iteration!
       onGroupSaved(); // Tell parent we have a new group (to advance progress or notify)
       setRecorderState('saved');
+      
+      // Attempt to download model and transcribe in background
+      import('./whisper-service').then(({ ensureWhisperModel, transcribeAudio }) => {
+        import('./lab-storage').then(({ updateCaptureGroupTranscription, updateCaptureGroupTranscriptionStatus }) => {
+           updateCaptureGroupTranscriptionStatus(group.id, 'downloading_model');
+           ensureWhisperModel().then(modelPath => {
+             if (modelPath) {
+               updateCaptureGroupTranscriptionStatus(group.id, 'transcribing');
+               transcribeAudio(audioSaved.path, modelPath).then(text => {
+                  if (text) {
+                    updateCaptureGroupTranscription(group.id, text).catch(console.error);
+                  } else {
+                    updateCaptureGroupTranscriptionStatus(group.id, 'error', 'No text returned');
+                  }
+               }).catch(err => {
+                  updateCaptureGroupTranscriptionStatus(group.id, 'error', err.message || String(err));
+               });
+             } else {
+               updateCaptureGroupTranscriptionStatus(group.id, 'error', 'Model path is empty');
+             }
+          }).catch(err => {
+             updateCaptureGroupTranscriptionStatus(group.id, 'error', 'Model DL Error: ' + (err.message || String(err)));
+          });
+        });
+      }).catch(console.error);
+
       setTimeout(() => setRecorderState('idle'), 3000);
       setElapsed(0);
     }

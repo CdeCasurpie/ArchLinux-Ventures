@@ -146,6 +146,9 @@ export type CaptureGroup = {
   visitaId: string
   photos: LabPhoto[]
   audio: AudioClip
+  transcripcion?: string
+  transcripcionStatus?: string
+  transcripcionError?: string
   createdAt: string
 }
 
@@ -161,8 +164,21 @@ export async function saveCaptureGroup(visitaId: string, photos: LabPhoto[], aud
     visitaId,
     photos,
     audio,
+    transcripcionStatus: 'pending',
     createdAt: new Date().toISOString()
   }
   await writeIndex(GROUP_KEY, [...await readIndex<CaptureGroup>(GROUP_KEY), group])
   return group
+}
+
+export async function updateCaptureGroupTranscription(groupId: string, text: string): Promise<void> {
+  const groups = await readIndex<CaptureGroup>(GROUP_KEY)
+  const updated = groups.map(g => g.id === groupId ? { ...g, transcripcion: text, transcripcionStatus: 'done' } : g)
+  await writeIndex(GROUP_KEY, updated)
+}
+
+export async function updateCaptureGroupTranscriptionStatus(groupId: string, status: string, error?: string): Promise<void> {
+  const groups = await readIndex<CaptureGroup>(GROUP_KEY)
+  const updated = groups.map(g => g.id === groupId ? { ...g, transcripcionStatus: status, transcripcionError: error } : g)
+  await writeIndex(GROUP_KEY, updated)
 }
