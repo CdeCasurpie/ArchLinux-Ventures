@@ -18,7 +18,7 @@ export async function ensureWhisperModel(): Promise<string> {
     });
     // Remove file:// prefix for the plugin if needed, though plugin handles it
     return stat.uri.replace('file://', '');
-  } catch (e) {
+  } catch {
     console.log(`Downloading whisper model... (${USE_QUANTIZED ? '31MB' : '75MB'})`);
     const result = await Filesystem.downloadFile({
       url: MODEL_URL,

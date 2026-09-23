@@ -50,3 +50,57 @@ export function assertChecklist(schema:ChecklistSchema){
  }
  return schema;
 }
+
+// ── Capture-media domain types (Iteración 4) ──────────────────────────────────
+export type MediaSyncStatus  = 'pending'|'uploading'|'synced'|'error';
+export type EntitySyncStatus = 'pending'|'syncing'|'synced'|'error';
+
+export interface MediaOutboxItem {
+ id:string;entity_type:'foto'|'audio';entity_id:string;grupo_id:string;visita_id:string;
+ local_path:string;mime_type:string;size_bytes:number;checksum:string;
+ bucket_path:string|null;attempts:number;last_error:string|null;next_retry:string|null;
+ status:MediaSyncStatus;created_at:string;
+}
+
+export interface EntityOutboxItem {
+ id:string;entity_type:'grupo_captura';payload:string;depends_on:string[];
+ attempts:number;last_error:string|null;next_retry:string|null;
+ status:EntitySyncStatus;created_at:string;
+}
+
+// ── Capture pull (nube → local) ─────────────────────────────────────────────
+// Formas remotas mínimas para hidratar un dispositivo que nunca capturó.
+// El merge es por unión: lo solo-local se conserva, lo remoto se espeja.
+export interface RemoteArchivo {
+ id:string;tipo:'IMAGEN'|'AUDIO'|'DOCUMENTO'|'PDF';storage_key:string|null;
+ mime_type:string;tamanio_bytes:number|null;checksum_sha256:string|null;
+}
+export interface RemoteGrupo {
+ id:string;visita_id:string;orden:number;audio_archivo_id:string|null;
+ transcripcion_original:string|null;audio_duracion_ms:number|null;
+ iniciado_at:string;confirmado_at:string|null;
+}
+export interface RemoteFoto {
+ id:string;visita_id:string;grupo_captura_id:string|null;archivo_id:string;
+ orden_en_grupo:number|null;capturada_at:string;
+}
+
+// ── Capture-media domain types (Iteración 4) ──────────────────────────────────
+// El sync usa el modelo aprobado de 9 tablas: cada binario es un `archivo`
+// (storage_key en el bucket `visita-media`), agrupado por `grupo_captura`
+// y referenciado por `foto.archivo_id`. Sin tablas nuevas.
+export interface GrupoCapturaPayload {
+ id:string;visita_id:string;profesional_id:string;
+ iniciado_at:string;confirmado_at:string;
+ transcripcion:string|null;
+ audio:{
+  id:string;local_path:string;remote_path:string|null;
+  mime_type:string;duration_ms:number;size_bytes:number;checksum:string;created_at:string;
+ };
+ fotos:Array<{
+  id:string;archivo_id:string;orden_en_grupo:number;capturada_at:string;
+  local_path:string;remote_path:string|null;
+  mime_type:string;size_bytes:number;checksum:string;
+ }>;
+}
+

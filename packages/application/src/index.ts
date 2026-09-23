@@ -1,4 +1,4 @@
-import { type Profile,type ProfileEdit,type LocalState,type Pending,validateProfile,type WorkspaceState,type WorkspacePending,type Expediente,type Visita,assertChecklist } from '@archforms/domain';
+import { type Profile,type ProfileEdit,type LocalState,type Pending,validateProfile,type WorkspaceState,type WorkspacePending,type Expediente,type Visita,assertChecklist,type MediaOutboxItem,type EntityOutboxItem,type GrupoCapturaPayload,type MediaSyncStatus,type EntitySyncStatus,type RemoteArchivo,type RemoteFoto,type RemoteGrupo } from '@archforms/domain';
 export interface LocalRepository {
  read(owner:string):Promise<LocalState>;
  // Record and outbox are written together in one durable transaction.
@@ -71,3 +71,199 @@ export function buildVisita(expediente:Expediente,number:number,date:string):Vis
  const stamp=now();return {id:crypto.randomUUID(),expediente_id:expediente.id,nro_visita:number,codigo_informe:null,fecha:date,estado:'BORRADOR',checklist_nombre:expediente.checklist_nombre,checklist_esquema_json:structuredClone(expediente.checklist_esquema_json),checklist_respuestas_json:{},checklist_completado:false,documento_json:{version:1,blocks:[]},estado_documento:'BORRADOR',responsable_obra_nombre:expediente.responsable_obra_nombre,responsable_obra_colegiatura:expediente.responsable_obra_colegiatura,created_at:stamp,updated_at:stamp};
 }
 export function workspaceOperation(entity:WorkspacePending['entity'],record:Expediente|Visita):WorkspacePending{return {id:crypto.randomUUID(),entity,record,created_at:now()}}
+
+// ── Media Sync (Iteración 4) ──────────────────────────────────────────────────
+
+/** Exponential backoff with jitter. Returns milliseconds to wait before retry. */
+export function exponentialBackoff(attempt:number):number{
+ const BASE=2_000,CAP=5*60_000,JITTER=1_000;
+ return Math.min(CAP,BASE*Math.pow(2,attempt))+Math.random()*JITTER;
+}
+
+export interface MediaOutboxRepository {
+ pendingMedia(now:string):Promise<MediaOutboxItem[]>;
+ markMediaUploading(id:string):Promise<void>;
+ markMediaSynced(id:string,bucketPath:string):Promise<void>;
+ markMediaError(id:string,error:string,nextRetry:string):Promise<void>;
+ pendingEntities(now:string):Promise<EntityOutboxItem[]>;
+ markEntitySyncing(id:string):Promise<void>;
+ markEntitySynced(id:string):Promise<void>;
+ markEntityError(id:string,error:string,nextRetry:string):Promise<void>;
+ mediaStatus(id:string):Promise<MediaOutboxItem|null>;
+ entityStatus(id:string):Promise<EntityOutboxItem|null>;
+ /** Manual retry: requeues the given media/entity rows skipping backoff. */
+ forceRetry(ids:string[]):Promise<void>;
+ enqueueMedia(item:Omit<MediaOutboxItem,'attempts'|'last_error'|'next_retry'|'status'>):Promise<void>;
+ enqueueEntity(item:Omit<EntityOutboxItem,'attempts'|'last_error'|'next_retry'|'status'>):Promise<void>;
+ collectGarbage(now:string):Promise<string[]>;
+ /** Resets items stuck in transient states (uploading/syncing) after an abrupt close. */
+ resetStuck():Promise<void>;
+}
+
+export interface MediaRemoteRepository {
+ /** Returns existing bucket path if same checksum already uploaded, null otherwise. */
+ checkExists(visitaId:string,mediaId:string,checksum:string):Promise<string|null>;
+ /** Uploads raw bytes (must be < 10 MB) and returns bucket path. */
+ upload(visitaId:string,mediaId:string,data:Uint8Array,mimeType:string):Promise<string>;
+ /** Upserts grupo_captura + fotos + audio_nota in Postgres. */
+ pushGrupo(payload:GrupoCapturaPayload):Promise<void>;
+}
+
+export class MediaSyncEngine {
+ private running:Promise<void>|null=null;
+ private readonly MAX_ITER=200;
+ private readonly MEDIA_BATCH=5;
+
+ constructor(
+  private outbox:MediaOutboxRepository,
+  private remote:MediaRemoteRepository,
+  private readFile:(path:string)=>Promise<Uint8Array>,
+  private listener?:MediaSyncListener,
+  /**
+   * Builds the entity payload from CURRENT local state at push time.
+   * When present it replaces the frozen JSON stored at enqueue time, so late
+   * arrivals (e.g. a transcription finishing after the group was queued) are
+   * included. Must be deterministic across retries (stable row ids).
+   */
+  private resolvePayload?:(entityId:string)=>Promise<GrupoCapturaPayload|null>,
+ ){}
+
+ run():Promise<void>{
+  if(this.running)return this.running;
+  this.running=this.perform().finally(()=>{this.running=null});
+  return this.running;
+ }
+
+ /** True while a sync pass is in flight (used by the debug panel). */
+ active():boolean{return this.running!==null}
+
+ private async perform():Promise<void>{
+  for(let i=0;i<this.MAX_ITER;i++){
+   const ts=new Date().toISOString();
+   const media=await this.outbox.pendingMedia(ts);
+   const entities=await this.outbox.pendingEntities(ts);
+   if(!media.length&&!entities.length)return;
+   // Phase 1: upload binaries in parallel batches
+   if(media.length){
+    await Promise.all(media.slice(0,this.MEDIA_BATCH).map(item=>this.uploadOne(item)));
+    continue; // re-check queue after batch
+   }
+   // Phase 2: push entity records whose media are all synced
+   for(const entity of entities){
+    await this.pushOne(entity);
+   }
+  }
+ }
+
+ private async uploadOne(item:MediaOutboxItem):Promise<void>{
+  await this.outbox.markMediaUploading(item.id);
+  this.listener?.onMedia?.(item,'uploading');
+  try{
+   // Idempotency: skip if same file already in bucket
+   const existing=await this.remote.checkExists(item.visita_id,item.id,item.checksum);
+   if(existing){await this.outbox.markMediaSynced(item.id,existing);this.listener?.onMedia?.(item,'synced');return;}
+   if(item.size_bytes>10_000_000){
+    throw new Error(`Archivo demasiado grande (${item.size_bytes} bytes). Máx 10 MB.`);
+   }
+   const data=await this.readFile(item.local_path);
+   const path=await this.remote.upload(item.visita_id,item.id,data,item.mime_type);
+   await this.outbox.markMediaSynced(item.id,path);
+   this.listener?.onMedia?.(item,'synced');
+  }catch(err){
+   const attempts=item.attempts+1;
+   const wait=exponentialBackoff(attempts);
+   const next=new Date(Date.now()+wait).toISOString();
+   await this.outbox.markMediaError(item.id,err instanceof Error?err.message:String(err),next);
+   this.listener?.onMedia?.(item,'error');
+  }
+ }
+
+ private async pushOne(item:EntityOutboxItem):Promise<void>{
+  await this.outbox.markEntitySyncing(item.id);
+  this.listener?.onEntity?.(item.id,'syncing');
+  try{
+   const raw=this.resolvePayload
+    ? await this.resolvePayload(item.id)
+    : JSON.parse(item.payload) as GrupoCapturaPayload;
+   if(!raw)throw new Error(`Grupo ${item.id} ya no existe localmente.`);
+   // Resolve remote paths from synced media rows (fotos point at archivo ids)
+   for(const foto of raw.fotos){
+    const m=await this.outbox.mediaStatus(foto.archivo_id);
+    foto.remote_path=m?.bucket_path??null;
+   }
+   const audioMedia=await this.outbox.mediaStatus(raw.audio.id);
+   raw.audio.remote_path=audioMedia?.bucket_path??null;
+   await this.remote.pushGrupo(raw);
+   await this.outbox.markEntitySynced(item.id);
+   this.listener?.onEntity?.(item.id,'synced');
+  }catch(err){
+   const attempts=item.attempts+1;
+   const wait=exponentialBackoff(attempts);
+   const next=new Date(Date.now()+wait).toISOString();
+   await this.outbox.markEntityError(item.id,err instanceof Error?err.message:String(err),next);
+   this.listener?.onEntity?.(item.id,'error');
+  }
+ }
+}
+
+/** Domain events emitted by MediaSyncEngine. The client adapts them to its UI store. */
+export interface MediaSyncListener {
+ onMedia?(item:MediaOutboxItem,status:MediaSyncStatus):void;
+ onEntity?(entityId:string,status:EntitySyncStatus|'synced'):void;
+}
+
+// ── Capture pull planner (pure, tested) ───────────────────────────────────────
+// Decides what to mirror from the cloud. Rules:
+// - Remote groups unknown locally → upsert + download their binaries.
+// - Known groups with local pending rows → SKIP (local wins while dirty).
+// - Known clean groups → refresh metadata/transcription, download missing binaries.
+// - Binaries already present locally are never re-downloaded.
+export interface LocalCaptureSnapshot {
+ groupId:string;mediaIds:string[];hasPending:boolean;
+}
+export interface RemoteCaptureState {
+ grupos:RemoteGrupo[];fotos:RemoteFoto[];archivos:RemoteArchivo[];
+}
+export interface PullGroupPlan {
+ grupo:RemoteGrupo;
+ fotos:RemoteFoto[];
+ archivos:RemoteArchivo[];
+}
+export interface CapturePullPlan {
+ upserts:PullGroupPlan[];
+ skippedDirty:string[];
+}
+
+export function planCapturePull(
+ local:LocalCaptureSnapshot[],
+ remote:RemoteCaptureState,
+):CapturePullPlan{
+ const byId=new Map(local.map(l=>[l.groupId,l]));
+ const archivosById=new Map(remote.archivos.map(a=>[a.id,a]));
+ const fotosByGrupo=new Map<string,RemoteFoto[]>();
+ for(const f of remote.fotos){
+  if(!f.grupo_captura_id)continue;
+  const list=fotosByGrupo.get(f.grupo_captura_id)??[];
+  list.push(f);fotosByGrupo.set(f.grupo_captura_id,list);
+ }
+ const upserts:PullGroupPlan[]=[];
+ const skippedDirty:string[]=[];
+ for(const grupo of remote.grupos){
+  const known=byId.get(grupo.id);
+  if(known?.hasPending){skippedDirty.push(grupo.id);continue}
+  const fotos=fotosByGrupo.get(grupo.id)??[];
+  const localMedia=new Set(known?.mediaIds??[]);
+  const audio=grupo.audio_archivo_id?archivosById.get(grupo.audio_archivo_id):undefined;
+  const wanted=[...fotos.map(f=>archivosById.get(f.archivo_id)),audio]
+   .filter((a):a is RemoteArchivo=>!!a&&!!a.storage_key&&!localMedia.has(a.id));
+  upserts.push({grupo,fotos,archivos:wanted});
+ }
+ return {upserts,skippedDirty};
+}
+
+export interface CaptureRemoteReader {
+ /** Reads capture rows for the given visitas (RLS limits to the owner's). */
+ fetchCapture(visitaIds:string[]):Promise<RemoteCaptureState>;
+ /** Downloads raw bytes for a storage_key in `visita-media`. */
+ downloadBytes(storageKey:string):Promise<Uint8Array>;
+}

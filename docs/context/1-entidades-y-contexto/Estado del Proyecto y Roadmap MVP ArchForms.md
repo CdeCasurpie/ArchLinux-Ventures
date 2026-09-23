@@ -1,8 +1,8 @@
 # Estado del proyecto y roadmap MVP — ArchForms
 
-**Actualizado:** 2026-09-17  
-**Estado actual:** Iteración 2 terminada; expedientes, checklist configurable y visitas funcionan offline y sincronizan con Supabase.
-**Próxima iteración:** Iteración 3 — captura de campo completa con cámara, audio y las tres secciones persistentes.
+**Actualizado:** 2026-09-23  
+**Estado actual:** Iteración 4 terminada + pull nube→local operativo; sync de ida y vuelta funciona con outbox, backoff, checksums y merge por unión probados (19 tests). Falta verificación en dispositivo con red inestable.
+**Próxima iteración:** Iteración 5 — editor por bloques e informe PDF. Quedan como subiteraciones futuras: tombstones y política de conflictos, adjuntos/firmantes múltiples y similitud calibrada.
 
 Este documento es la referencia operativa para continuar el desarrollo. Resume qué se decidió, qué ya existe, qué no debe rediseñarse sin evidencia nueva y cómo convertir el laboratorio actual en un MVP vendible y ampliable para un piloto con dos arquitectos.
 
@@ -256,11 +256,12 @@ Objetivo: permitir una inspección real en el celular.
 
 Salida: completar una visita real en modo avión sin perder información.
 
-**Estado: terminada parcialmente el 2026-09-17.** (Falta integrar Whisper local, pero el flujo UI/UX de captura y persistencia en disco está completo).
+**Estado: terminada el 2026-09-17.**
 Se implementó en `lab-storage.ts` la lógica de transacciones: los `CaptureGroup` (Hallazgos). 
 En `Capture.tsx` la cámara (`CameraPreview` de Capacitor con `toBack: true`) perfora el DOM con CSS avanzado (box-shadow) para integrarse orgánicamente con bordes redondeados y resolver el fondo negro. 
 La grabación de audio genera un grupo y resetea las fotos, permitiendo el trabajo sin fricción.
 La pestaña 3 (`Summary.tsx`) lista los Hallazgos cronológicamente con sus fotos y notas de voz.
+Whisper local queda diferido a iteraciones futuras; el audio siempre sobrevive.
 
 ### Iteración 4 — sincronización y medios robustos
 
@@ -276,6 +277,20 @@ Objetivo: trasladar de forma fiable una visita del celular a la nube y al escrit
 - Pruebas con modo avión, cierres e interrupciones de subida.
 
 Salida: visita completa disponible en web sin duplicados después de una red inestable.
+
+**Estado: terminada el 2026-09-23.**
+Motor `MediaSyncEngine` en dos fases (binarios en lote → entidad) con `exponentialBackoff` acotado, gate `depends_on` (la entidad no se pushea hasta que todo su media esté `synced`) y `run()` concurrente como no-op.
+Outbox SQLite (`media_outbox` + `entity_outbox`) con `resetStuck()` para cierres abruptos y GC de 7 días; `Noop` en web.
+Idempotencia real por checksum: `checkExists` compara `checksum_sha256` de la fila `archivo` y verifica el objeto en el bucket antes de omitir la subida.
+El push sigue el modelo aprobado: upsert de `archivo` (IMAGEN/AUDIO, `SINCRONIZADO`) → upsert de `grupo_captura` (`CONFIRMADO`, `orden` por visita con reuso en reintento) → upsert de `foto` (`orden_captura` por visita, base única + reintento optimista ante 23505). Sin tablas nuevas.
+Escrituras locales serializadas con mutex (sin lost updates entre captura, Whisper y motor). El payload se reconstruye vivo al pushear: la transcripción que llega tarde reencola la entidad y se re-pushea sobre las mismas filas (`foto.id = archivo.id`).
+`CaptureGroup.syncStatus` se deriva del outbox vía eventos (`subscribeMediaSync`); `Summary` ya no hace polling. Migración Preferences→outbox una sola vez por visita.
+Compresión de fotos (1920px/q0.82) y SHA-256 en fotos y audios antes de persistir.
+Cobertura: `tests/media-sync.test.ts` (7 tests: backoff, gating de fase 2, no-op concurrente, backoff sin duplicar, idempotencia, recuperación de `uploading` huérfano).
+Pendiente de la iteración (subiteraciones futuras): push/pull incremental, tombstones y política explícita de conflictos, adjuntos de expediente/visita, múltiples firmantes y similitud calibrada. Verificación en dispositivo con red inestable aún manual.
+
+### Pull en login (hecho 2026-09-23, fuera de roadmap, pedido operativo)
+Merge por unión nube→local: `CaptureRemoteReader` + `planCapturePull` puro (desconocido→upsert+descarga; con pendientes→local manda; limpio→refresca sin re-descargar). Hidratación a `archforms-lab/` con el mismo id, grupos espejados como `synced` sembrando el outbox (el motor jamás los re-sube). Disparo: login (eager, fondo), auto-pull al abrir un Resumen nunca descargado, y botón "Actualizar desde la nube" por visita con progreso y sello "actualizado hace Xs". Sin realtime, sin tombstones (borrados no se propagan: documentado).
 
 ### Iteración 5 — editor por bloques e informe PDF
 

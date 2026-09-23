@@ -32,5 +32,5 @@ describeWithSupabase('RLS por propietario',()=>{
   expect(catalogError).toBeNull();expect(catalog?.length).toBeGreaterThanOrEqual(3);
   const {error:spoofError}=await b.client.from('expediente').insert({profesional_id:a.user.id,nro_expediente:'SUPLANTADO',ubicacion:'Lima',checklist_nombre:'Base',checklist_esquema_json:{}});
   expect(spoofError).not.toBeNull();
- });
+ },30_000);
 });
