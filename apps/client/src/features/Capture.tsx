@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { Capacitor } from '@capacitor/core';
 import { CameraPreview } from '@capacitor-community/camera-preview';
 import { ArchFormsAudio } from './native-audio';
 import { extractLocalFeatures } from './local-features';
@@ -23,10 +24,12 @@ export function VisitCapture({
   visita,
   ownerId,
   onGroupSaved,
+  overlayTitle,
 }: {
   visita: Visita
   ownerId: string
   onGroupSaved: () => void
+  overlayTitle?: { title: string; subtitle: string; onBack: () => void }
 }) {
   const [photos, setPhotos]             = useState<LabPhoto[]>([]);
   const [cameraOn, setCameraOn]         = useState(false);
@@ -178,24 +181,59 @@ export function VisitCapture({
     return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
   };
 
+  // TikTok-style fullscreen capture, solo nativo. Web conserva el layout actual.
+  const tiktok = Capacitor.isNativePlatform();
+  const pile = photos.slice(0, 5);
+  const pileOverflow = photos.length > 5 ? photos.length - 4 : 0;
+
   return (
-    <article className="capture-layout" style={{ margin: '-18px', paddingBottom: '40px', display: 'flex', flexDirection: 'column' }}>
+    <article className="capture-layout" style={{ margin: '-18px', paddingBottom: tiktok ? 0 : '40px', display: 'flex', flexDirection: 'column', position: tiktok ? 'relative' : undefined }}>
 
-      <div style={{ position: 'sticky', top: '70px', zIndex: 10, padding: '15px' }}>
-        <div ref={viewportRef} className={`camera-viewport ${cameraOn ? 'live' : ''}`} style={{ width: '100%', height: '48vh', background: cameraOn ? 'transparent' : '#e7eef4', display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative', borderRadius: '16px' }}>
+      <div style={tiktok ? { position: 'relative', zIndex: 10 } : { position: 'sticky', top: '70px', zIndex: 10, padding: '15px' }}>
+        <div ref={viewportRef} className={`camera-viewport ${cameraOn ? 'live' : ''}`} style={{ width: '100%', height: tiktok ? '88dvh' : '48vh', background: cameraOn ? 'transparent' : '#e7eef4', display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative', borderRadius: tiktok ? 0 : '16px' }}>
 
-          {cameraOn && (
+          {cameraOn && !tiktok && (
             <div style={{ position: 'absolute', inset: 0, borderRadius: 16, boxShadow: '0 0 0 9999px #f2f5f9', pointerEvents: 'none', zIndex: -1 }} />
+          )}
+          {cameraOn && tiktok && (
+            <div style={{ position: 'absolute', inset: 0, boxShadow: '0 0 0 9999px rgba(0,0,0,0.92)', pointerEvents: 'none', zIndex: -1 }} />
           )}
 
           {!cameraOn && <span style={{color: '#81909d', fontWeight: 800, textTransform: 'uppercase', fontSize: 11, letterSpacing: 1}}>Visor apagado</span>}
 
-          {flash && <div style={{ position: 'absolute', inset: 0, border: '6px solid white', background: 'rgba(255,255,255,0.6)', borderRadius: 16, zIndex: 100, transition: '0.1s' }}></div>}
+          {flash && <div style={{ position: 'absolute', inset: 0, border: '6px solid white', background: 'rgba(255,255,255,0.6)', borderRadius: tiktok ? 0 : 16, zIndex: 100, transition: '0.1s' }}></div>}
+
+          {tiktok && overlayTitle && (
+            <div style={{ position: 'fixed', top: 0, left: 0, right: 0, display: 'flex', alignItems: 'center', gap: 10, padding: 'calc(10px + env(safe-area-inset-top)) 12px 10px', background: 'linear-gradient(rgba(0,0,0,0.55), transparent)', zIndex: 40 }}>
+              <button onClick={overlayTitle.onBack} aria-label="Volver" style={{ border: 0, background: 'transparent', color: 'white', fontSize: 22, fontWeight: 800, padding: '6px 10px', textShadow: '0 1px 6px rgba(0,0,0,0.7)' }}>←</button>
+              <div>
+                <div style={{ color: 'white', fontWeight: 800, fontSize: 16, textShadow: '0 1px 6px rgba(0,0,0,0.6)' }}>{overlayTitle.title}</div>
+                <div style={{ color: 'rgba(255,255,255,0.85)', fontSize: 11, textShadow: '0 1px 4px rgba(0,0,0,0.6)' }}>{overlayTitle.subtitle}</div>
+              </div>
+            </div>
+          )}
+
+          {tiktok && pile.length > 0 && (
+            <div style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', display: 'flex', flexDirection: 'column', gap: 8, zIndex: 12 }}>
+              {pile.map((photo, i) => (
+                <div key={photo.id} style={{ position: 'relative', width: 54, height: 54, borderRadius: 12, overflow: 'hidden', border: '2px solid white', boxShadow: '0 2px 8px rgba(0,0,0,0.4)' }}>
+                  <img src={photo.displayUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
+                  {i === 4 && pileOverflow > 0 && (
+                    <span style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,0.55)', color: 'white', fontWeight: 800, fontSize: 13 }}>
+                      +{pileOverflow}
+                    </span>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       </div>
 
-      <div style={{ padding: '20px 15px', background: '#f2f5f9', flex: 1, zIndex: 11, position: 'relative' }}>
-        <div className="actions" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 25 }}>
+      <div style={tiktok
+        ? { position: 'fixed', left: 12, right: 12, bottom: 'calc(78px + env(safe-area-inset-bottom))', zIndex: 40 }
+        : { padding: '20px 15px', background: '#f2f5f9', flex: 1, zIndex: 11, position: 'relative' }}>
+        <div className="actions" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: tiktok ? 12 : 25 }}>
           <button className="btn btn-secondary" style={{ padding: '16px 0', fontSize: 13, background: 'white' }} onClick={cameraOn ? stopCamera : startCamera}>
             {cameraOn ? 'Apagar cámara' : 'Encender cámara'}
           </button>
@@ -204,7 +242,7 @@ export function VisitCapture({
           </button>
         </div>
 
-        <div className="audio-section" style={{ marginBottom: 25 }}>
+        <div className="audio-section" style={{ marginBottom: tiktok ? 0 : 25 }}>
           <button
             className={`btn ${recorderState === 'recording' ? 'btn-danger' : 'btn-secondary'}`}
             style={{ width: '100%', minHeight: 65, fontSize: 16, display: 'flex', alignItems: 'center', justifyItems: 'center', gap: 12, justifyContent: 'center', borderRadius: 16, background: recorderState === 'recording' ? '' : 'white' }}
@@ -221,13 +259,13 @@ export function VisitCapture({
               : 'Grabar audio y agrupar'}
           </button>
           {photos.length === 0 && recorderState === 'idle' && (
-            <p style={{ fontSize: 11, textAlign: 'center', marginTop: 10, color: '#81909d' }}>
+            <p style={{ fontSize: 11, textAlign: 'center', marginTop: 10, color: tiktok ? 'rgba(255,255,255,0.85)' : '#81909d' }}>
               Toma al menos una foto para iniciar un hallazgo.
             </p>
           )}
         </div>
 
-        {photos.length > 0 && (
+        {!tiktok && photos.length > 0 && (
           <div className="photos-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 25 }}>
             {photos.map((photo) => (
               <div key={photo.id} style={{ borderRadius: 12, overflow: 'hidden', background: 'white', border: '1px solid var(--line)', animation: 'pop 0.3s ease both' }}>

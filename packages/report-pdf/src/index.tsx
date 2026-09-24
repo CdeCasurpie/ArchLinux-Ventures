@@ -12,22 +12,22 @@ export interface InformeInput {
 }
 
 const s = StyleSheet.create({
-  page: { padding: 40, paddingTop: 32, fontSize: 10, fontFamily: 'Helvetica', color: '#1e293b', lineHeight: 1.5 },
-  brandBand: { backgroundColor: '#0f172a', color: '#ffffff', marginHorizontal: -40, marginTop: -32, paddingHorizontal: 40, paddingVertical: 14, marginBottom: 12 },
-  brand: { fontSize: 9, fontWeight: 'bold', letterSpacing: 2, color: '#93c5fd', marginBottom: 2 },
-  bandTitle: { fontSize: 17, fontWeight: 'bold', color: '#ffffff' },
-  bandSub: { fontSize: 9, color: '#cbd5e1' },
-  h1: { fontSize: 15, fontWeight: 'bold', color: '#0f172a', marginBottom: 2 },
-  sub: { fontSize: 10, color: '#475569', marginBottom: 12 },
-  h2: { fontSize: 12, fontWeight: 'bold', color: '#ffffff', backgroundColor: '#334155', paddingHorizontal: 8, paddingVertical: 4, marginTop: 14, marginBottom: 6 },
-  h3: { fontSize: 11, fontWeight: 'bold', color: '#334155', marginTop: 10, marginBottom: 4 },
+  page: { padding: 40, paddingTop: 32, fontSize: 10, fontFamily: 'Helvetica', color: '#132238', lineHeight: 1.5 },
+  brandBand: { marginHorizontal: -40, marginTop: -32, paddingHorizontal: 40, paddingVertical: 14, marginBottom: 12, borderBottomWidth: 2, borderBottomColor: '#01437a' },
+  brand: { fontSize: 9, fontWeight: 'bold', letterSpacing: 2, color: '#075292', marginBottom: 2 },
+  bandTitle: { fontSize: 17, fontWeight: 'bold', color: '#01437a' },
+  bandSub: { fontSize: 9, color: '#65758b' },
+  h1: { fontSize: 15, fontWeight: 'bold', color: '#01437a', marginBottom: 2 },
+  sub: { fontSize: 10, color: '#65758b', marginBottom: 12 },
+  h2: { fontSize: 12, fontWeight: 'bold', color: '#01437a', borderBottomWidth: 1, borderBottomColor: '#01437a', paddingBottom: 3, marginTop: 14, marginBottom: 6 },
+  h3: { fontSize: 11, fontWeight: 'bold', color: '#01437a', marginTop: 10, marginBottom: 4 },
   row: { flexDirection: 'row', gap: 12, marginBottom: 3 },
   cell: { flex: 1 },
-  label: { fontSize: 8, color: '#64748b', textTransform: 'uppercase' },
-  value: { fontSize: 10, color: '#0f172a' },
+  label: { fontSize: 8, color: '#65758b', textTransform: 'uppercase' },
+  value: { fontSize: 10, color: '#132238' },
   para: { marginBottom: 6 },
-  muted: { color: '#64748b', fontStyle: 'italic' },
-  zebra: { backgroundColor: '#f1f5f9', paddingHorizontal: 6, paddingVertical: 3 },
+  muted: { color: '#65758b', fontStyle: 'italic' },
+  zebra: { backgroundColor: '#f4f7fb', paddingHorizontal: 6, paddingVertical: 3 },
   plain: { paddingHorizontal: 6, paddingVertical: 3 },
   grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 6 },
   // Marco de altura fija (min = max): la foto nunca se deforma (contain),
@@ -35,10 +35,9 @@ const s = StyleSheet.create({
   photoFrameFull: { width: '100%', height: 190, marginBottom: 2 },
   photoFrameHalf: { width: '48%', height: 150, marginBottom: 2 },
   photoImg: { width: '100%', height: '100%', objectFit: 'contain', backgroundColor: '#ffffff' },
-  caption: { fontSize: 8, color: '#64748b', marginBottom: 4 },
-  conclusionsBox: { backgroundColor: '#f8fafc', borderLeftWidth: 3, borderLeftColor: '#0ea5e9', padding: 8, marginTop: 4 },
+  caption: { fontSize: 8, color: '#65758b', marginBottom: 4 },
   signBox: { marginTop: 14, flexDirection: 'row', gap: 24 },
-  signCell: { flex: 1, borderTopWidth: 1, borderTopColor: '#0f172a', paddingTop: 4 },
+  signCell: { flex: 1, borderTopWidth: 1, borderTopColor: '#01437a', paddingTop: 4 },
 });
 
 function answerLabel(value: unknown): string {
@@ -171,9 +170,7 @@ export function buildInformeDoc(input: InformeInput) {
               return (
                 <View key={block.id}>
                   <Text style={s.h2}>Conclusiones</Text>
-                  <View style={s.conclusionsBox}>
-                    <Text style={s.para}>{block.content || '(Sin conclusiones registradas.)'}</Text>
-                  </View>
+                  <Text style={s.para}>{block.content || '(Sin conclusiones registradas.)'}</Text>
                 </View>
               );
             case 'signatures':
@@ -202,15 +199,15 @@ export async function stampPageNumbers(
   pages.forEach((page, i) => {
     const { width } = page.getSize();
     const y = 30;
-    page.drawText(leftText, { x: 40, y, size: 8, font, color: rgb(0.39, 0.45, 0.55) });
+    page.drawText(leftText, { x: 40, y, size: 8, font, color: rgb(0.4, 0.46, 0.55) });
     const right = rightText(i + 1, pages.length);
     const w = font.widthOfTextAtSize(right, 8);
-    page.drawText(right, { x: width - 40 - w, y, size: 8, font, color: rgb(0.2, 0.27, 0.35) });
+    page.drawText(right, { x: width - 40 - w, y, size: 8, font, color: rgb(0.01, 0.26, 0.48) });
     page.drawLine({
       start: { x: 40, y: y + 12 },
       end: { x: width - 40, y: y + 12 },
       thickness: 0.75,
-      color: rgb(0.58, 0.64, 0.72),
+      color: rgb(0.87, 0.9, 0.93),
     });
   });
   return (await doc.save({ useObjectStreams: opts.useObjectStreams ?? true })) as Uint8Array;

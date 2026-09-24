@@ -315,8 +315,9 @@ Desactualizado visible vía `isPdfStale` (GENERADO + revisión distinta).
 PDF con `@react-pdf/renderer` en paquete `report-pdf` (A4, cabecera, checklist, grillas de fotos, firmas con `wrap={false}`, pie X/Y): 100% offline, a `Documentos/ArchForms/` + hoja de compartir (`@capacitor/share`) en nativo, descarga directa en web. Registro como `archivo` PDF + `pdf_archivo_id` cuando hay red, pendiente explícito si no.
 Tests: `report-document` (6) + `report-pdf` (3, incluye render a bytes). Pendiente: revisión visual contra muestras y prueba en dispositivo.
 Ajuste UX posterior: debug oculto tras flag, navbar de campo de 3 tabs, informe como vista propia con "Concluir visita" (sella FINALIZADA) y "Editar informe" por visita/header/Resumen.
+Captura TikTok solo-nativo (web intacta): cámara 88dvh full-bleed con punch-through oscuro, título en overlay fijo transparente (header clásico oculto en captura), textos flotantes Checklist/Captura/Resumen + swipe horizontal con guarda vertical, pila lateral máx 5 con +N, controles fijos abajo sobre el navbar inferior, padding anti-superposición en checklist/resumen.
 Ajuste visual PDF posterior: fotos en marco de altura fija (190/1 foto, 150/grilla) con `contain` sobre blanco (sin deformar ni recortar, sin página completa); hallazgo indivisible (`wrap={false}`) y numerado; firmas sin banda negra; checklist zebra; conclusiones en caja.
-Pie X/Y: PENDIENTE EN DISPOSITIVO. El `fixed`+`absolute` de @react-pdf/renderer 4.9.0 ignora offsets (verificado con 5 variantes + PNG); se pasó a estampado post-render con `pdf-lib` (`stampPageNumbers`, coords exactas) con test de regresión multipágina en verde. En laboratorio el pie aparece en cada hoja; en el APK del teléfono sigue sin verse. Hipótesis abiertas: build/vista previa del visor del teléfono, no el bytes (el test afirma los bytes). Retomar con el APK en mano comparando el mismo archivo.
+Pie X/Y: ARREGLADO (era la rama web descargando el blob sin estampar; nativo siempre lo tuvo). Se pasó a estampado post-render con `pdf-lib` (`stampPageNumbers`, coords exactas) con test de regresión multipágina en verde.
 
 ### Iteración 6 — piloto cerrado con dos arquitectos
 

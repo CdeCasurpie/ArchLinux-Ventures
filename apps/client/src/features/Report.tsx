@@ -8,7 +8,7 @@ import {
   isPdfStale, type ReportDocumentV1, type ReportBlock,
 } from '@archforms/domain';
 import type { Expediente, LocalState, Visita } from '@archforms/domain';
-import { loadCaptureGroups, type CaptureGroup } from './lab-storage';
+import { loadCaptureGroups, type CaptureGroup, type LabPhoto } from './lab-storage';
 import { getPendingPdf, setPendingPdf, uploadPdfArtifact } from './media-sync';
 import { supabase } from '../platform';
 
@@ -18,6 +18,20 @@ function bytesToBase64(bytes: Uint8Array): string {
     binary += String.fromCharCode(...bytes.subarray(offset, offset + 0x8000));
   }
   return btoa(binary);
+}
+
+/** Grilla del editor: incluidas primero en orden del informe, resto en captura. */
+function orderedPhotos(group: CaptureGroup | undefined, photoIds: string[]): LabPhoto[] {
+  if (!group) return [];
+  const rank = new Map(photoIds.map((id, i) => [id, i]));
+  return [...group.photos].sort((a, b) => {
+    const ra = rank.get(a.id);
+    const rb = rank.get(b.id);
+    if (ra !== undefined && rb !== undefined) return ra - rb;
+    if (ra !== undefined) return -1;
+    if (rb !== undefined) return 1;
+    return 0;
+  });
 }
 
 export function VisitReport({ visita, expediente, profile, ownerId, onSave }: {
@@ -328,7 +342,7 @@ function BlockCard({ block, index, total, group, onMove, onRemove, onPhotos, onC
             Fotos en el informe ({block.photoIds.length}/{group?.photos.length ?? 0})
           </span>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(90px, 1fr))', gap: 8 }}>
-            {group?.photos.map((p) => {
+            {orderedPhotos(group, block.photoIds).map((p) => {
               const included = block.photoIds.includes(p.id);
               return (
                 <div key={p.id} style={{ position: 'relative', borderRadius: 8, overflow: 'hidden', border: included ? '2px solid var(--blue-700)' : '1px solid #e2e8f0', opacity: included ? 1 : 0.45 }}>
