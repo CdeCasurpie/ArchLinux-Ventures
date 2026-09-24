@@ -29,6 +29,9 @@
       ],
       "@archforms/data-supabase": [
         "./packages/data-supabase/src/index.ts"
+      ],
+      "@archforms/report-pdf": [
+        "./packages/report-pdf/src/index.tsx"
       ]
     }
   },

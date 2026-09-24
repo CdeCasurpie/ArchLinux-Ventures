@@ -1,8 +1,8 @@
 # Estado del proyecto y roadmap MVP — ArchForms
 
 **Actualizado:** 2026-09-23  
-**Estado actual:** Iteración 4 terminada + pull nube→local operativo; sync de ida y vuelta funciona con outbox, backoff, checksums y merge por unión probados (19 tests). Falta verificación en dispositivo con red inestable.
-**Próxima iteración:** Iteración 5 — editor por bloques e informe PDF. Quedan como subiteraciones futuras: tombstones y política de conflictos, adjuntos/firmantes múltiples y similitud calibrada.
+**Estado actual:** Iteración 5 terminada; editor por bloques + PDF nativo en cliente funcionan offline con 28 tests en verde. Falta verificación en dispositivo y revisión visual contra muestras de Vicky/César.
+**Próxima iteración:** Iteración 6 — piloto cerrado con dos arquitectos. Quedan como subiteraciones futuras: tombstones y política de conflictos, adjuntos/firmantes múltiples y similitud calibrada.
 
 Este documento es la referencia operativa para continuar el desarrollo. Resume qué se decidió, qué ya existe, qué no debe rediseñarse sin evidencia nueva y cómo convertir el laboratorio actual en un MVP vendible y ampliable para un piloto con dos arquitectos.
 
@@ -307,6 +307,16 @@ Objetivo: reducir el trabajo de gabinete y producir un entregable útil.
 - Golden tests visuales contra muestras de Vicky y César.
 
 Salida: informe PDF editable y regenerable a partir de una visita real.
+
+**Estado: terminada el 2026-09-23 (con ajuste aprobado: PDF nativo en cliente en vez de print/worker).**
+`ReportDocumentV1` en dominio (fijos header/checklist/signatures + capture-group/text/conclusions, `revision`, `generatedRevision`) con comandos puros y 6 tests.
+4ª pestaña "Informe": reordenar/quitar/restaurar bloques, incluir y ordenar fotos sin tocar originales, editar transcripción con el audio al lado, editar conclusiones, undo/redo (50), guardado al sync de visitas.
+Desactualizado visible vía `isPdfStale` (GENERADO + revisión distinta).
+PDF con `@react-pdf/renderer` en paquete `report-pdf` (A4, cabecera, checklist, grillas de fotos, firmas con `wrap={false}`, pie X/Y): 100% offline, a `Documentos/ArchForms/` + hoja de compartir (`@capacitor/share`) en nativo, descarga directa en web. Registro como `archivo` PDF + `pdf_archivo_id` cuando hay red, pendiente explícito si no.
+Tests: `report-document` (6) + `report-pdf` (3, incluye render a bytes). Pendiente: revisión visual contra muestras y prueba en dispositivo.
+Ajuste UX posterior: debug oculto tras flag, navbar de campo de 3 tabs, informe como vista propia con "Concluir visita" (sella FINALIZADA) y "Editar informe" por visita/header/Resumen.
+Ajuste visual PDF posterior: fotos en marco de altura fija (190/1 foto, 150/grilla) con `contain` sobre blanco (sin deformar ni recortar, sin página completa); hallazgo indivisible (`wrap={false}`) y numerado; firmas sin banda negra; checklist zebra; conclusiones en caja.
+Pie X/Y: PENDIENTE EN DISPOSITIVO. El `fixed`+`absolute` de @react-pdf/renderer 4.9.0 ignora offsets (verificado con 5 variantes + PNG); se pasó a estampado post-render con `pdf-lib` (`stampPageNumbers`, coords exactas) con test de regresión multipágina en verde. En laboratorio el pie aparece en cada hoja; en el APK del teléfono sigue sin verse. Hipótesis abiertas: build/vista previa del visor del teléfono, no el bytes (el test afirma los bytes). Retomar con el APK en mano comparando el mismo archivo.
 
 ### Iteración 6 — piloto cerrado con dos arquitectos
 

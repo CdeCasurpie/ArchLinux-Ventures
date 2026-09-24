@@ -32,7 +32,7 @@ export interface Visita {
  estado:'BORRADOR'|'EN_CAMPO'|'EN_REVISION'|'FINALIZADA'|'ARCHIVADA';checklist_nombre:string;
  checklist_esquema_json:ChecklistSchema;checklist_respuestas_json:Record<string,unknown>;checklist_completado:boolean;
  documento_json:Record<string,unknown>;estado_documento:'BORRADOR'|'GENERADO';responsable_obra_nombre:string|null;
- responsable_obra_colegiatura:string|null;created_at:string;updated_at:string;
+ pdf_archivo_id:string|null;responsable_obra_colegiatura:string|null;created_at:string;updated_at:string;
 }
 export type WorkspaceEntity='expediente'|'visita';
 export interface WorkspacePending {id:string;entity:WorkspaceEntity;record:Expediente|Visita;created_at:string}
@@ -83,6 +83,126 @@ export interface RemoteGrupo {
 export interface RemoteFoto {
  id:string;visita_id:string;grupo_captura_id:string|null;archivo_id:string;
  orden_en_grupo:number|null;capturada_at:string;
+}
+
+// ── ReportDocumentV1 (Iteración 5) ───────────────────────────────────────────
+// Árbol de presentación del informe. No copia binarios: los bloques referencian
+// grupos/fotos por id. Cabecera, checklist y firmas siempre existen y locked
+// significa: no se elimina ni se mueve (su contenido se edita en su fuente).
+export type ReportBlock =
+ |{id:string;type:'header';locked:true}
+ |{id:string;type:'checklist';locked:true}
+ |{id:string;type:'capture-group';groupId:string;photoIds:string[];comment:string}
+ |{id:string;type:'text';content:string}
+ |{id:string;type:'conclusions';content:string}
+ |{id:string;type:'signatures';locked:true};
+
+export interface ReportDocumentV1 {
+ schemaVersion:1;revision:number;blocks:ReportBlock[];
+ /** Revisión con la que se generó el PDF vigente (ausente = nunca generado). */
+ generatedRevision?:number;
+}
+
+const uid=()=>`b_${Math.random().toString(36).slice(2,10)}`;
+
+/** Inicializa el documento desde la visita y sus grupos (solo si no existe). */
+export function initReportDocument(groups:Array<{id:string;photoIds:string[];comment:string}>):ReportDocumentV1{
+ return {
+  schemaVersion:1,revision:1,
+  blocks:[
+   {id:uid(),type:'header',locked:true},
+   {id:uid(),type:'checklist',locked:true},
+   ...groups.map(g=>({id:uid(),type:'capture-group',groupId:g.id,photoIds:[...g.photoIds],comment:g.comment} as ReportBlock)),
+   {id:uid(),type:'conclusions',content:''},
+   {id:uid(),type:'signatures',locked:true},
+  ],
+ };
+}
+
+/** Valida un documento guardado; null si hay que re-inicializar. */
+export function parseReportDocument(json:unknown):ReportDocumentV1|null{
+ if(typeof json!=='object'||!json)return null;
+ const doc=json as Partial<ReportDocumentV1>;
+ if(doc.schemaVersion!==1||!Array.isArray(doc.blocks)||typeof doc.revision!=='number')return null;
+ const blocks:ReportBlock[]=[];
+ for(const b of doc.blocks){
+  if(typeof b!=='object'||!b)return null;
+  const block=b as Partial<ReportBlock>&{groupId?:unknown;photoIds?:unknown;comment?:unknown;content?:unknown};
+  if(block.type==='header'||block.type==='checklist'||block.type==='signatures'){
+   blocks.push({id:String((block as {id?:unknown}).id??uid()),type:block.type,locked:true});
+  }else if(block.type==='capture-group'){
+   if(typeof block.groupId!=='string'||!Array.isArray(block.photoIds))return null;
+   blocks.push({id:String((block as {id?:unknown}).id??uid()),type:'capture-group',groupId:block.groupId,photoIds:block.photoIds.filter((p):p is string=>typeof p==='string'),comment:typeof block.comment==='string'?block.comment:''});
+  }else if(block.type==='text'||block.type==='conclusions'){
+   blocks.push({id:String((block as {id?:unknown}).id ?? uid()),type:block.type,content:typeof block.content==='string'?block.content:''});
+  }else return null;
+ }
+ if(!blocks.some(b=>b.type==='header')||!blocks.some(b=>b.type==='checklist')||!blocks.some(b=>b.type==='signatures'))return null;
+ return {schemaVersion:1,revision:doc.revision,generatedRevision:typeof doc.generatedRevision==='number'?doc.generatedRevision:undefined,blocks};
+}
+
+function bump(doc:ReportDocumentV1,blocks:ReportBlock[]):ReportDocumentV1{
+ return {...doc,revision:doc.revision+1,blocks};
+}
+const isLocked=(b:ReportBlock)=>b.type==='header'||b.type==='checklist'||b.type==='signatures';
+
+/** Mueve un bloque no-locked ±1. Fuera de rango o locked → mismo documento. */
+export function moveReportBlock(doc:ReportDocumentV1,id:string,dir:-1|1):ReportDocumentV1{
+ const i=doc.blocks.findIndex(b=>b.id===id);
+ if(i<0)return doc;
+ const block=doc.blocks[i];
+ if(isLocked(block))return doc;
+ const j=i+dir;
+ if(j<0||j>=doc.blocks.length)return doc;
+ if(isLocked(doc.blocks[j]))return doc;
+ const blocks=[...doc.blocks];
+ blocks[i]=blocks[j];blocks[j]=block;
+ return bump(doc,blocks);
+}
+
+/** Elimina un bloque no-locked (las fotos originales no se tocan). */
+export function removeReportBlock(doc:ReportDocumentV1,id:string):ReportDocumentV1{
+ const block=doc.blocks.find(b=>b.id===id);
+ if(!block||isLocked(block))return doc;
+ return bump(doc,doc.blocks.filter(b=>b.id!==id));
+}
+
+/** Restaura el bloque de un grupo capturado (si no está ya en el documento). */
+export function restoreGroupBlock(doc:ReportDocumentV1,groupId:string,photoIds:string[],comment:string):ReportDocumentV1{
+ if(doc.blocks.some(b=>b.type==='capture-group'&&b.groupId===groupId))return doc;
+ const sig=doc.blocks.findIndex(b=>b.type==='signatures');
+ const block:ReportBlock={id:uid(),type:'capture-group',groupId,photoIds:[...photoIds],comment};
+ const blocks=[...doc.blocks];
+ blocks.splice(sig<0?blocks.length:sig,0,block);
+ return bump(doc,blocks);
+}
+
+export function addTextBlock(doc:ReportDocumentV1,afterId?:string):ReportDocumentV1{
+ const block:ReportBlock={id:uid(),type:'text',content:''};
+ const blocks=[...doc.blocks];
+ const i=afterId?blocks.findIndex(b=>b.id===afterId):-1;
+ blocks.splice(i<0?blocks.length:i+1,0,block);
+ return bump(doc,blocks);
+}
+
+export function setBlockPhotos(doc:ReportDocumentV1,id:string,photoIds:string[]):ReportDocumentV1{
+ const blocks=doc.blocks.map(b=>b.type==='capture-group'&&b.id===id?{...b,photoIds:[...photoIds]}:b);
+ return bump(doc,blocks);
+}
+
+export function setBlockComment(doc:ReportDocumentV1,id:string,comment:string):ReportDocumentV1{
+ const blocks=doc.blocks.map(b=>b.type==='capture-group'&&b.id===id?{...b,comment}:b);
+ return bump(doc,blocks);
+}
+
+export function setTextContent(doc:ReportDocumentV1,id:string,content:string):ReportDocumentV1{
+ const blocks=doc.blocks.map(b=>(b.type==='text'||b.type==='conclusions')&&b.id===id?{...b,content}:b);
+ return bump(doc,blocks);
+}
+
+/** True cuando el PDF vigente está desactualizado respecto al documento. */
+export function isPdfStale(doc:ReportDocumentV1,generado:Visita['estado_documento']):boolean{
+ return generado==='GENERADO'&&doc.generatedRevision!==undefined&&doc.generatedRevision!==doc.revision;
 }
 
 // ── Capture-media domain types (Iteración 4) ──────────────────────────────────

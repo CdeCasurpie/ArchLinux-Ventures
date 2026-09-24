@@ -8,6 +8,9 @@ import {
 } from './media-sync';
 import { mediaOutbox, supabase } from '../platform';
 import { SupabaseCaptureReader } from '@archforms/data-supabase';
+
+// Pasa a true para mostrar el panel de diagnóstico de sync en el Resumen.
+const SHOW_SYNC_DEBUG = false;
 import type { Visita } from '@archforms/domain';
 
 // ── Sync status badge ─────────────────────────────────────────────────────────
@@ -41,7 +44,11 @@ function timeAgo(iso: string | null): string {
   return `hace ${Math.floor(m / 60)}h`;
 }
 
-export function VisitSummary({ visita }: { visita: Visita }) {
+export function VisitSummary({ visita, onConclude, onEditReport }: {
+  visita: Visita;
+  onConclude: () => Promise<void>;
+  onEditReport: () => void;
+}) {
   const [groups, setGroups] = useState<CaptureGroup[]>([]);
   const [debug, setDebug] = useState<Record<string, GroupSyncDebug>>({});
   const [engine, setEngine] = useState<SyncDebugState>({ running: false, lastRun: null });
@@ -53,6 +60,7 @@ export function VisitSummary({ visita }: { visita: Visita }) {
   const [pullProgress, setPullProgress] = useState<PullProgress | null>(null);
   const [lastPull, setLastPull] = useState<string | null>(null);
   const [pullMsg, setPullMsg] = useState('');
+  const [finishing, setFinishing] = useState(false);
 
   const doPull = () => {
     if (!navigator.onLine || pulling) return;
@@ -141,6 +149,7 @@ export function VisitSummary({ visita }: { visita: Visita }) {
       </div>
       {pullMsg && <p style={{ fontSize: 12, color: '#475569', marginTop: 0 }}>{pullMsg}</p>}
 
+      {SHOW_SYNC_DEBUG && (
       <DebugPanel
         visitaId={visita.id}
         online={online}
@@ -150,6 +159,7 @@ export function VisitSummary({ visita }: { visita: Visita }) {
         forcing={forcing}
         onForce={forceSync}
       />
+      )}
 
       {groups.length === 0 ? (
         <div style={{ textAlign: 'center', padding: '40px 20px', color: '#81909d', background: 'white', borderRadius: 16, border: '1px dashed #cbd9e7' }}>
@@ -208,15 +218,40 @@ export function VisitSummary({ visita }: { visita: Visita }) {
                 </div>
               )}
 
+              {SHOW_SYNC_DEBUG && (
               <DebugGroup
                 debug={debug[group.id]}
                 retrying={retrying === group.id}
                 onRetry={() => retryOne(group)}
               />
+              )}
             </div>
           ))}
         </div>
       )}
+
+      {/* Cierre de campo → edición de informe */}
+      <div className="card" style={{ padding: 20, marginTop: groups.length ? 20 : 0, marginBottom: 20 }}>
+        {visita.estado === 'FINALIZADA' ? (
+          <>
+            <h3 style={{ margin: '0 0 8px 0', fontSize: 15, color: 'var(--navy)' }}>Visita concluida ✓</h3>
+            <p style={{ margin: '0 0 12px 0', fontSize: 13, color: '#475569' }}>El trabajo de campo está cerrado. Puedes armar y regenerar el informe cuando quieras.</p>
+            <button className="btn btn-primary" onClick={onEditReport}>Editar informe →</button>
+          </>
+        ) : (
+          <>
+            <h3 style={{ margin: '0 0 8px 0', fontSize: 15, color: 'var(--navy)' }}>¿Terminaste en campo?</h3>
+            <p style={{ margin: '0 0 12px 0', fontSize: 13, color: '#475569' }}>Al concluir se habilita la edición del informe. El checklist y la captura siguen disponibles.</p>
+            <button
+              className="btn btn-primary btn-lg"
+              disabled={finishing}
+              onClick={() => { setFinishing(true); onConclude().finally(() => setFinishing(false)); }}
+            >
+              {finishing ? 'Concluyendo…' : 'Concluir visita →'}
+            </button>
+          </>
+        )}
+      </div>
 
       {/* Placeholders */}
       <div style={{ marginTop: 32 }}>
