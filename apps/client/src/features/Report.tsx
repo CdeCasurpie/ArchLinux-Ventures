@@ -2,14 +2,12 @@ import { useEffect, useRef, useState } from 'react';
 import { Capacitor } from '@capacitor/core';
 import { Directory, Filesystem } from '@capacitor/filesystem';
 import { Share } from '@capacitor/share';
-import { pdf } from '@react-pdf/renderer';
 import {
   initReportDocument, parseReportDocument, moveReportBlock, removeReportBlock,
   restoreGroupBlock, addTextBlock, setBlockPhotos, setBlockComment, setTextContent,
   isPdfStale, type ReportDocumentV1, type ReportBlock,
 } from '@archforms/domain';
 import type { Expediente, LocalState, Visita } from '@archforms/domain';
-import { buildInformeDoc, informeFileName, stampPageNumbers } from '@archforms/report-pdf';
 import { loadCaptureGroups, type CaptureGroup } from './lab-storage';
 import { getPendingPdf, setPendingPdf, uploadPdfArtifact } from './media-sync';
 import { supabase } from '../platform';
@@ -118,6 +116,11 @@ export function VisitReport({ visita, expediente, profile, ownerId, onSave }: {
     setBusy(true);
     setPdfMsg('');
     try {
+      // El stack PDF (pesado) se carga diferido: no enlentece el arranque.
+      const [{ pdf }, { buildInformeDoc, informeFileName, stampPageNumbers }] = await Promise.all([
+        import('@react-pdf/renderer'),
+        import('@archforms/report-pdf'),
+      ]);
       // Fotos desde bytes locales ya descargados.
       const photos: Record<string, string> = {};
       for (const g of groups) for (const p of g.photos) photos[p.id] = p.displayUrl;
