@@ -142,7 +142,9 @@ export function VisitReport({ visita, expediente, profile, ownerId, onSave }: {
         const { uri } = await Filesystem.getUri({ path: `ArchForms/${filename}`, directory: Directory.Documents });
         await Share.share({ title: 'Informe ArchForms', text: filename, url: uri, dialogTitle: 'Compartir informe' });
       } else {
-        const url = URL.createObjectURL(blob);
+        // Web: descargar los bytes ESTAMPADOS (con pie X/Y), no el blob original.
+        const stampedBlob = new Blob([bytes as unknown as BlobPart], { type: 'application/pdf' });
+        const url = URL.createObjectURL(stampedBlob);
         const a = document.createElement('a');
         a.href = url; a.download = filename; a.click();
         setTimeout(() => URL.revokeObjectURL(url), 5000);
