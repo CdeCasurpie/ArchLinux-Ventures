@@ -25,11 +25,14 @@ export function VisitCapture({
   ownerId,
   onGroupSaved,
   overlayTitle,
+  active = true,
 }: {
   visita: Visita
   ownerId: string
   onGroupSaved: () => void
   overlayTitle?: { title: string; subtitle: string; onBack: () => void }
+  /** false cuando el tab está oculto (se mantiene montado para no perder estado). */
+  active?: boolean
 }) {
   const [photos, setPhotos]             = useState<LabPhoto[]>([]);
   const [cameraOn, setCameraOn]         = useState(false);
@@ -37,6 +40,8 @@ export function VisitCapture({
   const [recorderState, setRecorderState] = useState<'idle'|'recording'|'saving'|'saved'>('idle');
   const [elapsed, setElapsed]           = useState(0);
   const viewportRef                     = useRef<HTMLDivElement>(null);
+  // TikTok-style fullscreen capture, solo nativo. Web conserva el layout actual.
+  const tiktok = Capacitor.isNativePlatform();
 
   // One-time migration: groups captured before the outbox existed enter the queue.
   useEffect(() => {
@@ -60,6 +65,16 @@ export function VisitCapture({
     }
     return () => clearInterval(interval);
   }, [recorderState]);
+
+  useEffect(() => {
+    if (!tiktok || active || !cameraOn) return;
+    // Al salir del tab con la cámara prendida: apagar el preview para que los
+    // otros tabs no hereden el fondo transparente (antes lo hacía el unmount).
+    document.body.classList.remove('camera-active');
+    document.documentElement.classList.remove('camera-active');
+    CameraPreview.stop().catch(() => {});
+    setCameraOn(false);
+  }, [tiktok, active, cameraOn]);
 
   useEffect(() => {
     if (!cameraOn) return;
@@ -181,8 +196,16 @@ export function VisitCapture({
     return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
   };
 
-  // TikTok-style fullscreen capture, solo nativo. Web conserva el layout actual.
-  const tiktok = Capacitor.isNativePlatform();
+  // (tiktok se declara arriba, junto a los estados).
+
+  // Bloquea el scroll de la página solo mientras la captura está visible
+  // (el componente queda montado entre tabs para no perder estado).
+  useEffect(() => {
+    if (!tiktok || !active) return;
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => { document.body.style.overflow = prev; };
+  }, [tiktok, active]);
   const pile = photos.slice(0, 5);
   const pileOverflow = photos.length > 5 ? photos.length - 4 : 0;
 
@@ -204,11 +227,11 @@ export function VisitCapture({
           {flash && <div style={{ position: 'absolute', inset: 0, border: '6px solid white', background: 'rgba(255,255,255,0.6)', borderRadius: tiktok ? 0 : 16, zIndex: 100, transition: '0.1s' }}></div>}
 
           {tiktok && overlayTitle && (
-            <div style={{ position: 'fixed', top: 0, left: 0, right: 0, display: 'flex', alignItems: 'center', gap: 10, padding: 'calc(10px + env(safe-area-inset-top)) 12px 10px', background: 'linear-gradient(rgba(0,0,0,0.55), transparent)', zIndex: 40 }}>
-              <button onClick={overlayTitle.onBack} aria-label="Volver" style={{ border: 0, background: 'transparent', color: 'white', fontSize: 22, fontWeight: 800, padding: '6px 10px', textShadow: '0 1px 6px rgba(0,0,0,0.7)' }}>←</button>
+            <div style={{ position: 'fixed', top: 0, left: 0, right: 0, display: 'flex', alignItems: 'center', gap: 10, padding: 'calc(10px + env(safe-area-inset-top)) 12px 10px', zIndex: 40 }}>
+              <button onClick={overlayTitle.onBack} aria-label="Volver" style={{ border: 0, background: 'transparent', color: 'white', fontSize: 22, fontWeight: 800, padding: '6px 10px', textShadow: '-1px 0 0 rgba(0,0,0,0.45), 1px 0 0 rgba(0,0,0,0.45), 0 -1px 0 rgba(0,0,0,0.45), 0 1px 0 rgba(0,0,0,0.45), 0 1px 5px rgba(0,0,0,0.6)' }}>←</button>
               <div>
-                <div style={{ color: 'white', fontWeight: 800, fontSize: 16, textShadow: '0 1px 6px rgba(0,0,0,0.6)' }}>{overlayTitle.title}</div>
-                <div style={{ color: 'rgba(255,255,255,0.85)', fontSize: 11, textShadow: '0 1px 4px rgba(0,0,0,0.6)' }}>{overlayTitle.subtitle}</div>
+                <div style={{ color: 'white', fontWeight: 800, fontSize: 16, textShadow: '-1px 0 0 rgba(0,0,0,0.45), 1px 0 0 rgba(0,0,0,0.45), 0 -1px 0 rgba(0,0,0,0.45), 0 1px 0 rgba(0,0,0,0.45), 0 1px 5px rgba(0,0,0,0.6)' }}>{overlayTitle.title}</div>
+                <div style={{ color: 'rgba(255,255,255,0.9)', fontSize: 11, textShadow: '-1px 0 0 rgba(0,0,0,0.45), 1px 0 0 rgba(0,0,0,0.45), 0 -1px 0 rgba(0,0,0,0.45), 0 1px 0 rgba(0,0,0,0.45), 0 1px 4px rgba(0,0,0,0.6)' }}>{overlayTitle.subtitle}</div>
               </div>
             </div>
           )}

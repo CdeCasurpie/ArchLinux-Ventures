@@ -61,3 +61,4 @@ body.camera-active .mobile-nav {
   position: sticky;
   z-index: 40;
 }
+.visit-body,.main-content{overflow-x:clip}
