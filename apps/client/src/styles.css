@@ -82,3 +82,9 @@ body.camera-active .checklist-card {
 .capture-pile{position:absolute;right:var(--pad);top:50%;transform:translateY(-50%);display:flex;flex-direction:column;gap:8px;z-index:12}
 .capture-pile-thumb{position:relative;width:54px;height:54px;border-radius:12px;overflow:hidden;border:2px solid #fff;box-shadow:0 2px 8px rgba(0,0,0,.4)}
 .capture-controls{position:absolute;left:var(--pad);right:var(--pad);bottom:12px;z-index:12}
+
+/* Skeletons de hallazgo en procesamiento + spinner del chip */
+@keyframes skeleton-pulse{0%,100%{opacity:1}50%{opacity:.4}}
+.skeleton{animation:skeleton-pulse 1.4s ease-in-out infinite;background:#e0e6ec}
+@keyframes spin{to{transform:rotate(360deg)}}
+.spinner{width:12px;height:12px;flex:none;border-radius:50%;border:2px solid rgba(11,74,143,.25);border-top-color:#0b4a8f;animation:spin .8s linear infinite}

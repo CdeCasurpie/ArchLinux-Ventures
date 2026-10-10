@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { Capacitor } from '@capacitor/core';
 import { loadCaptureGroups, type CaptureGroup } from './lab-storage';
 import {
-  subscribeMediaSync, triggerMediaSync, getMediaSyncDebugState, getGroupSyncDebug,
+  subscribeMediaSync, subscribeGroupCreated, triggerMediaSync, getMediaSyncDebugState, getGroupSyncDebug,
   isMigrated, retryGroup, pullVisitaFromCloud, getLastPull,
   type GroupSyncDebug, type SyncDebugState, type PullProgress,
 } from './media-sync';
@@ -44,10 +44,11 @@ function timeAgo(iso: string | null): string {
   return `hace ${Math.floor(m / 60)}h`;
 }
 
-export function VisitSummary({ visita, onConclude, onEditReport }: {
+export function VisitSummary({ visita, onConclude, onEditReport, onGoChecklist }: {
   visita: Visita;
   onConclude: () => Promise<void>;
   onEditReport: () => void;
+  onGoChecklist?: () => void;
 }) {
   const [groups, setGroups] = useState<CaptureGroup[]>([]);
   const [debug, setDebug] = useState<Record<string, GroupSyncDebug>>({});
@@ -61,6 +62,14 @@ export function VisitSummary({ visita, onConclude, onEditReport }: {
   const [lastPull, setLastPull] = useState<string | null>(null);
   const [pullMsg, setPullMsg] = useState('');
   const [finishing, setFinishing] = useState(false);
+  const [confirming, setConfirming] = useState(false);
+
+  const checklistFields = visita.checklist_esquema_json.sections.flatMap(s => s.fields);
+  const checklistAnswered = checklistFields.filter(f => { const v = visita.checklist_respuestas_json[f.id]; return v !== undefined && v !== ''; }).length;
+  const checklistComplete = checklistFields.length > 0 && checklistAnswered === checklistFields.length;
+
+  const doConclude = () => { setConfirming(false); setFinishing(true); onConclude().finally(() => setFinishing(false)); };
+  const requestConclude = () => { if (checklistComplete) doConclude(); else setConfirming(true); };
 
   const doPull = () => {
     if (!navigator.onLine || pulling) return;
@@ -99,6 +108,11 @@ export function VisitSummary({ visita, onConclude, onEditReport }: {
     fetchAll();
     // Event-driven refresh: the sync manager emits after every outbox change.
     const unsub = subscribeMediaSync(fetchAll);
+    // Grupo recién creado en memoria: se antepone al instante, sin esperar al disco.
+    const unsubGroup = subscribeGroupCreated(g => {
+      if (g.visitaId !== visita.id) return;
+      setGroups(prev => (prev.some(p => p.id === g.id) ? prev : [g, ...prev]));
+    });
     const onNet = () => { setOnline(navigator.onLine); fetchAll(); };
     window.addEventListener('online', onNet);
     window.addEventListener('offline', onNet);
@@ -107,7 +121,7 @@ export function VisitSummary({ visita, onConclude, onEditReport }: {
       setLastPull(stamp);
       if (!stamp && navigator.onLine) void doPull();
     }).catch(console.error);
-    return () => { cancelled = true; unsub(); window.removeEventListener('online', onNet); window.removeEventListener('offline', onNet); };
+    return () => { cancelled = true; unsub(); unsubGroup(); window.removeEventListener('online', onNet); window.removeEventListener('offline', onNet); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [visita.id]);
 
@@ -167,45 +181,56 @@ export function VisitSummary({ visita, onConclude, onEditReport }: {
         </div>
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
-          {groups.map((group, i) => (
-            <div key={group.id} className="card" style={{ background: 'white', borderRadius: 16, padding: 16, border: '1px solid var(--line)', boxShadow: 'var(--shadow-sm)' }}>
+          {groups.map((group, i) => {
+            const noText = !group.transcripcion;
+            const failed = group.transcripcionStatus === 'error';
+            const remoteNoText = group.transcripcionStatus === 'remote' && noText;
+            const transcribing = noText && !failed && !remoteNoText;
+            const syncState = group.syncStatus ?? 'pending';
+            const chipProcessing = !failed && !remoteNoText && (noText || syncState === 'pending' || syncState === 'uploading');
+            const uploading = !transcribing && !failed && !remoteNoText && (syncState === 'pending' || syncState === 'uploading');
+            return (
+            <div key={group.id} className="card" style={{ background: 'white', borderRadius: 16, padding: 16, border: chipProcessing ? '2px solid #7fb5f5' : '1px solid var(--line)', boxShadow: 'var(--shadow-sm)' }}>
               {/* Header row */}
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
                 <h3 style={{ margin: 0, fontSize: 16, color: 'var(--navy)' }}>Hallazgo {groups.length - i}</h3>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <SyncBadge status={group.syncStatus ?? 'pending'} />
+                  {chipProcessing ? (
+                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 11, fontWeight: 700, padding: '4px 12px', borderRadius: 100, background: '#d7e9fd', color: '#0b4a8f', whiteSpace: 'nowrap' }}>
+                      <span className="spinner" />Procesando
+                    </span>
+                  ) : (
+                    <SyncBadge status={group.syncStatus ?? 'pending'} />
+                  )}
                   <span style={{ fontSize: 11, color: '#81909d' }}>
                     {new Date(group.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                   </span>
                 </div>
               </div>
 
-              {/* Transcription / audio */}
-              <div style={{ marginBottom: 16 }}>
-                <p style={{ margin: '0 0 12px 0', fontSize: 14, color: 'var(--navy)', lineHeight: 1.5 }}>
-                  {group.transcripcion ? (
+              {/* Texto: skeleton hasta que la transcripción esté lista */}
+              {transcribing ? (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 12 }}>
+                  <div className="skeleton" style={{ height: 12, borderRadius: 6 }} />
+                  <div className="skeleton" style={{ height: 12, borderRadius: 6, width: '65%' }} />
+                </div>
+              ) : (
+                group.transcripcion && (
+                  <p style={{ margin: '0 0 12px 0', fontSize: 14, color: 'var(--navy)', lineHeight: 1.5 }}>
                     <span>{group.transcripcion}</span>
-                  ) : (
-                    <i style={{ color: '#81909d' }}>
-                      {group.transcripcionStatus === 'checking_model'    && '🔍 Verificando modelo de IA...'}
-                      {group.transcripcionStatus === 'downloading_model' && '⏳ Descargando modelo de IA (solo la primera vez)...'}
-                      {group.transcripcionStatus === 'transcribing'      && '⏳ Transcribiendo el audio localmente...'}
-                      {group.transcripcionStatus === 'remote'           && 'Traída de la nube (este dispositivo no la transcribe).'}
-                      {group.transcripcionStatus === 'error'             && `❌ Error en Whisper: ${group.transcripcionError}`}
-                      {group.transcripcionStatus === 'pending'           && '⏳ Transcripción en cola...'}
-                      {!group.transcripcionStatus                        && '[Transcripción automática pendiente.]'}
-                    </i>
-                  )}
-                </p>
-                {group.audio && (
-                  <div style={{ padding: '8px 12px', background: '#f8fafc', borderRadius: 10, border: '1px solid #e2e8f0' }}>
-                    <span style={{ display: 'block', fontSize: 12, fontWeight: 700, color: 'var(--blue-700)', marginBottom: 6 }}>Nota de voz original</span>
-                    <audio controls src={group.audio.displayUrl} style={{ width: '100%', height: 32 }} />
-                  </div>
-                )}
-              </div>
+                  </p>
+                )
+              )}
 
-              {/* Photo gallery */}
+              {/* Audio: real desde el primer momento */}
+              {group.audio && (
+                <div style={{ padding: '8px 12px', background: '#f8fafc', borderRadius: 10, border: '1px solid #e2e8f0', marginBottom: group.photos.length ? 16 : 0 }}>
+                  <span style={{ display: 'block', fontSize: 12, fontWeight: 700, color: 'var(--blue-700)', marginBottom: 6 }}>Nota de voz original</span>
+                  <audio controls src={group.audio.displayUrl} style={{ width: '100%', height: 32 }} />
+                </div>
+              )}
+
+              {/* Fotos: reales desde el primer momento */}
               {group.photos.length > 0 && (
                 <div>
                   <span style={{ display: 'block', fontSize: 11, fontWeight: 700, color: '#81909d', textTransform: 'uppercase', marginBottom: 8, letterSpacing: 0.5 }}>
@@ -219,6 +244,31 @@ export function VisitSummary({ visita, onConclude, onEditReport }: {
                 </div>
               )}
 
+              {/* Discreet status line below photos */}
+              {transcribing && (
+                <p style={{ margin: '12px 0 0 0', fontSize: 12, color: '#65758b' }}>
+                  {group.transcripcionStatus === 'checking_model' && 'Preparando modelo de IA…'}
+                  {group.transcripcionStatus === 'downloading_model' && 'Descargando modelo de IA…'}
+                  {group.transcripcionStatus === 'transcribing' && 'Transcribiendo nota de voz…'}
+                  {(group.transcripcionStatus === 'pending' || !group.transcripcionStatus) && 'Procesando hallazgo…'}
+                </p>
+              )}
+              {failed && (
+                <p style={{ margin: '12px 0 0 0', fontSize: 12, color: '#c9415d' }}>
+                  No se pudo transcribir{group.transcripcionError ? `: ${group.transcripcionError}` : '.'}
+                </p>
+              )}
+              {remoteNoText && (
+                <p style={{ margin: '12px 0 0 0', fontSize: 12, color: '#81909d' }}>
+                  Traída de la nube (este dispositivo no la transcribe).
+                </p>
+              )}
+              {uploading && (
+                <p style={{ margin: '12px 0 0 0', fontSize: 12, color: '#81909d' }}>
+                  Subiendo a la nube…
+                </p>
+              )}
+
               {SHOW_SYNC_DEBUG && (
               <DebugGroup
                 debug={debug[group.id]}
@@ -227,7 +277,8 @@ export function VisitSummary({ visita, onConclude, onEditReport }: {
               />
               )}
             </div>
-          ))}
+            );
+          })}
         </div>
       )}
 
@@ -243,13 +294,28 @@ export function VisitSummary({ visita, onConclude, onEditReport }: {
           <>
             <h3 style={{ margin: '0 0 8px 0', fontSize: 15, color: 'var(--navy)' }}>¿Terminaste en campo?</h3>
             <p style={{ margin: '0 0 12px 0', fontSize: 13, color: '#475569' }}>Al concluir se habilita la edición del informe. El checklist y la captura siguen disponibles.</p>
-            <button
-              className="btn btn-primary btn-lg"
-              disabled={finishing}
-              onClick={() => { setFinishing(true); onConclude().finally(() => setFinishing(false)); }}
-            >
-              {finishing ? 'Concluyendo…' : 'Concluir visita →'}
-            </button>
+            {confirming ? (
+              <div style={{ padding: 16, borderRadius: 12, background: 'white', border: '1px solid var(--line)' }}>
+                <p style={{ margin: '0 0 4px 0', fontSize: 14, fontWeight: 800, color: 'var(--navy)' }}>Checklist sin terminar</p>
+                <p style={{ margin: '0 0 14px 0', fontSize: 13, color: 'var(--danger)' }}>Te falta concluir el checklist antes de cerrar la visita.</p>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  <button className="btn btn-primary" onClick={() => { setConfirming(false); onGoChecklist?.(); }}>
+                    Terminar checklist
+                  </button>
+                  <button className="btn btn-secondary" disabled={finishing} onClick={doConclude}>
+                    {finishing ? 'Concluyendo…' : 'Concluir de todos modos'}
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <button
+                className="btn btn-primary btn-lg"
+                disabled={finishing}
+                onClick={requestConclude}
+              >
+                {finishing ? 'Concluyendo…' : 'Concluir visita →'}
+              </button>
+            )}
           </>
         )}
       </div>

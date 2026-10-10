@@ -217,6 +217,41 @@ export async function saveNativeAudio(recording: NativeRecording): Promise<Audio
   return { ...row, displayUrl: Capacitor.convertFileSrc(recording.uri) }
 }
 
+// Guarda solo el caparazón del audio (sin leer el archivo): rápido, para que el
+// grupo exista al instante. El checksum se completa después en background.
+export async function saveNativeAudioShell(recording: NativeRecording): Promise<AudioClip> {
+  const row: StoredAudio = {
+    id:        crypto.randomUUID(),
+    path:      recording.uri,
+    mimeType:  recording.mimeType,
+    durationMs: recording.durationMs,
+    sizeBytes: recording.sizeBytes,
+    checksum:  '',
+    createdAt: new Date().toISOString(),
+  }
+  await writeIndex(AUDIO_KEY, [...await readIndex<StoredAudio>(AUDIO_KEY), row])
+  return { ...row, displayUrl: Capacitor.convertFileSrc(recording.uri) }
+}
+
+// Lee los bytes del archivo ya grabado y devuelve checksum + tamaño real.
+export async function computeRecordingChecksum(uri: string): Promise<{ checksum: string; sizeBytes: number }> {
+  const { data } = await Filesystem.readFile({ path: uri })
+  const bytes = typeof data === 'string'
+    ? Uint8Array.from(atob(data), c => c.charCodeAt(0))
+    : new Uint8Array(await (data as Blob).arrayBuffer())
+  return { checksum: await sha256(bytes), sizeBytes: bytes.length }
+}
+
+// Parchea checksum/tamaño del audio tanto en su fila como en el grupo que lo contiene.
+export async function updateAudioClipChecksum(id: string, patch: { checksum: string; sizeBytes: number }): Promise<void> {
+  return locked(async () => {
+    const audios = await readIndex<StoredAudio>(AUDIO_KEY)
+    await writeIndex(AUDIO_KEY, audios.map(a => (a.id === id ? { ...a, ...patch } : a)))
+    const groups = await readIndex<CaptureGroup>(GROUP_KEY)
+    await writeIndex(GROUP_KEY, groups.map(g => (g.audio.id === id ? { ...g, audio: { ...g.audio, ...patch } } : g)))
+  })
+}
+
 // ── Capture Groups ────────────────────────────────────────────────────────────
 export async function loadCaptureGroups(visitaId: string): Promise<CaptureGroup[]> {
   const rows = await readIndex<CaptureGroup>(GROUP_KEY)
@@ -229,25 +264,36 @@ export async function loadCaptureGroup(groupId: string): Promise<CaptureGroup | 
   return rows.find(g => g.id === groupId) ?? null
 }
 
+export function createCaptureGroup(
+  visitaId:    string,
+  photos:      LabPhoto[],
+  audio:       AudioClip,
+): CaptureGroup {
+  return {
+    id:                  crypto.randomUUID(),
+    visitaId,
+    photos,
+    audio,
+    transcripcionStatus: 'pending',
+    createdAt:           new Date().toISOString(),
+    syncStatus:          'pending',
+  }
+}
+
+export async function persistCaptureGroup(group: CaptureGroup): Promise<void> {
+  return locked(async () => {
+    await writeIndex(GROUP_KEY, [...await readIndex<CaptureGroup>(GROUP_KEY), group])
+  })
+}
+
 export async function saveCaptureGroup(
   visitaId:    string,
   photos:      LabPhoto[],
   audio:       AudioClip,
 ): Promise<CaptureGroup> {
-  return locked(async () => {
-    const id    = crypto.randomUUID()
-    const group: CaptureGroup = {
-      id,
-      visitaId,
-      photos,
-      audio,
-      transcripcionStatus: 'pending',
-      createdAt:           new Date().toISOString(),
-      syncStatus:          'pending',
-    }
-    await writeIndex(GROUP_KEY, [...await readIndex<CaptureGroup>(GROUP_KEY), group])
-    return group
-  })
+  const group = createCaptureGroup(visitaId, photos, audio)
+  await persistCaptureGroup(group)
+  return group
 }
 
 export async function updateCaptureGroupSyncStatus(

@@ -241,6 +241,21 @@ function emitMediaSync(): void {
   });
 }
 
+// ── Instant group events (memory-first) ──────────────────────────────────────
+// El grupo recién creado se entrega en memoria al Resumen sin esperar al disco.
+// La recarga desde disco que llega después lo reemplaza por id (sin duplicar).
+type GroupListener = (group: CaptureGroup) => void;
+const groupListeners = new Set<GroupListener>();
+export function subscribeGroupCreated(fn: GroupListener): () => void {
+  groupListeners.add(fn);
+  return () => { groupListeners.delete(fn); };
+}
+export function notifyGroupCreated(group: CaptureGroup): void {
+  groupListeners.forEach(fn => {
+    try { fn(group); } catch (caught) { console.error(caught); }
+  });
+}
+
 // ── Migration: Preferences → Supabase (one-time, groups already in Preferences) ─
 const MIGRATION_KEY = 'archforms-sync-migration-v1'
 

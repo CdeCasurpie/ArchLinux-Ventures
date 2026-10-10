@@ -3,8 +3,8 @@ import { Capacitor } from '@capacitor/core';
 import { CameraPreview } from '@capacitor-community/camera-preview';
 import { ArchFormsAudio } from './native-audio';
 import { extractLocalFeatures } from './local-features';
-import { savePhoto, saveNativeAudio, saveCaptureGroup, type LabPhoto } from './lab-storage';
-import { enqueueGroupToOutbox, runMigrationIfNeeded, triggerMediaSync, notifyTranscriptionReady, notifyLocalChange } from './media-sync';
+import { savePhoto, saveNativeAudioShell, computeRecordingChecksum, updateAudioClipChecksum, loadCaptureGroup, createCaptureGroup, persistCaptureGroup, type LabPhoto } from './lab-storage';
+import { enqueueGroupToOutbox, runMigrationIfNeeded, triggerMediaSync, notifyTranscriptionReady, notifyLocalChange, notifyGroupCreated } from './media-sync';
 import { mediaOutbox } from '../platform';
 import type { Visita } from '@archforms/domain';
 
@@ -163,17 +163,31 @@ export function VisitCapture({
   const stopRecording = async () => {
     setRecorderState('saving');
     try {
-      const audioSaved = await saveNativeAudio(await ArchFormsAudio.stopRecording());
-      const group      = await saveCaptureGroup(visita.id, photos, audioSaved);
-
-      // Enqueue group into media outbox, then sync immediately (never blocks UI)
-      enqueueGroupToOutbox(mediaOutbox, group, ownerId)
-        .then(() => triggerMediaSync())
-        .catch(console.error);
+      const recording = await ArchFormsAudio.stopRecording();
+      // 1. Grupo en memoria al instante: Resumen lo muestra ya, sin esperar al disco.
+      const audioShell = await saveNativeAudioShell(recording);
+      const group = createCaptureGroup(visita.id, photos, audioShell);
+      notifyGroupCreated(group);
 
       setPhotos([]);        // reset for next hallazgo
       onGroupSaved();
       setRecorderState('saved');
+
+      // 2. Por detrás: persistir, checksum → outbox/sync, y transcripción en paralelo.
+      // El outbox espera al checksum real (la subida lo necesita); la transcripción
+      // solo necesita el archivo, así que arranca de una vez.
+      void persistCaptureGroup(group).then(() => notifyLocalChange()).catch(console.error);
+      void (async () => {
+        try {
+          const cc = await computeRecordingChecksum(recording.uri);
+          await updateAudioClipChecksum(audioShell.id, cc);
+        } catch (caught) { console.error('checksum:', caught); }
+        try {
+          const fresh = await loadCaptureGroup(group.id);
+          if (fresh) await enqueueGroupToOutbox(mediaOutbox, fresh, ownerId);
+          await triggerMediaSync();
+        } catch (caught) { console.error(caught); }
+      })();
 
       // Background transcription (optional; audio survives if this fails).
       // Every local write notifies subscribers; the finished text additionally
@@ -182,7 +196,7 @@ export function VisitCapture({
         import('./lab-storage').then(({ updateCaptureGroupTranscription, updateCaptureGroupTranscriptionStatus }) => {
           const runTranscription = (modelPath: string) => {
             updateCaptureGroupTranscriptionStatus(group.id, 'transcribing').then(notifyLocalChange).catch(console.error);
-            transcribeAudio(audioSaved.path, modelPath).then(text => {
+            transcribeAudio(audioShell.path, modelPath).then(text => {
               if (text) {
                 updateCaptureGroupTranscription(group.id, text)
                   .then(() => notifyTranscriptionReady(mediaOutbox, group.id))
