@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { Capacitor } from '@capacitor/core';
 import { CameraPreview } from '@capacitor-community/camera-preview';
 import { ArchFormsAudio } from './native-audio';
@@ -24,13 +24,11 @@ export function VisitCapture({
   visita,
   ownerId,
   onGroupSaved,
-  overlayTitle,
   active = true,
 }: {
   visita: Visita
   ownerId: string
   onGroupSaved: () => void
-  overlayTitle?: { title: string; subtitle: string; onBack: () => void }
   /** false cuando el tab está oculto (se mantiene montado para no perder estado). */
   active?: boolean
 }) {
@@ -42,6 +40,19 @@ export function VisitCapture({
   const viewportRef                     = useRef<HTMLDivElement>(null);
   // TikTok-style fullscreen capture, solo nativo. Web conserva el layout actual.
   const tiktok = Capacitor.isNativePlatform();
+
+  // Altura real del mobile-nav (incluye safe-area): la capa fija termina justo encima.
+  const [navH, setNavH] = useState(0);
+  useLayoutEffect(() => {
+    if (!tiktok) return;
+    const measure = () => {
+      const el = document.querySelector('.mobile-nav');
+      setNavH(el ? Math.ceil(el.getBoundingClientRect().height) : 0);
+    };
+    measure();
+    window.addEventListener('resize', measure);
+    return () => window.removeEventListener('resize', measure);
+  }, [tiktok, active]);
 
   // One-time migration: groups captured before the outbox existed enter the queue.
   useEffect(() => {
@@ -76,31 +87,39 @@ export function VisitCapture({
     setCameraOn(false);
   }, [tiktok, active, cameraOn]);
 
+  // El rect del preview nativo es el de la capa fija completa (viewportRef),
+  // el mismo que ocupa el visor web: cámara y UI coinciden.
+  const synchronizeCamera = () => {
+    requestAnimationFrame(() => {
+      const rect = viewportRef.current?.getBoundingClientRect();
+      if (!rect || rect.width === 0 || rect.height === 0) return;
+      void ArchFormsAudio.updateCameraRect({
+        x: Math.round(rect.x), y: Math.round(rect.y),
+        width: Math.round(rect.width), height: Math.round(rect.height),
+      }).catch(() => undefined);
+    });
+  };
+
   useEffect(() => {
     if (!cameraOn) return;
     document.body.classList.add('camera-active');
     document.documentElement.classList.add('camera-active');
 
-    const synchronizeCamera = () => {
-      requestAnimationFrame(() => {
-        const rect = viewportRef.current?.getBoundingClientRect();
-        if (!rect) return;
-        void ArchFormsAudio.updateCameraRect({
-          x: Math.round(rect.x), y: Math.round(rect.y),
-          width: Math.round(rect.width), height: Math.round(rect.height),
-        }).catch(() => undefined);
-      });
-    };
     synchronizeCamera();
-    window.addEventListener('scroll', synchronizeCamera, { passive: true });
-    window.addEventListener('resize', synchronizeCamera, { passive: true });
+    window.addEventListener('resize', synchronizeCamera);
     return () => {
       document.body.classList.remove('camera-active');
       document.documentElement.classList.remove('camera-active');
-      window.removeEventListener('scroll', synchronizeCamera);
       window.removeEventListener('resize', synchronizeCamera);
     };
   }, [cameraOn]);
+
+  // Con display:none el rect mide 0: recalcular al activarse la tab y al cambiar el nav.
+  useLayoutEffect(() => {
+    if (!tiktok || !active || !cameraOn) return;
+    const id = requestAnimationFrame(() => synchronizeCamera());
+    return () => cancelAnimationFrame(id);
+  }, [tiktok, active, cameraOn, navH]);
 
   const startCamera = async () => {
     try {
@@ -159,29 +178,37 @@ export function VisitCapture({
       // Background transcription (optional; audio survives if this fails).
       // Every local write notifies subscribers; the finished text additionally
       // requeues the entity so the live payload (rebuilt at push time) carries it.
-      import('./whisper-service').then(({ ensureWhisperModel, transcribeAudio }) => {
+      import('./whisper-service').then(({ getCachedWhisperModel, ensureWhisperModel, transcribeAudio }) => {
         import('./lab-storage').then(({ updateCaptureGroupTranscription, updateCaptureGroupTranscriptionStatus }) => {
-          updateCaptureGroupTranscriptionStatus(group.id, 'downloading_model').then(notifyLocalChange).catch(console.error);
-          ensureWhisperModel().then(modelPath => {
-            if (modelPath) {
-              updateCaptureGroupTranscriptionStatus(group.id, 'transcribing').then(notifyLocalChange).catch(console.error);
-              transcribeAudio(audioSaved.path, modelPath).then(text => {
-                if (text) {
-                  updateCaptureGroupTranscription(group.id, text)
-                    .then(() => notifyTranscriptionReady(mediaOutbox, group.id))
-                    .catch(console.error);
-                } else {
-                  updateCaptureGroupTranscriptionStatus(group.id, 'error', 'No text returned').then(notifyLocalChange).catch(console.error);
-                }
-              }).catch(err => {
-                updateCaptureGroupTranscriptionStatus(group.id, 'error', err.message || String(err)).then(notifyLocalChange).catch(console.error);
-              });
+          const runTranscription = (modelPath: string) => {
+            updateCaptureGroupTranscriptionStatus(group.id, 'transcribing').then(notifyLocalChange).catch(console.error);
+            transcribeAudio(audioSaved.path, modelPath).then(text => {
+              if (text) {
+                updateCaptureGroupTranscription(group.id, text)
+                  .then(() => notifyTranscriptionReady(mediaOutbox, group.id))
+                  .catch(console.error);
+              } else {
+                updateCaptureGroupTranscriptionStatus(group.id, 'error', 'No text returned').then(notifyLocalChange).catch(console.error);
+              }
+            }).catch(err => {
+              updateCaptureGroupTranscriptionStatus(group.id, 'error', err.message || String(err)).then(notifyLocalChange).catch(console.error);
+            });
+          };
+          // Solo se muestra "descargando" si el modelo NO está en disco.
+          updateCaptureGroupTranscriptionStatus(group.id, 'checking_model').then(notifyLocalChange).catch(console.error);
+          getCachedWhisperModel().then(cachedPath => {
+            if (cachedPath) {
+              runTranscription(cachedPath);
             } else {
-              updateCaptureGroupTranscriptionStatus(group.id, 'error', 'Model path is empty').then(notifyLocalChange).catch(console.error);
+              updateCaptureGroupTranscriptionStatus(group.id, 'downloading_model').then(notifyLocalChange).catch(console.error);
+              ensureWhisperModel().then(({ path }) => {
+                if (path) runTranscription(path);
+                else updateCaptureGroupTranscriptionStatus(group.id, 'error', 'Model path is empty').then(notifyLocalChange).catch(console.error);
+              }).catch(err => {
+                updateCaptureGroupTranscriptionStatus(group.id, 'error', 'Model DL Error: ' + (err.message || String(err))).then(notifyLocalChange).catch(console.error);
+              });
             }
-          }).catch(err => {
-            updateCaptureGroupTranscriptionStatus(group.id, 'error', 'Model DL Error: ' + (err.message || String(err))).then(notifyLocalChange).catch(console.error);
-          });
+          }).catch(console.error);
         });
       }).catch(console.error);
 
@@ -209,95 +236,127 @@ export function VisitCapture({
   const pile = photos.slice(0, 5);
   const pileOverflow = photos.length > 5 ? photos.length - 4 : 0;
 
-  return (
-    <article className="capture-layout" style={{ margin: '-18px', paddingBottom: tiktok ? 0 : '40px', display: 'flex', flexDirection: 'column', position: tiktok ? 'relative' : undefined }}>
+  // Web conserva su layout actual (sin cambios de comportamiento).
+  if (!tiktok) {
+    return (
+      <article className="capture-layout" style={{ paddingBottom: '40px', display: 'flex', flexDirection: 'column' }}>
+        <div style={{ position: 'sticky', top: '70px', zIndex: 10, padding: '15px' }}>
+          <div ref={viewportRef} className={`camera-viewport ${cameraOn ? 'live' : ''}`} style={{ width: '100%', height: '48vh', background: cameraOn ? 'transparent' : '#e7eef4', display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative', borderRadius: '16px' }}>
+            {!cameraOn && <span style={{color: '#81909d', fontWeight: 800, textTransform: 'uppercase', fontSize: 11, letterSpacing: 1}}>Visor apagado</span>}
+            {flash && <div style={{ position: 'absolute', inset: 0, border: '6px solid white', background: 'rgba(255,255,255,0.6)', borderRadius: 16, zIndex: 100, transition: '0.1s' }}></div>}
+          </div>
+        </div>
 
-      <div style={tiktok ? { position: 'relative', zIndex: 10 } : { position: 'sticky', top: '70px', zIndex: 10, padding: '15px' }}>
-        <div ref={viewportRef} className={`camera-viewport ${cameraOn ? 'live' : ''}`} style={{ width: '100%', height: tiktok ? '88dvh' : '48vh', background: cameraOn ? 'transparent' : '#e7eef4', display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative', borderRadius: tiktok ? 0 : '16px' }}>
+        <div style={{ padding: '20px 15px', background: '#f2f5f9', flex: 1, zIndex: 11, position: 'relative' }}>
+          <div className="actions" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 25 }}>
+            <button className="btn btn-secondary" style={{ padding: '16px 0', fontSize: 13, background: 'white' }} onClick={cameraOn ? stopCamera : startCamera}>
+              {cameraOn ? 'Apagar cámara' : 'Encender cámara'}
+            </button>
+            <button className="btn btn-primary" style={{ padding: '16px 0', fontSize: 13 }} onClick={takePhoto} disabled={!cameraOn}>
+              Tomar foto
+            </button>
+          </div>
 
-          {cameraOn && !tiktok && (
-            <div style={{ position: 'absolute', inset: 0, borderRadius: 16, boxShadow: '0 0 0 9999px #f2f5f9', pointerEvents: 'none', zIndex: -1 }} />
-          )}
-          {cameraOn && tiktok && (
-            <div style={{ position: 'absolute', inset: 0, boxShadow: '0 0 0 9999px rgba(0,0,0,0.92)', pointerEvents: 'none', zIndex: -1 }} />
-          )}
+          <div className="audio-section" style={{ marginBottom: 25 }}>
+            <button
+              className={`btn ${recorderState === 'recording' ? 'btn-danger' : 'btn-secondary'}`}
+              style={{ width: '100%', minHeight: 65, fontSize: 16, display: 'flex', alignItems: 'center', justifyItems: 'center', gap: 12, justifyContent: 'center', borderRadius: 16, background: recorderState === 'recording' ? '' : 'white' }}
+              onClick={recorderState === 'recording' ? stopRecording : startRecording}
+              disabled={recorderState === 'saving' || recorderState === 'saved' || (!cameraOn && photos.length === 0 && recorderState === 'idle')}
+            >
+              <span style={{ display: 'flex', opacity: 0.8 }}>
+                {recorderState === 'recording' ? <StopIcon /> : <MicIcon />}
+              </span>
+              {recorderState === 'recording'
+                ? `Detener y agrupar (${formatDuration(elapsed)})`
+                : recorderState === 'saving' ? 'Guardando...'
+                : recorderState === 'saved'  ? '¡Hallazgo guardado!'
+                : 'Grabar audio y agrupar'}
+            </button>
+            {photos.length === 0 && recorderState === 'idle' && (
+              <p style={{ fontSize: 11, textAlign: 'center', marginTop: 10, color: '#81909d' }}>
+                Toma al menos una foto para iniciar un hallazgo.
+              </p>
+            )}
+          </div>
 
-          {!cameraOn && <span style={{color: '#81909d', fontWeight: 800, textTransform: 'uppercase', fontSize: 11, letterSpacing: 1}}>Visor apagado</span>}
-
-          {flash && <div style={{ position: 'absolute', inset: 0, border: '6px solid white', background: 'rgba(255,255,255,0.6)', borderRadius: tiktok ? 0 : 16, zIndex: 100, transition: '0.1s' }}></div>}
-
-          {tiktok && overlayTitle && (
-            <div style={{ position: 'fixed', top: 0, left: 0, right: 0, display: 'flex', alignItems: 'center', gap: 10, padding: 'calc(10px + env(safe-area-inset-top)) 12px 10px', zIndex: 40 }}>
-              <button onClick={overlayTitle.onBack} aria-label="Volver" style={{ border: 0, background: 'transparent', color: 'white', fontSize: 22, fontWeight: 800, padding: '6px 10px', textShadow: '-1px 0 0 rgba(0,0,0,0.45), 1px 0 0 rgba(0,0,0,0.45), 0 -1px 0 rgba(0,0,0,0.45), 0 1px 0 rgba(0,0,0,0.45), 0 1px 5px rgba(0,0,0,0.6)' }}>←</button>
-              <div>
-                <div style={{ color: 'white', fontWeight: 800, fontSize: 16, textShadow: '-1px 0 0 rgba(0,0,0,0.45), 1px 0 0 rgba(0,0,0,0.45), 0 -1px 0 rgba(0,0,0,0.45), 0 1px 0 rgba(0,0,0,0.45), 0 1px 5px rgba(0,0,0,0.6)' }}>{overlayTitle.title}</div>
-                <div style={{ color: 'rgba(255,255,255,0.9)', fontSize: 11, textShadow: '-1px 0 0 rgba(0,0,0,0.45), 1px 0 0 rgba(0,0,0,0.45), 0 -1px 0 rgba(0,0,0,0.45), 0 1px 0 rgba(0,0,0,0.45), 0 1px 4px rgba(0,0,0,0.6)' }}>{overlayTitle.subtitle}</div>
-              </div>
-            </div>
-          )}
-
-          {tiktok && pile.length > 0 && (
-            <div style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', display: 'flex', flexDirection: 'column', gap: 8, zIndex: 12 }}>
-              {pile.map((photo, i) => (
-                <div key={photo.id} style={{ position: 'relative', width: 54, height: 54, borderRadius: 12, overflow: 'hidden', border: '2px solid white', boxShadow: '0 2px 8px rgba(0,0,0,0.4)' }}>
-                  <img src={photo.displayUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
-                  {i === 4 && pileOverflow > 0 && (
-                    <span style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,0.55)', color: 'white', fontWeight: 800, fontSize: 13 }}>
-                      +{pileOverflow}
-                    </span>
-                  )}
+          {photos.length > 0 && (
+            <div className="photos-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 25 }}>
+              {photos.map((photo) => (
+                <div key={photo.id} style={{ borderRadius: 12, overflow: 'hidden', background: 'white', border: '1px solid var(--line)', animation: 'pop 0.3s ease both' }}>
+                  <img src={photo.displayUrl} alt="Foto actual" style={{ width: '100%', aspectRatio: '1', objectFit: 'cover', display: 'block' }} />
                 </div>
               ))}
             </div>
           )}
         </div>
-      </div>
+      </article>
+    );
+  }
 
-      <div style={tiktok
-        ? { position: 'fixed', left: 12, right: 12, bottom: 'calc(78px + env(safe-area-inset-bottom))', zIndex: 40 }
-        : { padding: '20px 15px', background: '#f2f5f9', flex: 1, zIndex: 11, position: 'relative' }}>
-        <div className="actions" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: tiktok ? 12 : 25 }}>
-          <button className="btn btn-secondary" style={{ padding: '16px 0', fontSize: 13, background: 'white' }} onClick={cameraOn ? stopCamera : startCamera}>
-            {cameraOn ? 'Apagar cámara' : 'Encender cámara'}
-          </button>
-          <button className="btn btn-primary" style={{ padding: '16px 0', fontSize: 13 }} onClick={takePhoto} disabled={!cameraOn}>
-            Tomar foto
-          </button>
-        </div>
+  // Nativo: capa fija a pantalla completa, detrás de la cabecera única y encima
+  // del mobile-nav. El visor ocupa toda la capa: este mismo rect se envía a la
+  // cámara nativa, así preview y UI coinciden. Sin box-shadow de 9999px.
+  return (
+    <div style={{ display: active ? '' : 'none' }}>
+      <div ref={viewportRef} className={`capture-native-layer camera-viewport ${cameraOn ? 'live' : ''}`} style={{ bottom: navH > 0 ? `${navH}px` : undefined, background: cameraOn ? 'transparent' : undefined }}>
+        {!cameraOn && (
+          <div className="capture-native-empty">
+            <span>Visor apagado</span>
+            <small>Enciende la cámara para iniciar la inspección</small>
+          </div>
+        )}
+        {flash && <div className="capture-flash" />}
 
-        <div className="audio-section" style={{ marginBottom: tiktok ? 0 : 25 }}>
-          <button
-            className={`btn ${recorderState === 'recording' ? 'btn-danger' : 'btn-secondary'}`}
-            style={{ width: '100%', minHeight: 65, fontSize: 16, display: 'flex', alignItems: 'center', justifyItems: 'center', gap: 12, justifyContent: 'center', borderRadius: 16, background: recorderState === 'recording' ? '' : 'white' }}
-            onClick={recorderState === 'recording' ? stopRecording : startRecording}
-            disabled={recorderState === 'saving' || recorderState === 'saved' || (!cameraOn && photos.length === 0 && recorderState === 'idle')}
-          >
-            <span style={{ display: 'flex', opacity: 0.8 }}>
-              {recorderState === 'recording' ? <StopIcon /> : <MicIcon />}
-            </span>
-            {recorderState === 'recording'
-              ? `Detener y agrupar (${formatDuration(elapsed)})`
-              : recorderState === 'saving' ? 'Guardando...'
-              : recorderState === 'saved'  ? '¡Hallazgo guardado!'
-              : 'Grabar audio y agrupar'}
-          </button>
-          {photos.length === 0 && recorderState === 'idle' && (
-            <p style={{ fontSize: 11, textAlign: 'center', marginTop: 10, color: tiktok ? 'rgba(255,255,255,0.85)' : '#81909d' }}>
-              Toma al menos una foto para iniciar un hallazgo.
-            </p>
-          )}
-        </div>
-
-        {!tiktok && photos.length > 0 && (
-          <div className="photos-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 25 }}>
-            {photos.map((photo) => (
-              <div key={photo.id} style={{ borderRadius: 12, overflow: 'hidden', background: 'white', border: '1px solid var(--line)', animation: 'pop 0.3s ease both' }}>
-                <img src={photo.displayUrl} alt="Foto actual" style={{ width: '100%', aspectRatio: '1', objectFit: 'cover', display: 'block' }} />
+        {pile.length > 0 && (
+          <div className="capture-pile">
+            {pile.map((photo, i) => (
+              <div key={photo.id} className="capture-pile-thumb">
+                <img src={photo.displayUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
+                {i === 4 && pileOverflow > 0 && (
+                  <span style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,0.55)', color: 'white', fontWeight: 800, fontSize: 13 }}>
+                    +{pileOverflow}
+                  </span>
+                )}
               </div>
             ))}
           </div>
         )}
+
+        <div className="capture-controls">
+          <div className="actions" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 12 }}>
+            <button className="btn btn-secondary" style={{ padding: '16px 0', fontSize: 13, background: 'white' }} onClick={cameraOn ? stopCamera : startCamera}>
+              {cameraOn ? 'Apagar cámara' : 'Encender cámara'}
+            </button>
+            <button className="btn btn-primary" style={{ padding: '16px 0', fontSize: 13 }} onClick={takePhoto} disabled={!cameraOn}>
+              Tomar foto
+            </button>
+          </div>
+
+          <div className="audio-section">
+            <button
+              className={`btn ${recorderState === 'recording' ? 'btn-danger' : 'btn-secondary'}`}
+              style={{ width: '100%', minHeight: 65, fontSize: 16, display: 'flex', alignItems: 'center', justifyItems: 'center', gap: 12, justifyContent: 'center', borderRadius: 16, background: recorderState === 'recording' ? '' : 'white' }}
+              onClick={recorderState === 'recording' ? stopRecording : startRecording}
+              disabled={recorderState === 'saving' || recorderState === 'saved' || (!cameraOn && photos.length === 0 && recorderState === 'idle')}
+            >
+              <span style={{ display: 'flex', opacity: 0.8 }}>
+                {recorderState === 'recording' ? <StopIcon /> : <MicIcon />}
+              </span>
+              {recorderState === 'recording'
+                ? `Detener y agrupar (${formatDuration(elapsed)})`
+                : recorderState === 'saving' ? 'Guardando...'
+                : recorderState === 'saved'  ? '¡Hallazgo guardado!'
+                : 'Grabar audio y agrupar'}
+            </button>
+            {photos.length === 0 && recorderState === 'idle' && (
+              <p style={{ fontSize: 11, textAlign: 'center', marginTop: 10, color: 'rgba(255,255,255,0.85)' }}>
+                Toma al menos una foto para iniciar un hallazgo.
+              </p>
+            )}
+          </div>
+        </div>
       </div>
-    </article>
+    </div>
   );
 }

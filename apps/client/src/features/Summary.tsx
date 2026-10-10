@@ -131,7 +131,7 @@ export function VisitSummary({ visita, onConclude, onEditReport }: {
   );
 
   return (
-    <article className="summary-layout" style={{ margin: '-18px', padding: '20px 15px', background: '#f2f5f9', minHeight: '100vh' }}>
+    <article className="summary-layout">
       <p className="eyebrow" style={{ marginBottom: 16 }}>HISTORIAL DE HALLAZGOS</p>
 
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12, fontSize: 12, color: '#475569' }}>
@@ -187,7 +187,8 @@ export function VisitSummary({ visita, onConclude, onEditReport }: {
                     <span>{group.transcripcion}</span>
                   ) : (
                     <i style={{ color: '#81909d' }}>
-                      {group.transcripcionStatus === 'downloading_model' && '⏳ Descargando modelo de IA...'}
+                      {group.transcripcionStatus === 'checking_model'    && '🔍 Verificando modelo de IA...'}
+                      {group.transcripcionStatus === 'downloading_model' && '⏳ Descargando modelo de IA (solo la primera vez)...'}
                       {group.transcripcionStatus === 'transcribing'      && '⏳ Transcribiendo el audio localmente...'}
                       {group.transcripcionStatus === 'remote'           && 'Traída de la nube (este dispositivo no la transcribe).'}
                       {group.transcripcionStatus === 'error'             && `❌ Error en Whisper: ${group.transcripcionError}`}

@@ -31,6 +31,8 @@ button:disabled{cursor:not-allowed;opacity:.55}
  .visit-tabs { top: 12px; }
 }
 
+:root{--pad:15px}
+
 /* Camera Hole Punching */
 html.camera-active, body.camera-active {
   background: transparent !important;
@@ -40,17 +42,10 @@ body.camera-active .app-shell,
 body.camera-active .app-area,
 body.camera-active .main-content,
 body.camera-active .page-enter,
+body.camera-active .visit-shell,
+body.camera-active .visit-top,
 body.camera-active .checklist-card {
   background: transparent !important;
-}
-
-/* Make sure the header and other elements remain solid if we scroll */
-body.camera-active .topbar,
-body.camera-active .visit-header { background: #f2f5f9 !important; }
-
-body.camera-active .visit-tabs,
-body.camera-active .mobile-nav {
-  background: white !important;
 }
 
 .visit-header {
@@ -62,3 +57,28 @@ body.camera-active .mobile-nav {
   z-index: 40;
 }
 .visit-body,.main-content{overflow-x:clip}
+
+/* Cabecera única de visita: mismo DOM y posición en las 3 tabs (nativo). */
+.visit-shell.visit-native{animation:none}
+.visit-shell .visit-top{position:relative;z-index:50}
+.visit-shell .visit-tabs{position:static}
+.visit-shell.visit-native.cam .visit-top{background:transparent}
+.visit-shell.visit-native.cam .visit-title h1{color:#fff;font-size:22px;text-shadow:-1px 0 0 rgba(0,0,0,.45),1px 0 0 rgba(0,0,0,.45),0 -1px 0 rgba(0,0,0,.45),0 1px 0 rgba(0,0,0,.45),0 1px 5px rgba(0,0,0,.6)}
+.visit-shell.visit-native.cam .visit-title p{color:rgba(255,255,255,.9);text-shadow:-1px 0 0 rgba(0,0,0,.45),1px 0 0 rgba(0,0,0,.45),0 -1px 0 rgba(0,0,0,.45),0 1px 0 rgba(0,0,0,.45),0 1px 4px rgba(0,0,0,.6)}
+.visit-shell.visit-native.cam .back-button{color:#fff;background:rgba(0,0,0,.45);border-color:rgba(255,255,255,.7);text-shadow:-1px 0 0 rgba(0,0,0,.45),1px 0 0 rgba(0,0,0,.45),0 -1px 0 rgba(0,0,0,.45),0 1px 0 rgba(0,0,0,.45)}
+.visit-shell.visit-native.cam .visit-tabs{background:transparent;border-color:transparent;box-shadow:none}
+.visit-shell.visit-native.cam .visit-tab{color:#fff;background:rgba(0,0,0,.45)}
+.visit-shell.visit-native.cam .visit-tab.active{color:#01437a;background:rgba(255,255,255,.95)}
+.visit-shell.visit-native.cam .visit-tab:not(.active) .tab-num{color:#fff;background:rgba(255,255,255,.2)}
+.visit-shell.visit-native.cam .visit-aside{display:none !important}
+
+/* Capa de captura nativa: fija de top:0 a justo encima del mobile-nav
+   (el bottom exacto lo pone el JS midiendo el nav del DOM). */
+.capture-native-layer{position:fixed;top:0;left:0;right:0;bottom:calc(66px + env(safe-area-inset-bottom));z-index:10;display:flex;align-items:center;justify-content:center;overflow:hidden;background:#0a1624}
+.capture-native-layer.live{background:transparent}
+.capture-native-empty{display:flex;flex-direction:column;align-items:center;gap:6px;color:#fff;font-weight:800;text-transform:uppercase;font-size:11px;letter-spacing:1px}
+.capture-native-empty small{color:rgba(255,255,255,.7);font-weight:600;text-transform:none;letter-spacing:0}
+.capture-flash{position:absolute;inset:0;border:6px solid #fff;background:rgba(255,255,255,.6);z-index:14;transition:.1s}
+.capture-pile{position:absolute;right:var(--pad);top:50%;transform:translateY(-50%);display:flex;flex-direction:column;gap:8px;z-index:12}
+.capture-pile-thumb{position:relative;width:54px;height:54px;border-radius:12px;overflow:hidden;border:2px solid #fff;box-shadow:0 2px 8px rgba(0,0,0,.4)}
+.capture-controls{position:absolute;left:var(--pad);right:var(--pad);bottom:12px;z-index:12}
