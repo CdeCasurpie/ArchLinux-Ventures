@@ -226,7 +226,6 @@ export function VisitReport({ visita, expediente, profile, ownerId, onSave }: {
         <span className={`status ${stale ? 'draft' : 'active'}`}>
           {stale ? '⚠ PDF desactualizado' : visita.estado_documento === 'GENERADO' ? 'PDF generado' : 'Borrador'}
         </span>
-        {(dirty || fresh) && <span style={{ fontSize: 12, color: '#92400e' }}>● Cambios sin guardar</span>}
         <span style={{ flex: 1 }} />
         <button className="btn btn-secondary" onClick={undo} disabled={!past.length}>←</button>
         <button className="btn btn-secondary" onClick={redo} disabled={!future.length}>→</button>
@@ -237,7 +236,6 @@ export function VisitReport({ visita, expediente, profile, ownerId, onSave }: {
           {busy ? 'Generando…' : 'Generar PDF'}
         </button>
       </div>
-      {stale && <div className="alert notice">El informe cambió después de generar el PDF. Vuelve a generarlo para actualizar el entregable.</div>}
       {pdfMsg && <div className="alert notice">{pdfMsg}</div>}
       {pendingPdf && (
         <div className="alert notice">

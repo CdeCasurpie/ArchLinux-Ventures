@@ -60,7 +60,6 @@ export function VisitSummary({ visita, onConclude, onEditReport, onGoChecklist }
   const [pulling, setPulling] = useState(false);
   const [pullProgress, setPullProgress] = useState<PullProgress | null>(null);
   const [lastPull, setLastPull] = useState<string | null>(null);
-  const [pullMsg, setPullMsg] = useState('');
   const [finishing, setFinishing] = useState(false);
   const [confirming, setConfirming] = useState(false);
 
@@ -74,16 +73,13 @@ export function VisitSummary({ visita, onConclude, onEditReport, onGoChecklist }
   const doPull = () => {
     if (!navigator.onLine || pulling) return;
     setPulling(true);
-    setPullMsg('');
     setPullProgress(null);
     const reader = new SupabaseCaptureReader(supabase);
     pullVisitaFromCloud(mediaOutbox, reader, visita.id, setPullProgress)
-      .then(r => {
-        setPullMsg(`Nube al día: ${r.upserted} grupos, ${r.downloaded} archivos` +
-          (r.skippedDirty ? `, ${r.skippedDirty} omitidos (local manda)` : ''));
+      .then(() => {
         return getLastPull(visita.id).then(setLastPull).catch(console.error);
       })
-      .catch(e => setPullMsg(`No se pudo descargar: ${e instanceof Error ? e.message : String(e)}`))
+      .catch(console.error)
       .finally(() => { setPulling(false); setPullProgress(null); });
   };
 
@@ -161,7 +157,6 @@ export function VisitSummary({ visita, onConclude, onEditReport, onGoChecklist }
             : '↓ Actualizar desde la nube'}
         </button>
       </div>
-      {pullMsg && <p style={{ fontSize: 12, color: '#475569', marginTop: 0 }}>{pullMsg}</p>}
 
       {SHOW_SYNC_DEBUG && (
       <DebugPanel

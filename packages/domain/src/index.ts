@@ -167,13 +167,16 @@ export function removeReportBlock(doc:ReportDocumentV1,id:string):ReportDocument
  return bump(doc,doc.blocks.filter(b=>b.id!==id));
 }
 
-/** Restaura el bloque de un grupo capturado (si no está ya en el documento). */
+/** Restaura el bloque de un grupo capturado (si no está ya en el documento).
+ *  Los hallazgos nuevos van siempre encima de las conclusiones. */
 export function restoreGroupBlock(doc:ReportDocumentV1,groupId:string,photoIds:string[],comment:string):ReportDocumentV1{
  if(doc.blocks.some(b=>b.type==='capture-group'&&b.groupId===groupId))return doc;
- const sig=doc.blocks.findIndex(b=>b.type==='signatures');
  const block:ReportBlock={id:uid(),type:'capture-group',groupId,photoIds:[...photoIds],comment};
  const blocks=[...doc.blocks];
- blocks.splice(sig<0?blocks.length:sig,0,block);
+ const conclusions=blocks.findIndex(b=>b.type==='conclusions');
+ const sig=blocks.findIndex(b=>b.type==='signatures');
+ const at=conclusions>=0?conclusions:(sig<0?blocks.length:sig);
+ blocks.splice(at,0,block);
  return bump(doc,blocks);
 }
 
