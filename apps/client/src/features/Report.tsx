@@ -176,7 +176,6 @@ export function VisitReport({ visita, expediente, profile, ownerId, onSave }: {
         // Descarga directa a Documentos, sin hoja de compartir.
         await Filesystem.writeFile({ path: `ArchForms/${filename}`, data: bytesToBase64(bytes), directory: Directory.Documents, recursive: true });
         setSavedFile({ filename });
-        setFileSheetOpen(true);
       } else {
         // Web: descargar los bytes ESTAMPADOS (con pie X/Y), no el blob original.
         const stampedBlob = new Blob([bytes as unknown as BlobPart], { type: 'application/pdf' });
@@ -209,6 +208,8 @@ export function VisitReport({ visita, expediente, profile, ownerId, onSave }: {
         setPendingPdfState({ pdfId, filename });
         setPdfMsg('PDF generado en este dispositivo. Sin conexión: la subida queda pendiente.');
       }
+      // Recién al terminar todo (sellado + subida) se abre el panel: los botones ya sirven.
+      setFileSheetOpen(true);
     } catch (e) {
       setPdfMsg(`No se pudo generar: ${e instanceof Error ? e.message : String(e)}`);
     } finally {
