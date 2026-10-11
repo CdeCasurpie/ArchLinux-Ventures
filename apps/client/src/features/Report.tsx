@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { Capacitor } from '@capacitor/core';
 import { Directory, Filesystem } from '@capacitor/filesystem';
+import { FileViewer } from '@capacitor/file-viewer';
 import { Share } from '@capacitor/share';
 import {
   initReportDocument, parseReportDocument, moveReportBlock, removeReportBlock,
@@ -49,6 +51,9 @@ export function VisitReport({ visita, expediente, profile, ownerId, onSave }: {
   const [saving, setSaving] = useState(false);
   const [busy, setBusy] = useState(false);
   const [pdfMsg, setPdfMsg] = useState('');
+  const [fileMsg, setFileMsg] = useState('');
+  const [savedFile, setSavedFile] = useState<{ filename: string } | null>(null);
+  const [fileSheetOpen, setFileSheetOpen] = useState(false);
   const [pendingPdf, setPendingPdfState] = useState<{ pdfId: string; filename: string } | null>(null);
   const initedFor = useRef<string | null>(null);
 
@@ -127,6 +132,22 @@ export function VisitReport({ visita, expediente, profile, ownerId, onSave }: {
 
   const generate = async () => {
     if (!doc) return;
+    // PDF vigente al día: no regenerar, ofrecer el archivo existente.
+    if (visita.estado_documento === 'GENERADO' && !isPdfStale(doc, visita.estado_documento)) {
+      if (Capacitor.isNativePlatform()) {
+        const { informeFileName } = await import('@archforms/report-pdf');
+        const existing = informeFileName(expediente, visita);
+        try {
+          await Filesystem.stat({ path: `ArchForms/${existing}`, directory: Directory.Documents });
+          setSavedFile({ filename: existing });
+          setFileSheetOpen(true);
+          return;
+        } catch { /* ya no está en disco: regenerar */ }
+      } else {
+        setPdfMsg('El PDF ya está actualizado.');
+        return;
+      }
+    }
     setBusy(true);
     setPdfMsg('');
     try {
@@ -152,9 +173,10 @@ export function VisitReport({ visita, expediente, profile, ownerId, onSave }: {
       );
       const filename = informeFileName(expediente, visita);
       if (Capacitor.isNativePlatform()) {
+        // Descarga directa a Documentos, sin hoja de compartir.
         await Filesystem.writeFile({ path: `ArchForms/${filename}`, data: bytesToBase64(bytes), directory: Directory.Documents, recursive: true });
-        const { uri } = await Filesystem.getUri({ path: `ArchForms/${filename}`, directory: Directory.Documents });
-        await Share.share({ title: 'Informe ArchForms', text: filename, url: uri, dialogTitle: 'Compartir informe' });
+        setSavedFile({ filename });
+        setFileSheetOpen(true);
       } else {
         // Web: descargar los bytes ESTAMPADOS (con pie X/Y), no el blob original.
         const stampedBlob = new Blob([bytes as unknown as BlobPart], { type: 'application/pdf' });
@@ -189,6 +211,35 @@ export function VisitReport({ visita, expediente, profile, ownerId, onSave }: {
       }
     } catch (e) {
       setPdfMsg(`No se pudo generar: ${e instanceof Error ? e.message : String(e)}`);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const savedFileUri = async (filename: string) => {
+    const { uri } = await Filesystem.getUri({ path: `ArchForms/${filename}`, directory: Directory.Documents });
+    return uri;
+  };
+
+  const openSavedPdf = async (filename: string) => {
+    setBusy(true);
+    setFileMsg('');
+    try {
+      await FileViewer.openDocumentFromLocalPath({ path: await savedFileUri(filename) });
+    } catch (e) {
+      setFileMsg(`No se pudo abrir el PDF: ${e instanceof Error ? e.message : String(e)}`);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const shareSavedPdf = async (filename: string) => {
+    setBusy(true);
+    setFileMsg('');
+    try {
+      await Share.share({ title: 'Informe ArchForms', text: filename, url: await savedFileUri(filename), dialogTitle: 'Compartir informe' });
+    } catch (e) {
+      setFileMsg(`No se pudo compartir el PDF: ${e instanceof Error ? e.message : String(e)}`);
     } finally {
       setBusy(false);
     }
@@ -237,6 +288,31 @@ export function VisitReport({ visita, expediente, profile, ownerId, onSave }: {
         </button>
       </div>
       {pdfMsg && <div className="alert notice">{pdfMsg}</div>}
+      {fileSheetOpen && savedFile && Capacitor.isNativePlatform() && createPortal(
+        <>
+          <div onClick={() => setFileSheetOpen(false)} style={{ position: 'fixed', inset: 0, background: 'rgba(10,25,45,.45)', zIndex: 80 }} />
+          <div className="card" style={{ position: 'fixed', left: 0, right: 0, bottom: 0, zIndex: 90, borderRadius: '20px 20px 0 0', padding: '10px 20px calc(20px + env(safe-area-inset-bottom))', animation: 'sheetUp .22s ease both' }}>
+            <div style={{ width: 40, height: 4, borderRadius: 4, background: '#dde5ee', margin: '0 auto 12px' }} />
+            <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8 }}>
+              <div style={{ flex: 1 }}>
+                <p style={{ margin: '0 0 4px 0', fontSize: 14, fontWeight: 800, color: 'var(--navy)' }}>✓ PDF guardado en el dispositivo</p>
+                <p style={{ margin: 0, fontSize: 12, color: '#475569' }}>{savedFile.filename} · Documentos/ArchForms/</p>
+              </div>
+              <button className="btn btn-secondary" aria-label="Cerrar" onClick={() => setFileSheetOpen(false)} style={{ padding: '6px 12px' }}>×</button>
+            </div>
+            <div style={{ display: 'flex', gap: 8, marginTop: 14 }}>
+              <button className="btn btn-primary" style={{ flex: 1 }} onClick={() => void openSavedPdf(savedFile.filename)} disabled={busy}>
+                Abrir PDF
+              </button>
+              <button className="btn btn-secondary" style={{ flex: 1 }} onClick={() => void shareSavedPdf(savedFile.filename)} disabled={busy}>
+                Compartir
+              </button>
+            </div>
+            {fileMsg && <p style={{ margin: '12px 0 0 0', fontSize: 12, color: 'var(--danger)' }}>{fileMsg}</p>}
+          </div>
+        </>,
+        document.body,
+      )}
       {pendingPdf && (
         <div className="alert notice">
           Hay un PDF generado pendiente de subir ({pendingPdf.filename}).

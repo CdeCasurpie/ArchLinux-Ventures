@@ -87,4 +87,5 @@ body.camera-active .checklist-card {
 @keyframes skeleton-pulse{0%,100%{opacity:1}50%{opacity:.4}}
 .skeleton{animation:skeleton-pulse 1.4s ease-in-out infinite;background:#e0e6ec}
 @keyframes spin{to{transform:rotate(360deg)}}
+@keyframes sheetUp{from{transform:translateY(24px);opacity:0}}
 .spinner{width:12px;height:12px;flex:none;border-radius:50%;border:2px solid rgba(11,74,143,.25);border-top-color:#0b4a8f;animation:spin .8s linear infinite}

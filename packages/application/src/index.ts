@@ -54,10 +54,25 @@ export class WorkspaceSyncEngine {
   for(let i=0;i<100;i++){
    const next=(await this.local.read(this.owner)).pending[0];
    if(!next){await this.local.mergeRemote(this.owner,await this.remote.fetchAll());return}
-   await this.remote.push(next);await this.local.acknowledge(this.owner,next.id);
+   try{
+    await this.remote.push(next);
+   }catch(e){
+    // La BD rechazó la fila para siempre (ej. doble tap creó dos visitas con el
+    // mismo nro_visita): descartarla en vez de reintentarla y bloquear la cola.
+    // Los fantasmas locales se limpian solos con el mergeRemote al drenar.
+    if(isDuplicateKey(e)){await this.local.acknowledge(this.owner,next.id);continue}
+    throw e;
+   }
+   await this.local.acknowledge(this.owner,next.id);
   }
   throw new Error('Hay demasiados cambios pendientes para una sola sincronización.');
  }
+}
+
+/** Detecta violaciones de unicidad de Postgres (código 23505 o mensaje de PostgREST). */
+function isDuplicateKey(e:unknown):boolean{
+ const msg=e instanceof Error?e.message:String(e);
+ return /duplicate key|unique constraint|23505/i.test(msg);
 }
 const now=()=>new Date().toISOString();
 const nullable=(value:FormDataEntryValue|null)=>{const text=String(value??'').trim();return text||null};

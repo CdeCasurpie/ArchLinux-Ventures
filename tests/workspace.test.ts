@@ -15,4 +15,19 @@ class Remote implements WorkspaceRemoteRepository{
 describe('workspace offline',()=>{
  it('guarda expediente y outbox juntos, y sincroniza sin duplicar',async()=>{const local=new IndexedWorkspaceRepository(`workspace-${crypto.randomUUID()}`),record=expediente(),operation=workspaceOperation('expediente',record);await local.save(owner,operation);expect(await local.read(owner)).toMatchObject({expedientes:[{id:record.id}],pending:[{id:operation.id}]});const remote=new Remote(),engine=new WorkspaceSyncEngine(local,remote,owner);await Promise.all([engine.run(),engine.run()]);expect(remote.calls).toEqual([operation.id]);expect((await local.read(owner)).pending).toEqual([])});
  it('la visita conserva una copia independiente del checklist',()=>{const record=expediente(),visit=buildVisita(record,1,'2026-09-17');record.checklist_esquema_json.sections[0].fields[0].label='Modificado después';expect(visit.checklist_esquema_json.sections[0].fields[0].label).toBe('Licencia')});
+ it('descarta la operacion duplicada sin bloquear el resto de la cola',async()=>{
+  const local=new IndexedWorkspaceRepository(`workspace-${crypto.randomUUID()}`),record=expediente();
+  // Doble tap: dos visitas con el mismo nro_visita pero distinto id.
+  const v1=buildVisita(record,18,'2026-10-10'),v2=buildVisita(record,18,'2026-10-10');
+  const op1=workspaceOperation('visita',v1),op2=workspaceOperation('visita',v2);
+  await local.save(owner,op1);await local.save(owner,op2);
+  const remote=new Remote(),realPush=remote.push.bind(remote);
+  remote.push=async(op:WorkspacePending)=>{
+   if(op.id===op1.id)throw new Error('duplicate key value violates unique constraint "visita_expediente_id_nro_visita"');
+   return realPush(op);
+  };
+  await new WorkspaceSyncEngine(local,remote,owner).run();
+  expect(remote.calls).toEqual([op2.id]);
+  expect((await local.read(owner)).pending).toEqual([]);
+ });
 });

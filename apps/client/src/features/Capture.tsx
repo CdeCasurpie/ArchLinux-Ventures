@@ -287,11 +287,6 @@ export function VisitCapture({
                 : recorderState === 'saved'  ? '¡Hallazgo guardado!'
                 : 'Grabar audio y agrupar'}
             </button>
-            {photos.length === 0 && recorderState === 'idle' && (
-              <p style={{ fontSize: 11, textAlign: 'center', marginTop: 10, color: '#81909d' }}>
-                Toma al menos una foto para iniciar un hallazgo.
-              </p>
-            )}
           </div>
 
           {photos.length > 0 && (
@@ -363,11 +358,6 @@ export function VisitCapture({
                 : recorderState === 'saved'  ? '¡Hallazgo guardado!'
                 : 'Grabar audio y agrupar'}
             </button>
-            {photos.length === 0 && recorderState === 'idle' && (
-              <p style={{ fontSize: 11, textAlign: 'center', marginTop: 10, color: 'rgba(255,255,255,0.85)' }}>
-                Toma al menos una foto para iniciar un hallazgo.
-              </p>
-            )}
           </div>
         </div>
       </div>

@@ -13,26 +13,6 @@ import { SupabaseCaptureReader } from '@archforms/data-supabase';
 const SHOW_SYNC_DEBUG = false;
 import type { Visita } from '@archforms/domain';
 
-// ── Sync status badge ─────────────────────────────────────────────────────────
-function SyncBadge({ status }: { status: CaptureGroup['syncStatus'] }) {
-  const styles: Record<string, { label: string; color: string; bg: string }> = {
-    pending:   { label: '🕐 En cola',        color: '#92400e', bg: '#fef3c7' },
-    uploading: { label: '⬆ Subiendo',        color: '#1e40af', bg: '#dbeafe' },
-    synced:    { label: '✓ Sincronizado',    color: '#065f46', bg: '#d1fae5' },
-    error:     { label: '⚠ Error — reintentando', color: '#991b1b', bg: '#fee2e2' },
-  };
-  const s = styles[status] ?? styles.pending;
-  return (
-    <span style={{
-      fontSize: 10, fontWeight: 700, padding: '2px 8px',
-      borderRadius: 100, background: s.bg, color: s.color,
-      letterSpacing: 0.3, whiteSpace: 'nowrap',
-    }}>
-      {s.label}
-    </span>
-  );
-}
-
 // ── Main component ────────────────────────────────────────────────────────────
 function timeAgo(iso: string | null): string {
   if (!iso) return '—';
@@ -139,10 +119,27 @@ export function VisitSummary({ visita, onConclude, onEditReport, onGoChecklist }
     },
     {} as Record<string, number>,
   );
+  const pendingSync = groups.filter(g => (g.syncStatus ?? 'pending') !== 'synced').length;
 
   return (
     <article className="summary-layout">
       <p className="eyebrow" style={{ marginBottom: 16 }}>HISTORIAL DE HALLAZGOS</p>
+
+      {groups.length > 0 && (
+        <div style={{
+          display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12,
+          padding: '10px 14px', borderRadius: 12, fontSize: 12, fontWeight: 700,
+          background: !online ? '#f1f5f9' : pendingSync > 0 ? '#e8f3fe' : '#e9f7f2',
+          color: !online ? '#475569' : pendingSync > 0 ? '#0b4a8f' : '#065f46',
+        }}>
+          <span>●</span>
+          {!online
+            ? `Sin conexión · ${pendingSync} pendiente${pendingSync === 1 ? '' : 's'} de subida`
+            : pendingSync > 0
+              ? `En línea · subiendo ${pendingSync}…`
+              : 'En línea · todo sincronizado'}
+        </div>
+      )}
 
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12, fontSize: 12, color: '#475569' }}>
         <span>Nube: {lastPull ? `actualizado ${timeAgo(lastPull)}` : 'nunca descargado en este dispositivo'}</span>
@@ -181,21 +178,16 @@ export function VisitSummary({ visita, onConclude, onEditReport, onGoChecklist }
             const failed = group.transcripcionStatus === 'error';
             const remoteNoText = group.transcripcionStatus === 'remote' && noText;
             const transcribing = noText && !failed && !remoteNoText;
-            const syncState = group.syncStatus ?? 'pending';
-            const chipProcessing = !failed && !remoteNoText && (noText || syncState === 'pending' || syncState === 'uploading');
-            const uploading = !transcribing && !failed && !remoteNoText && (syncState === 'pending' || syncState === 'uploading');
             return (
-            <div key={group.id} className="card" style={{ background: 'white', borderRadius: 16, padding: 16, border: chipProcessing ? '2px solid #7fb5f5' : '1px solid var(--line)', boxShadow: 'var(--shadow-sm)' }}>
+            <div key={group.id} className="card" style={{ background: 'white', borderRadius: 16, padding: 16, border: transcribing ? '2px solid #7fb5f5' : '1px solid var(--line)', boxShadow: 'var(--shadow-sm)' }}>
               {/* Header row */}
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
                 <h3 style={{ margin: 0, fontSize: 16, color: 'var(--navy)' }}>Hallazgo {groups.length - i}</h3>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                  {chipProcessing ? (
+                  {transcribing && (
                     <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 11, fontWeight: 700, padding: '4px 12px', borderRadius: 100, background: '#d7e9fd', color: '#0b4a8f', whiteSpace: 'nowrap' }}>
                       <span className="spinner" />Procesando
                     </span>
-                  ) : (
-                    <SyncBadge status={group.syncStatus ?? 'pending'} />
                   )}
                   <span style={{ fontSize: 11, color: '#81909d' }}>
                     {new Date(group.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
@@ -256,11 +248,6 @@ export function VisitSummary({ visita, onConclude, onEditReport, onGoChecklist }
               {remoteNoText && (
                 <p style={{ margin: '12px 0 0 0', fontSize: 12, color: '#81909d' }}>
                   Traída de la nube (este dispositivo no la transcribe).
-                </p>
-              )}
-              {uploading && (
-                <p style={{ margin: '12px 0 0 0', fontSize: 12, color: '#81909d' }}>
-                  Subiendo a la nube…
                 </p>
               )}
 
