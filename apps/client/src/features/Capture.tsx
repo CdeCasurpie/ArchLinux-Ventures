@@ -1,13 +1,23 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { Capacitor } from '@capacitor/core';
+import { Filesystem } from '@capacitor/filesystem';
 import { CameraPreview } from '@capacitor-community/camera-preview';
 import { ArchFormsAudio } from './native-audio';
 import { extractLocalFeatures } from './local-features';
 import { perfLog } from './perf';
-import { savePhoto, saveNativeAudioShell, computeRecordingChecksum, updateAudioClipChecksum, loadCaptureGroup, createCaptureGroup, persistCaptureGroup, type LabPhoto } from './lab-storage';
-import { enqueueGroupToOutbox, runMigrationIfNeeded, triggerMediaSync, notifyTranscriptionReady, notifyLocalChange, notifyGroupCreated } from './media-sync';
+import { captureActivity } from './activity';
+import { idleQueue } from './job-queue';
+import {
+  savePhoto, saveNativeAudioShell, computeRecordingChecksum, updateAudioClipChecksum,
+  loadCaptureGroup, loadDraftPhotos, createCaptureGroup, commitGroupPhotos, removeDraftPhotos,
+  fileUrl, photoPath, ingestCapturedPhoto, registerGroupInMemory,
+  type IngestResult, type LabPhoto,
+} from './lab-storage';
+import { enqueueGroupToOutbox, runMigrationIfNeeded, triggerMediaSync, notifyLocalChange, notifyGroupCreated } from './media-sync';
+import { transcriptionService } from './transcription-service';
 import { mediaOutbox } from '../platform';
 import type { Visita } from '@archforms/domain';
+import type { NativeRecording } from './native-audio';
 
 const MicIcon = () => (
   <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
@@ -21,6 +31,52 @@ const StopIcon = () => (
   </svg>
 );
 
+const PHOTO_W = 1920, PHOTO_H = 1440, PHOTO_QUALITY = 82;
+
+function CaptureActions({ cameraOn, recorderState, justSaved, elapsed, photoCount, compact, onToggleCamera, onTakePhoto, onRecord, formatDuration }: {
+  cameraOn: boolean
+  recorderState: 'idle' | 'recording' | 'saving'
+  justSaved: boolean
+  elapsed: number
+  photoCount: number
+  compact: boolean
+  onToggleCamera: () => void
+  onTakePhoto: () => void
+  onRecord: () => void
+  formatDuration: (ms: number) => string
+}) {
+  return (
+    <>
+      <div className="actions" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: compact ? 12 : 25 }}>
+        <button className="btn btn-secondary" style={{ padding: '16px 0', fontSize: 13, background: 'white' }} onClick={onToggleCamera}>
+          {cameraOn ? 'Apagar cámara' : 'Encender cámara'}
+        </button>
+        <button className="btn btn-primary" style={{ padding: '16px 0', fontSize: 13 }} onClick={onTakePhoto} disabled={!cameraOn}>
+          Tomar foto
+        </button>
+      </div>
+
+      <div className="audio-section" style={compact ? undefined : { marginBottom: 25 }}>
+        <button
+          className={`btn ${recorderState === 'recording' ? 'btn-danger' : 'btn-secondary'}`}
+          style={{ width: '100%', minHeight: 65, fontSize: 16, display: 'flex', alignItems: 'center', justifyItems: 'center', gap: 12, justifyContent: 'center', borderRadius: 16, background: recorderState === 'recording' ? '' : 'white' }}
+          onClick={onRecord}
+          disabled={recorderState === 'saving' || (!cameraOn && photoCount === 0 && recorderState === 'idle')}
+        >
+          <span style={{ display: 'flex', opacity: 0.8 }}>
+            {recorderState === 'recording' ? <StopIcon /> : <MicIcon />}
+          </span>
+          {recorderState === 'recording'
+            ? `Detener y agrupar (${formatDuration(elapsed)})`
+            : recorderState === 'saving' ? 'Guardando...'
+            : justSaved  ? '¡Hallazgo guardado!'
+            : 'Grabar audio y agrupar'}
+        </button>
+      </div>
+    </>
+  );
+}
+
 export function VisitCapture({
   visita,
   ownerId,
@@ -33,14 +89,22 @@ export function VisitCapture({
   /** false cuando el tab está oculto (se mantiene montado para no perder estado). */
   active?: boolean
 }) {
-  const [photos, setPhotos]             = useState<LabPhoto[]>([]);
+  const [photos, setPhotosState]      = useState<LabPhoto[]>([]);
   const [cameraOn, setCameraOn]         = useState(false);
   const [flash, setFlash]               = useState(false);
-  const [recorderState, setRecorderState] = useState<'idle'|'recording'|'saving'|'saved'>('idle');
+  const [recorderState, setRecorderState] = useState<'idle'|'recording'|'saving'>('idle');
   const [elapsed, setElapsed]           = useState(0);
+  const [justSaved, setJustSaved]       = useState(false);
   const viewportRef                     = useRef<HTMLDivElement>(null);
   // TikTok-style fullscreen capture, solo nativo. Web conserva el layout actual.
   const tiktok = Capacitor.isNativePlatform();
+
+  const pileRef      = useRef<LabPhoto[]>([]);
+  const ingestJobs   = useRef(new Map<string, Promise<IngestResult>>());
+  const tmpUris      = useRef(new Map<string, string>());
+  const captureChain = useRef<Promise<void>>(Promise.resolve());
+  const savedTimer   = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const setPile = (next: LabPhoto[]) => { pileRef.current = next; setPhotosState(next); };
 
   // Altura real del mobile-nav (incluye safe-area): la capa fija termina justo encima.
   const [navH, setNavH] = useState(0);
@@ -63,7 +127,19 @@ export function VisitCapture({
   }, [visita.id, ownerId]);
 
   useEffect(() => {
+    captureActivity.setTabActive(active);
+  }, [active]);
+
+  useEffect(() => {       // restaurar el hallazgo en curso si Android mató la app
+    if (!tiktok) return;
+    let alive = true;
+    loadDraftPhotos(visita.id).then(r => { if (alive && r.length) setPile([...r, ...pileRef.current]); });
+    return () => { alive = false; };
+  }, [visita.id]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
     return () => {
+      clearTimeout(savedTimer.current);
       document.body.classList.remove('camera-active');
       document.documentElement.classList.remove('camera-active');
       CameraPreview.stop().catch(() => {});
@@ -130,7 +206,7 @@ export function VisitCapture({
         position: 'rear',
         x: Math.round(rect.x), y: Math.round(rect.y),
         width: Math.round(rect.width), height: Math.round(rect.height),
-        toBack: true, storeToFile: false, enableZoom: true, lockAndroidOrientation: true,
+        toBack: true, storeToFile: true, enableZoom: true, lockAndroidOrientation: true,
       });
       setCameraOn(true);
     } catch (caught) { console.error(caught); }
@@ -143,7 +219,8 @@ export function VisitCapture({
     document.documentElement.classList.remove('camera-active');
   };
 
-  const takePhoto = async () => {
+  // Web: pipeline actual intacto (compressPhoto + savePhoto).
+  const takePhotoWeb = async () => {
     const t0 = performance.now();
     try {
       setFlash(true);
@@ -154,94 +231,98 @@ export function VisitCapture({
       const features = await extractLocalFeatures(displayUrl);
       // savePhoto now compresses + computes checksum internally
       const saved    = await savePhoto({ base64: result.value, mimeType: 'image/jpeg', features });
-      setPhotos(current => [saved, ...current]);
+      setPile([saved, ...pileRef.current]);
       perfLog('toque→pila', performance.now() - t0);
     } catch (caught) { console.error(caught); }
   };
 
+  const takePhoto = () => {
+    if (!tiktok) { void takePhotoWeb(); return; }       // web: pipeline actual intacto
+    setFlash(true); setTimeout(() => setFlash(false), 150);
+    captureActivity.touch();
+    captureChain.current = captureChain.current.then(async () => {   // serializa la llamada nativa, no bloquea el botón
+      const t0 = performance.now();
+      try {
+        const { value } = await CameraPreview.capture({ quality: PHOTO_QUALITY, width: PHOTO_W, height: PHOTO_H });
+        const tmpUri = value.startsWith('file:') ? value : `file://${value}`;
+        const id = crypto.randomUUID();
+        const createdAt = new Date().toISOString();
+        const photo: LabPhoto = {
+          id, path: photoPath(id), mimeType: 'image/jpeg', features: [],
+          sizeBytes: 0, checksum: '', createdAt, displayUrl: Capacitor.convertFileSrc(tmpUri),
+        };
+        tmpUris.current.set(id, tmpUri);
+        setPile([photo, ...pileRef.current]);             // aparece de inmediato
+        ingestJobs.current.set(id, ingestCapturedPhoto({ id, tmpUri, visitaId: visita.id, createdAt }));
+        perfLog('toque→pila', performance.now() - t0);
+      } catch (e) { console.error(e); }
+    });
+  };
+
   const startRecording = async () => {
-    try { await ArchFormsAudio.startRecording(); setElapsed(0); setRecorderState('recording'); }
-    catch (caught) { console.error(caught); }
+    try {
+      clearTimeout(savedTimer.current); setJustSaved(false);
+      await ArchFormsAudio.startRecording();
+      captureActivity.setRecording(true);
+      setElapsed(0); setRecorderState('recording');
+    } catch (e) { console.error(e); }
+  };
+  const flashSaved = () => {
+    clearTimeout(savedTimer.current); setJustSaved(true);
+    savedTimer.current = setTimeout(() => setJustSaved(false), 1500);
   };
 
   const stopRecording = async () => {
     setRecorderState('saving');
     try {
       const recording = await ArchFormsAudio.stopRecording();
-      // 1. Grupo en memoria al instante: Resumen lo muestra ya, sin esperar al disco.
-      const audioShell = await saveNativeAudioShell(recording);
-      const group = createCaptureGroup(visita.id, photos, audioShell);
-      notifyGroupCreated(group);
-
-      setPhotos([]);        // reset for next hallazgo
+      captureActivity.setRecording(false);
+      await captureChain.current;                         // fotos con capture() en vuelo entran a ESTE hallazgo
+      const snapshot = pileRef.current;
+      setPile([]);                                        // workspace limpio: ya se puede seguir
+      const audioShell = await saveNativeAudioShell(recording);    // sin I/O
+      const group = createCaptureGroup(visita.id, snapshot, audioShell);
+      registerGroupInMemory(group);                       // el store ya lo tiene
+      notifyGroupCreated(group);                          // Resumen lo muestra al instante
       onGroupSaved();
-      setRecorderState('saved');
-
-      // 2. Por detrás: persistir, checksum → outbox/sync, y transcripción en paralelo.
-      // El outbox espera al checksum real (la subida lo necesita); la transcripción
-      // solo necesita el archivo, así que arranca de una vez.
-      void persistCaptureGroup(group).then(() => notifyLocalChange()).catch(console.error);
-      void (async () => {
-        try {
-          const cc = await computeRecordingChecksum(recording.uri);
-          await updateAudioClipChecksum(audioShell.id, cc);
-        } catch (caught) { console.error('checksum:', caught); }
-        try {
-          const fresh = await loadCaptureGroup(group.id);
-          if (fresh) await enqueueGroupToOutbox(mediaOutbox, fresh, ownerId);
-          await triggerMediaSync();
-        } catch (caught) { console.error(caught); }
-      })();
-
-      // Background transcription (optional; audio survives if this fails).
-      // Every local write notifies subscribers; the finished text additionally
-      // requeues the entity so the live payload (rebuilt at push time) carries it.
-      import('./whisper-service').then(({ getCachedWhisperModel, ensureWhisperModel, transcribeAudio }) => {
-        import('./lab-storage').then(({ updateCaptureGroupTranscription, updateCaptureGroupTranscriptionStatus }) => {
-          const runTranscription = (modelPath: string) => {
-            updateCaptureGroupTranscriptionStatus(group.id, 'transcribing').then(notifyLocalChange).catch(console.error);
-            transcribeAudio(audioShell.path, modelPath).then(text => {
-              if (text) {
-                updateCaptureGroupTranscription(group.id, text)
-                  .then(() => notifyTranscriptionReady(mediaOutbox, group.id))
-                  .catch(console.error);
-              } else {
-                updateCaptureGroupTranscriptionStatus(group.id, 'error', 'No text returned').then(notifyLocalChange).catch(console.error);
-              }
-            }).catch(err => {
-              updateCaptureGroupTranscriptionStatus(group.id, 'error', err.message || String(err)).then(notifyLocalChange).catch(console.error);
-            });
-          };
-          // Solo se muestra "descargando" si el modelo NO está en disco.
-          updateCaptureGroupTranscriptionStatus(group.id, 'checking_model').then(notifyLocalChange).catch(console.error);
-          getCachedWhisperModel().then(cachedPath => {
-            if (cachedPath) {
-              runTranscription(cachedPath);
-            } else {
-              updateCaptureGroupTranscriptionStatus(group.id, 'downloading_model').then(notifyLocalChange).catch(console.error);
-              ensureWhisperModel().then(({ path }) => {
-                if (path) runTranscription(path);
-                else updateCaptureGroupTranscriptionStatus(group.id, 'error', 'Model path is empty').then(notifyLocalChange).catch(console.error);
-              }).catch(err => {
-                updateCaptureGroupTranscriptionStatus(group.id, 'error', 'Model DL Error: ' + (err.message || String(err))).then(notifyLocalChange).catch(console.error);
-              });
-            }
-          }).catch(console.error);
-        });
-      }).catch(console.error);
-
-      setTimeout(() => setRecorderState('idle'), 3000);
-      setElapsed(0);
+      setRecorderState('idle'); setElapsed(0); flashSaved();
+      void finalizeGroup(group, recording).catch(console.error);
     }
     catch (caught) { console.error(caught); setRecorderState('idle'); setElapsed(0); }
+  };
+
+  const finalizeGroup = async (group: { id: string; photos: LabPhoto[]; audio: { id: string } }, recording: NativeRecording) => {
+    const results = await Promise.allSettled(group.photos.map(p =>
+      ingestJobs.current.get(p.id) ?? Promise.resolve({ sizeBytes: p.sizeBytes, checksum: p.checksum })));  // fotos restauradas del draft ya están en disco
+    const photos: LabPhoto[] = [];
+    for (const [i, p] of group.photos.entries()) {
+      const r = results[i];
+      if (r.status === 'fulfilled') photos.push({ ...p, ...r.value, displayUrl: await fileUrl(p.path, p.mimeType) });
+      else console.error('foto descartada (falló el guardado):', p.id, r.reason);
+    }
+    await commitGroupPhotos(group.id, photos);                   // JSON en disco, esperado
+    removeDraftPhotos(visita.id, group.photos.map(p => p.id));
+    notifyLocalChange();
+    transcriptionService.enqueue(group.id);
+
+    await idleQueue.enqueue(`audio-checksum:${group.audio.id}`, async () => {
+      try { await updateAudioClipChecksum(group.audio.id, await computeRecordingChecksum(recording.uri)); }
+      catch (e) { console.error('checksum:', e); }
+    });
+    const fresh = await loadCaptureGroup(group.id);
+    if (fresh) await enqueueGroupToOutbox(mediaOutbox, fresh, ownerId);   // recién ahora: grupo ya en disco
+    await triggerMediaSync();
+
+    const toDelete = group.photos.map(p => tmpUris.current.get(p.id)).filter((u): u is string => !!u);
+    group.photos.forEach(p => { ingestJobs.current.delete(p.id); tmpUris.current.delete(p.id); });
+    setTimeout(() => toDelete.forEach(uri =>
+      void Filesystem.deleteFile({ path: uri }).catch(() => undefined)), 10_000);  // margen para que la UI cambie de URL
   };
 
   const formatDuration = (ms: number) => {
     const s = Math.floor(ms / 1000);
     return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
   };
-
-  // (tiktok se declara arriba, junto a los estados).
 
   // Bloquea el scroll de la página solo mientras la captura está visible
   // (el componente queda montado entre tabs para no perder estado).
@@ -253,6 +334,15 @@ export function VisitCapture({
   }, [tiktok, active]);
   const pile = photos.slice(0, 5);
   const pileOverflow = photos.length > 5 ? photos.length - 4 : 0;
+  const actions = (
+    <CaptureActions
+      cameraOn={cameraOn} recorderState={recorderState} justSaved={justSaved}
+      elapsed={elapsed} photoCount={photos.length} compact={tiktok}
+      onToggleCamera={cameraOn ? stopCamera : startCamera} onTakePhoto={takePhoto}
+      onRecord={recorderState === 'recording' ? stopRecording : startRecording}
+      formatDuration={formatDuration}
+    />
+  );
 
   // Web conserva su layout actual (sin cambios de comportamiento).
   if (!tiktok) {
@@ -266,32 +356,7 @@ export function VisitCapture({
         </div>
 
         <div style={{ padding: '20px 15px', background: '#f2f5f9', flex: 1, zIndex: 11, position: 'relative' }}>
-          <div className="actions" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 25 }}>
-            <button className="btn btn-secondary" style={{ padding: '16px 0', fontSize: 13, background: 'white' }} onClick={cameraOn ? stopCamera : startCamera}>
-              {cameraOn ? 'Apagar cámara' : 'Encender cámara'}
-            </button>
-            <button className="btn btn-primary" style={{ padding: '16px 0', fontSize: 13 }} onClick={takePhoto} disabled={!cameraOn}>
-              Tomar foto
-            </button>
-          </div>
-
-          <div className="audio-section" style={{ marginBottom: 25 }}>
-            <button
-              className={`btn ${recorderState === 'recording' ? 'btn-danger' : 'btn-secondary'}`}
-              style={{ width: '100%', minHeight: 65, fontSize: 16, display: 'flex', alignItems: 'center', justifyItems: 'center', gap: 12, justifyContent: 'center', borderRadius: 16, background: recorderState === 'recording' ? '' : 'white' }}
-              onClick={recorderState === 'recording' ? stopRecording : startRecording}
-              disabled={recorderState === 'saving' || recorderState === 'saved' || (!cameraOn && photos.length === 0 && recorderState === 'idle')}
-            >
-              <span style={{ display: 'flex', opacity: 0.8 }}>
-                {recorderState === 'recording' ? <StopIcon /> : <MicIcon />}
-              </span>
-              {recorderState === 'recording'
-                ? `Detener y agrupar (${formatDuration(elapsed)})`
-                : recorderState === 'saving' ? 'Guardando...'
-                : recorderState === 'saved'  ? '¡Hallazgo guardado!'
-                : 'Grabar audio y agrupar'}
-            </button>
-          </div>
+          {actions}
 
           {photos.length > 0 && (
             <div className="photos-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 25 }}>
@@ -337,32 +402,7 @@ export function VisitCapture({
         )}
 
         <div className="capture-controls">
-          <div className="actions" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 12 }}>
-            <button className="btn btn-secondary" style={{ padding: '16px 0', fontSize: 13, background: 'white' }} onClick={cameraOn ? stopCamera : startCamera}>
-              {cameraOn ? 'Apagar cámara' : 'Encender cámara'}
-            </button>
-            <button className="btn btn-primary" style={{ padding: '16px 0', fontSize: 13 }} onClick={takePhoto} disabled={!cameraOn}>
-              Tomar foto
-            </button>
-          </div>
-
-          <div className="audio-section">
-            <button
-              className={`btn ${recorderState === 'recording' ? 'btn-danger' : 'btn-secondary'}`}
-              style={{ width: '100%', minHeight: 65, fontSize: 16, display: 'flex', alignItems: 'center', justifyItems: 'center', gap: 12, justifyContent: 'center', borderRadius: 16, background: recorderState === 'recording' ? '' : 'white' }}
-              onClick={recorderState === 'recording' ? stopRecording : startRecording}
-              disabled={recorderState === 'saving' || recorderState === 'saved' || (!cameraOn && photos.length === 0 && recorderState === 'idle')}
-            >
-              <span style={{ display: 'flex', opacity: 0.8 }}>
-                {recorderState === 'recording' ? <StopIcon /> : <MicIcon />}
-              </span>
-              {recorderState === 'recording'
-                ? `Detener y agrupar (${formatDuration(elapsed)})`
-                : recorderState === 'saving' ? 'Guardando...'
-                : recorderState === 'saved'  ? '¡Hallazgo guardado!'
-                : 'Grabar audio y agrupar'}
-            </button>
-          </div>
+          {actions}
         </div>
       </div>
     </div>
