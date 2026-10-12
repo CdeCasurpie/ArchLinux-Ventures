@@ -10,7 +10,7 @@ import {
   isPdfStale, type ReportDocumentV1, type ReportBlock,
 } from '@archforms/domain';
 import type { Expediente, LocalState, Visita } from '@archforms/domain';
-import { loadCaptureGroups, type CaptureGroup, type LabPhoto } from './lab-storage';
+import { loadCaptureGroups, photoDataUrl, type CaptureGroup, type LabPhoto } from './lab-storage';
 import { getPendingPdf, setPendingPdf, uploadPdfArtifact } from './media-sync';
 import { supabase } from '../platform';
 
@@ -156,9 +156,10 @@ export function VisitReport({ visita, expediente, profile, ownerId, onSave }: {
         import('@react-pdf/renderer'),
         import('@archforms/report-pdf'),
       ]);
-      // Fotos desde bytes locales ya descargados.
+      // Fotos resueltas a dataURL desde disco (el displayUrl en memoria puede ser
+      // una URL de archivo, que react-pdf no puede incrustar).
       const photos: Record<string, string> = {};
-      for (const g of groups) for (const p of g.photos) photos[p.id] = p.displayUrl;
+      for (const g of groups) for (const p of g.photos) photos[p.id] = await photoDataUrl(p.path, p.mimeType);
       const element = buildInformeDoc({
         doc, visita, expediente,
         profesional: profile ? { ...profile, email: '', updated_at: '' } : null,

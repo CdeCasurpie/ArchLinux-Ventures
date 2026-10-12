@@ -481,8 +481,9 @@ export async function pullVisitaFromCloud(
 
   for (const u of plan.upserts) {
     // 1. Descargar binarios faltantes a Filesystem (mismo layout que captura).
-    const photos: LabPhoto[] = [];
-    let audio: AudioClip | null = null;
+    // Sin displayUrl: se hidrata en upsertRemoteGroup (Fase 1, sin base64 en el JSON).
+    const photos: Omit<LabPhoto, 'displayUrl'>[] = [];
+    let audio: Omit<AudioClip, 'displayUrl'> | null = null;
     const fotoByArchivo = new Map(u.fotos.map(f => [f.archivo_id, f]));
     for (const a of u.archivos) {
       if (!a.storage_key) continue;
@@ -495,7 +496,7 @@ export async function pullVisitaFromCloud(
         audio = {
           id: a.id, path, mimeType: a.mime_type, durationMs: u.grupo.audio_duracion_ms ?? 0,
           sizeBytes: bytes.length, checksum: a.checksum_sha256 ?? '',
-          createdAt: u.grupo.iniciado_at, displayUrl: `data:${a.mime_type};base64,${b64}`,
+          createdAt: u.grupo.iniciado_at,
         };
       } else {
         const path = `archforms-lab/photos/${a.id}.jpg`;
@@ -505,7 +506,6 @@ export async function pullVisitaFromCloud(
           id: a.id, path, mimeType: a.mime_type, features: [],
           sizeBytes: bytes.length, checksum: a.checksum_sha256 ?? '',
           createdAt: f?.capturada_at ?? u.grupo.iniciado_at,
-          displayUrl: `data:${a.mime_type};base64,${b64}`,
         });
       }
       downloaded += 1;
