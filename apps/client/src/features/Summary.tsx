@@ -236,6 +236,7 @@ export function VisitSummary({ visita, onConclude, onEditReport, onGoChecklist }
                 <p style={{ margin: '12px 0 0 0', fontSize: 12, color: '#65758b' }}>
                   {group.transcripcionStatus === 'checking_model' && 'Preparando modelo de IA…'}
                   {group.transcripcionStatus === 'downloading_model' && 'Descargando modelo de IA…'}
+                  {group.transcripcionStatus === 'waiting_model' && 'Esperando modelo (sin conexión)…'}
                   {group.transcripcionStatus === 'transcribing' && 'Transcribiendo nota de voz…'}
                   {(group.transcripcionStatus === 'pending' || !group.transcripcionStatus) && 'Procesando hallazgo…'}
                 </p>

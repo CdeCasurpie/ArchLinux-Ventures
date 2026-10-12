@@ -10,6 +10,7 @@ import { notifyLocalChange, notifyTranscriptionReady } from './media-sync';
 const MAX_AUDIO_MS = 600_000; // límite de capacitor-whisper
 const active = new Set<string>();
 const waitingModel = new Set<string>();
+let started = false;
 const setRuntime = (id: string, s: string | null) => { setRuntimeTranscriptionStatus(id, s); notifyLocalChange(); };
 
 async function run(groupId: string) {
@@ -60,6 +61,8 @@ export const transcriptionService = {
     }
   },
   start() {
+    if (started) return;
+    started = true;
     void Network.addListener('networkStatusChange', ({ connected }) => {
       if (!connected) return;
       waitingModel.forEach(id => { waitingModel.delete(id); this.enqueue(id); });

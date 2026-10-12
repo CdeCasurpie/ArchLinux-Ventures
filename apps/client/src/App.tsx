@@ -1,4 +1,5 @@
 import { VisitSummary } from "./features/Summary";
+import { transcriptionService } from "./features/transcription-service";
 import { VisitCapture } from "./features/Capture";
 import { VisitReport } from "./features/Report";
 import { MediaSyncManager, pullVisitaFromCloud } from "./features/media-sync";
@@ -54,7 +55,7 @@ function Workspace({session}:{session:Session}){
   setError(text)}finally{await refresh();setSyncing(false)}}
  useEffect(()=>{let active=true;Promise.all([workspaceLocal.read(owner),local.read(owner)]).then(([workspace,user])=>{if(active){setData(workspace);setProfile(user)}});if(navigator.onLine)void sync();if(navigator.onLine){const reader=new SupabaseCaptureReader(supabase);void (async()=>{try{const ws=await workspaceLocal.read(owner);for(const v of ws.visitas){try{await pullVisitaFromCloud(mediaOutbox,reader,v.id)}catch(e){console.error(e)}}}catch(e){console.error(e)}})()}const network=()=>{setOnline(navigator.onLine);if(navigator.onLine)void sync()};window.addEventListener('online',network);window.addEventListener('offline',network);return()=>{active=false;window.removeEventListener('online',network);window.removeEventListener('offline',network)}},[engine,owner]);
  // Start MediaSyncManager lifecycle on native; runs GC + sync on mount and on network/foreground events
- useEffect(()=>{mediaSyncManager.start();return()=>mediaSyncManager.stop()},[mediaSyncManager]);
+ useEffect(()=>{mediaSyncManager.start();transcriptionService.start();return()=>mediaSyncManager.stop()},[mediaSyncManager]);
  useEffect(()=>{if(!toast)return;const timer=setTimeout(()=>setToast(''),2600);return()=>clearTimeout(timer)},[toast]);
  function navigate(next:View,id?:string){if(id)setSelectedId(id);setView(next);window.scrollTo({top:0,behavior:'smooth'})}
  async function queue(entity:'expediente'|'visita',record:Expediente|Visita){await workspaceLocal.save(owner,workspaceOperation(entity,record));await refresh();setToast('Guardado en este dispositivo');if(navigator.onLine)void sync()}

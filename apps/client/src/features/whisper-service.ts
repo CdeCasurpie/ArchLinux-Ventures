@@ -5,22 +5,26 @@ import { Whisper } from 'capacitor-whisper';
 // ggml-tiny-q5_1.bin -> 31MB (Quantized, faster, recommended)
 // ggml-tiny.bin      -> 75MB (FP16, original size)
 
-const USE_QUANTIZED = true; 
+const USE_QUANTIZED = true;
 
 const MODEL_FILENAME = USE_QUANTIZED ? 'ggml-tiny-q5_1.bin' : 'ggml-tiny.bin';
 const MODEL_URL = `https://huggingface.co/ggerganov/whisper.cpp/resolve/main/${MODEL_FILENAME}`;
+// Piso para dar por válido un modelo en disco (una descarga cortada queda muy por debajo).
+const MIN_BYTES = USE_QUANTIZED ? 30_000_000 : 70_000_000;
+const PART = `${MODEL_FILENAME}.part`;
 
 let cachedModelPath: string | null = null;
 let inflight: Promise<{ path: string; cached: boolean }> | null = null;
 
-/** Ruta del modelo si ya está en Directory.Data, null si hay que descargarlo. */
+/** Ruta del modelo si está completo en Directory.Data, null si hay que descargarlo. */
 export async function getCachedWhisperModel(): Promise<string | null> {
   if (cachedModelPath) return cachedModelPath;
   try {
     const stat = await Filesystem.stat({
       path: MODEL_FILENAME,
-      directory: Directory.Data
+      directory: Directory.Data,
     });
+    if (stat.size < MIN_BYTES) return null; // modelo truncado: tratar como ausente
     // Remove file:// prefix for the plugin if needed, though plugin handles it
     cachedModelPath = stat.uri.replace('file://', '');
     return cachedModelPath;
@@ -37,15 +41,23 @@ export async function ensureWhisperModel(): Promise<{ path: string; cached: bool
   console.log(`Downloading whisper model... (${USE_QUANTIZED ? '31MB' : '75MB'})`);
   inflight = (async () => {
     try {
-      const result = await Filesystem.downloadFile({
+      // Descarga a .part y solo se publica si está completa: un corte nunca
+      // deja un modelo "cacheado" truncado.
+      await Filesystem.deleteFile({ path: PART, directory: Directory.Data }).catch(() => undefined);
+      await Filesystem.downloadFile({
         url: MODEL_URL,
-        path: MODEL_FILENAME,
-        directory: Directory.Data
+        path: PART,
+        directory: Directory.Data,
       });
-      console.log('Model downloaded to:', result.path);
-      const p = result.path?.replace('file://', '') || '';
+      const st = await Filesystem.stat({ path: PART, directory: Directory.Data });
+      if (st.size < MIN_BYTES) throw new Error(`Modelo incompleto (${st.size} bytes)`);
+      await Filesystem.deleteFile({ path: MODEL_FILENAME, directory: Directory.Data }).catch(() => undefined);
+      await Filesystem.rename({ from: PART, to: MODEL_FILENAME, directory: Directory.Data, toDirectory: Directory.Data });
+      const final = await Filesystem.stat({ path: MODEL_FILENAME, directory: Directory.Data });
+      const p = final.uri.replace('file://', '');
       if (!p) throw new Error('Model path is empty');
       cachedModelPath = p;
+      console.log('Model downloaded to:', p);
       return { path: p, cached: false };
     } finally {
       inflight = null;
@@ -59,9 +71,9 @@ export async function transcribeAudio(audioUri: string, modelPath: string): Prom
     const result = await Whisper.transcribe({
       path: audioUri,
       model: modelPath,
-      language: 'es'
+      language: 'es',
     });
-    
+
     if (result && result.segments) {
       return result.segments.map((s: any) => s.text).join(' ').trim();
     }
