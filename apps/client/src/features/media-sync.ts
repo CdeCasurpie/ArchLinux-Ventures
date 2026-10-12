@@ -15,6 +15,8 @@ import {
   type AudioClip,
 } from './lab-storage'
 import { Preferences } from '@capacitor/preferences'
+import { Capacitor } from '@capacitor/core'
+import { captureActivity } from './activity'
 
 // ── Supabase Media Remote ────────────────────────────────────────────────────
 // Usa el bucket congelado en la Iteración 1 (`visita-media`, privado).
@@ -209,6 +211,18 @@ function isUniqueViolation(error: { code?: string }): boolean {
 
 // ── File reader for native Filesystem ────────────────────────────────────────
 async function readLocalFile(path: string): Promise<Uint8Array> {
+  await captureActivity.whenIdle()                      // pausa entre archivos mientras se captura
+  try {
+    if (Capacitor.isNativePlatform()) {
+      const uri = path.startsWith('file:') ? path
+        : (await Filesystem.getUri({ path, directory: Directory.Data })).uri
+      const res = await fetch(Capacitor.convertFileSrc(uri))
+      if (res.ok) return new Uint8Array(await res.arrayBuffer())
+    }
+  } catch { /* cae al método anterior */ }
+  return readLocalFileLegacy(path)                       // el código anterior, renombrado
+}
+async function readLocalFileLegacy(path: string): Promise<Uint8Array> {
   // Native absolute paths (file:// URIs)
   if (path.startsWith('file:')) {
     const { data } = await Filesystem.readFile({ path })
@@ -281,6 +295,7 @@ export async function enqueueGroupToOutbox(
 
   // Enqueue photos
   for (const photo of group.photos) {
+    if (!photo.checksum) throw new Error(`Foto ${photo.id} sin checksum: no se encola.`)
     mediaIds.push(photo.id)
     await outbox.enqueueMedia({
       id:          photo.id,
@@ -609,7 +624,9 @@ export class MediaSyncManager {
   }
 
   sync(): Promise<void> {
-    return this.engine.run().then(
+    return captureActivity.whenIdle()      // no marcar "uploading" mientras el inspector sigue capturando
+      .then(() => this.engine.run())
+      .then(
       () => {
         this.lastRun = { at: new Date().toISOString(), error: null };
         emitMediaSync();
