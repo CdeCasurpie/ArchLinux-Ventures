@@ -159,16 +159,15 @@ async function listDir(path: string): Promise<string[]> {
 }
 
 // ── URLs de visualización (sin base64 en nativo) ─────────────────────────────
-let rootP: Promise<string> | null = null
-const dataRoot = () => (rootP ??= Filesystem.getUri({ path: ROOT, directory: Directory.Data })
-  .then(r => r.uri.replace(new RegExp(`/${ROOT}/?$`), '')))
-
 export async function fileUrl(path: string, mimeType: string): Promise<string> {
   if (!Capacitor.isNativePlatform()) {            // web: comportamiento actual
     const { data } = await Filesystem.readFile({ path, directory: Directory.Data })
     return typeof data === 'string' ? `data:${mimeType};base64,${data}` : URL.createObjectURL(data)
   }
-  const uri = path.startsWith('file:') ? path : `${await dataRoot()}/${path}`
+  // Nativo: las file:// del plugin van directo; las rutas de Data se resuelven
+  // por archivo (sin cirugía de strings sobre el directorio: daba URLs rotas).
+  if (path.startsWith('file:')) return Capacitor.convertFileSrc(path)
+  const { uri } = await Filesystem.getUri({ path, directory: Directory.Data })
   return Capacitor.convertFileSrc(uri)
 }
 
@@ -255,21 +254,40 @@ const withOverlay = (g: CaptureGroup): CaptureGroup => {
   const s = runtimeStatus.get(g.id)
   return s ? { ...g, transcripcionStatus: s } : g
 }
+// En el store thumbUrl es una RUTA; hacia afuera siempre es URL lista para <img>.
+const thumbCache = new Map<string, string>()
+async function resolveThumbUrl(thumb: string | undefined, mime: string): Promise<string | undefined> {
+  if (!thumb) return undefined
+  if (/^(cap|https?|data|blob|file):/.test(thumb)) return thumb
+  const hit = thumbCache.get(thumb)
+  if (hit) return hit
+  try {
+    const url = await fileUrl(thumb, mime)
+    thumbCache.set(thumb, url)
+    return url
+  } catch { return undefined }
+}
+async function withThumbs(g: CaptureGroup): Promise<CaptureGroup> {
+  if (!g.photos.some(p => p.thumbUrl)) return g
+  return { ...g, photos: await Promise.all(g.photos.map(async p =>
+    ({ ...p, thumbUrl: await resolveThumbUrl(p.thumbUrl, p.mimeType) }))) }
+}
 const byCreated = (a: CaptureGroup, b: CaptureGroup) => a.createdAt.localeCompare(b.createdAt)
 
 // ── API pública ──────────────────────────────────────────────────────────────
 export async function loadCaptureGroups(visitaId: string) {
   await ready(); await ensureVisita(visitaId)
-  return [...groups.values()].filter(g => g.visitaId === visitaId).sort(byCreated).map(withOverlay)
+  const found = [...groups.values()].filter(g => g.visitaId === visitaId).sort(byCreated).map(withOverlay)
+  return Promise.all(found.map(withThumbs))
 }
 export async function loadCaptureGroup(groupId: string) {
   await ready()
   const g = groups.get(groupId) ?? (await ensureAll(), groups.get(groupId))
-  return g ? withOverlay(g) : null
+  return g ? withThumbs(withOverlay(g)) : null
 }
 export async function loadAllGroups() {
   await ready(); await ensureAll()
-  return [...groups.values()].sort(byCreated).map(withOverlay)
+  return Promise.all([...groups.values()].sort(byCreated).map(withOverlay).map(withThumbs))
 }
 
 export function createCaptureGroup(
@@ -566,7 +584,7 @@ async function recoverFromDataUrl(m: { path: string; displayUrl?: string }) {
 // ── Clear all lab data (debug / reset) ───────────────────────────────────────
 export async function clearLabData(): Promise<void> {
   await Filesystem.rmdir({ path: ROOT, directory: Directory.Data, recursive: true }).catch(() => undefined)
-  groups.clear(); drafts.clear(); runtimeStatus.clear()
-  loadedVisitas.clear(); allLoaded = null; init = null; rootP = null
+  groups.clear(); drafts.clear(); runtimeStatus.clear(); thumbCache.clear()
+  loadedVisitas.clear(); allLoaded = null; init = null
   await Promise.all([PHOTO_KEY, AUDIO_KEY, GROUP_KEY, MIGRATED_KEY].map(key => Preferences.remove({ key })))
 }

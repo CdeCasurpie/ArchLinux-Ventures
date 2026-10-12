@@ -322,6 +322,23 @@ describe('lab-storage Fase 1', () => {
     expect(await lab3.writePhotoThumbnail('p-t', 'image/jpeg')).toBeNull();
   });
 
+  it('thumbUrl en memoria se entrega como URL (no la ruta cruda)', async () => {
+    const lab = await freshLab();
+    const g = lab.createCaptureGroup('v-1', [], audio());
+    await lab.persistCaptureGroup(g);
+    await lab.setPhotoThumbUrl('inexistente', 'archforms-lab/photos/x.thumb.jpg');
+    const g2 = lab.createCaptureGroup('v-1', [{
+      id: 'p-t', path: 'archforms-lab/photos/p-t.jpg', mimeType: 'image/jpeg', features: [],
+      sizeBytes: 1, checksum: 's', createdAt: '2026-10-11T00:00:00.000Z', displayUrl: '',
+    }], audio());
+    await lab.persistCaptureGroup(g2);
+    await lab.setPhotoThumbUrl('p-t', 'archforms-lab/photos/p-t.thumb.jpg');
+    // Sin pasar por disco: la lectura en memoria ya resuelve.
+    const mem = (await lab.loadCaptureGroup(g2.id))!;
+    expect(mem.photos[0].thumbUrl).toMatch(/^cap:\/\//);
+    expect(mem.photos[0].thumbUrl).not.toBe('archforms-lab/photos/p-t.thumb.jpg');
+  });
+
   it('extractPhotoFeatures apagado no escribe nada', async () => {
     const lab = await freshLab();
     await lab.extractPhotoFeatures('p-x', 'cap://whatever');
