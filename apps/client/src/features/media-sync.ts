@@ -393,11 +393,24 @@ async function buildLivePayload(
 }
 
 /** Called when whisper finishes: requeues the entity (payload is rebuilt live
- *  at push time) and runs the engine so the transcription reaches Supabase. */
+ *  at push time) and runs the engine so the transcription reaches Supabase.
+ *  Re-enqueues instead of only forceRetry: if the group already synced, its
+ *  entity row was deleted and forceRetry would update zero rows (the text
+ *  would never arrive). INSERT/IGNORE keeps the existing row when present. */
 export async function notifyTranscriptionReady(
   outbox: MediaOutboxRepository,
   groupId: string,
 ): Promise<void> {
+  const group = await loadCaptureGroup(groupId).catch(() => null);
+  if (group) {
+    await outbox.enqueueEntity({
+      id:          groupId,
+      entity_type: 'grupo_captura',
+      payload:     '{}',
+      depends_on:  [...group.photos.map(p => p.id), group.audio.id],
+      created_at:  new Date().toISOString(),
+    }).catch(console.error);
+  }
   await outbox.forceRetry([groupId]);
   emitMediaSync();
   await triggerMediaSync();

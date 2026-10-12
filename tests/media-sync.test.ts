@@ -1,5 +1,5 @@
 import 'fake-indexeddb/auto';
-import {describe,expect,it} from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import {MediaSyncEngine,exponentialBackoff,planCapturePull,type MediaOutboxRepository,type MediaRemoteRepository} from '@archforms/application';
 import {IndexedMediaOutboxRepository} from '@archforms/data-local';
 import type {EntityOutboxItem,GrupoCapturaPayload,MediaOutboxItem,RemoteArchivo,RemoteFoto,RemoteGrupo} from '@archforms/domain';
@@ -232,4 +232,70 @@ describe('planCapturePull (unión nube → local)',()=>{
   expect(plan.upserts.map(u=>u.grupo.id)).toEqual(['g-1']);
   expect(plan.upserts[0].archivos.map(a=>a.id)).toEqual(['m-2']);
  });
+});
+
+vi.mock('@capacitor/network', () => ({ Network: { addListener: async () => ({ remove: () => undefined }) } }));
+vi.mock('@capacitor/app', () => ({ App: { addListener: async () => ({ remove: () => undefined }) } }));
+vi.mock('@capacitor/filesystem', () => ({ Filesystem: {}, Directory: { Data: 'DATA', Documents: 'DOCUMENTS' } }));
+vi.mock('@capacitor/preferences', () => ({ Preferences: {} }));
+
+// Grupo en memoria para loadCaptureGroup (el disco ya no se toca en este test).
+let mockGroup: any = null;
+vi.mock('../apps/client/src/features/lab-storage', async importOriginal => ({
+  ...(await importOriginal<typeof import('../apps/client/src/features/lab-storage')>()),
+  loadCaptureGroup: async () => mockGroup,
+}));
+
+import { notifyTranscriptionReady } from '../apps/client/src/features/media-sync';
+
+describe('re-push de transcripción tardía', () => {
+  const livePayload = (): GrupoCapturaPayload => ({
+    id: 'g-1', visita_id: 'visita-1', profesional_id: 'owner-1',
+    iniciado_at: NOW, confirmado_at: NOW, transcripcion: 'texto tardío',
+    fotos: [{
+      id: 'm-1', archivo_id: 'm-1', orden_en_grupo: 1, capturada_at: NOW,
+      local_path: 'archforms-lab/photos/m-1.jpg', remote_path: 'owner/visita-1/m-1',
+      mime_type: 'image/jpeg', size_bytes: 1000, checksum: 'sha-m-1',
+    }],
+    audio: {
+      id: 'a-1', local_path: 'x', remote_path: 'owner/visita-1/a-1',
+      mime_type: 'audio/wav', duration_ms: 1000, size_bytes: 10,
+      checksum: 'sha-a', created_at: NOW,
+    },
+  });
+
+  it('reencola la entidad borrada por el sync y el motor la pushea con payload vivo', async () => {
+    const outbox = new MemoryOutbox();
+    await outbox.enqueueMedia(media('m-1'));
+    await outbox.markMediaSynced('m-1', 'owner/visita-1/m-1');
+    await outbox.enqueueMedia(media('a-1'));
+    await outbox.markMediaSynced('a-1', 'owner/visita-1/a-1');
+    await outbox.enqueueEntity(entity('g-1'));
+    await outbox.markEntitySynced('g-1'); // DELETE: el grupo ya se subió sin texto
+    expect(await outbox.entityStatus('g-1')).toBeNull();
+
+    mockGroup = { id: 'g-1', photos: [{ id: 'm-1' }], audio: { id: 'a-1' } };
+    await notifyTranscriptionReady(outbox, 'g-1');
+
+    const requeued = await outbox.entityStatus('g-1');
+    expect(requeued).not.toBeNull();
+    expect(requeued?.status).toBe('pending');
+
+    const remote = new FakeRemote();
+    const engine = new MediaSyncEngine(outbox, remote, async () => new Uint8Array(), undefined, async () => livePayload());
+    await engine.run();
+    expect(remote.pushes).toBe(1);
+    expect(remote.pushedPayloads[0].transcripcion).toBe('texto tardío');
+    expect(await outbox.entityStatus('g-1')).toBeNull();
+  });
+
+  it('si la entidad sigue encolada no la duplica y respeta el backoff reseteado', async () => {
+    const outbox = new MemoryOutbox();
+    await outbox.enqueueMedia(media('m-1'));
+    await outbox.markMediaSynced('m-1', 'owner/visita-1/m-1');
+    await outbox.enqueueEntity(entity('g-1'));
+    mockGroup = { id: 'g-1', photos: [{ id: 'm-1' }], audio: { id: 'a-1' } };
+    await notifyTranscriptionReady(outbox, 'g-1');
+    expect((await outbox.entityStatus('g-1'))?.status).toBe('pending');
+  });
 });
