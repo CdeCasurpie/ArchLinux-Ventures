@@ -225,7 +225,7 @@ export function VisitSummary({ visita, onConclude, onEditReport, onGoChecklist }
                   </span>
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(80px, 1fr))', gap: 8 }}>
                     {group.photos.map(photo => (
-                      <img key={photo.id} src={photo.displayUrl} alt="Evidencia" style={{ width: '100%', aspectRatio: '1', objectFit: 'cover', borderRadius: 8, border: '1px solid #e2e8f0' }} />
+                      <img key={photo.id} src={photo.thumbUrl ?? photo.displayUrl} alt="Evidencia" loading="lazy" decoding="async" style={{ width: '100%', aspectRatio: '1', objectFit: 'cover', borderRadius: 8, border: '1px solid #e2e8f0' }} />
                     ))}
                   </div>
                 </div>

@@ -283,6 +283,51 @@ describe('lab-storage Fase 1', () => {
       .toBe(`data:image/jpeg;base64,${Buffer.from('bytes-foto').toString('base64')}`);
   });
 
+  it('miniatura: escribe thumb, lo anota y lo hidrata; sin soporte no hace nada', async () => {
+    const lab = await freshLab();
+    mocks.fs.set('DATA|archforms-lab/photos/p-t.jpg', Buffer.from('foto-grande').toString('base64'));
+    (globalThis as any).createImageBitmap = async () => ({ width: 320, height: 200, close: () => undefined });
+    (globalThis as any).OffscreenCanvas = class {
+      width: number; height: number;
+      constructor(w: number, h: number) { this.width = w; this.height = h; }
+      getContext() { return { drawImage: () => undefined }; }
+      async convertToBlob() { return new Blob(['thumb-bytes']); }
+    };
+    try {
+      const g = lab.createCaptureGroup('v-1', [], audio());
+      await lab.persistCaptureGroup(g);
+      const t = await lab.writePhotoThumbnail('p-t', 'image/jpeg');
+      expect(t).toBe('archforms-lab/photos/p-t.thumb.jpg');
+      expect(mocks.fs.has('DATA|archforms-lab/photos/p-t.thumb.jpg')).toBe(true);
+      await lab.setPhotoThumbUrl('p-t', t!);
+      // En memoria se guarda la ruta; hidratada es URL de archivo.
+      const g2 = lab.createCaptureGroup('v-1', [{
+        id: 'p-t', path: 'archforms-lab/photos/p-t.jpg', mimeType: 'image/jpeg', features: [],
+        sizeBytes: 1, checksum: 's', createdAt: '2026-10-11T00:00:00.000Z', displayUrl: '',
+      }], audio());
+      await lab.persistCaptureGroup(g2);
+      await lab.setPhotoThumbUrl('p-t', t!);
+      for (let i = 0; i < 100; i++) {
+        if ((mocks.fs.get(`DATA|archforms-lab/groups/v-1/${g2.id}.json`) ?? '').includes('thumb')) break;
+        await new Promise(r => setTimeout(r, 10));
+      }
+      const lab2 = await freshLab();
+      const found = (await lab2.loadCaptureGroups('v-1')).find(x => x.id === g2.id)!;
+      expect(found.photos[0].thumbUrl).toContain('cap://');
+    } finally {
+      delete (globalThis as any).createImageBitmap;
+      delete (globalThis as any).OffscreenCanvas;
+    }
+    const lab3 = await freshLab();
+    expect(await lab3.writePhotoThumbnail('p-t', 'image/jpeg')).toBeNull();
+  });
+
+  it('extractPhotoFeatures apagado no escribe nada', async () => {
+    const lab = await freshLab();
+    await lab.extractPhotoFeatures('p-x', 'cap://whatever');
+    expect(mocks.fs.has('DATA|archforms-lab/features/p-x.json')).toBe(false);
+  });
+
   it('ingest mueve, mide y anota en el draft', async () => {
     const lab = await freshLab();
     mocks.fs.set('DATA|/cache/tmp.jpg', Buffer.from('hello').toString('base64'));

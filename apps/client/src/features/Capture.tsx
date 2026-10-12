@@ -11,6 +11,7 @@ import {
   savePhoto, saveNativeAudioShell, computeRecordingChecksum, updateAudioClipChecksum,
   loadCaptureGroup, loadDraftPhotos, createCaptureGroup, commitGroupPhotos, removeDraftPhotos,
   fileUrl, photoPath, ingestCapturedPhoto, registerGroupInMemory,
+  writePhotoThumbnail, setPhotoThumbUrl, extractPhotoFeatures, RUN_FEATURE_EXTRACTION,
   type IngestResult, type LabPhoto,
 } from './lab-storage';
 import { enqueueGroupToOutbox, runMigrationIfNeeded, triggerMediaSync, notifyLocalChange, notifyGroupCreated } from './media-sync';
@@ -304,6 +305,18 @@ export function VisitCapture({
     removeDraftPhotos(visita.id, group.photos.map(p => p.id));
     notifyLocalChange();
     transcriptionService.enqueue(group.id);
+
+    void idleQueue.enqueue(`thumbs:${group.id}`, async () => {
+      let changed = false;
+      for (const p of photos) {
+        const t = await writePhotoThumbnail(p.id, p.mimeType);
+        if (t) { await setPhotoThumbUrl(p.id, t); changed = true; }
+        if (RUN_FEATURE_EXTRACTION) {
+          await extractPhotoFeatures(p.id, await fileUrl(p.path, p.mimeType));
+        }
+      }
+      if (changed) notifyLocalChange();
+    }).catch(console.error);
 
     await idleQueue.enqueue(`audio-checksum:${group.audio.id}`, async () => {
       try { await updateAudioClipChecksum(group.audio.id, await computeRecordingChecksum(recording.uri)); }

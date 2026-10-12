@@ -16,6 +16,8 @@ const ROOT = 'archforms-lab'
 const SCHEMA = 2
 export const photoPath = (id: string) => `${ROOT}/photos/${id}.jpg`
 export const thumbPath = (id: string) => `${ROOT}/photos/${id}.thumb.jpg`
+/** Apagado: los descriptores aún no se usan en ningún flujo (ver Fase 5). */
+export const RUN_FEATURE_EXTRACTION = false
 const groupDir  = (v: string) => `${ROOT}/groups/${v}`
 const groupFile = (v: string, id: string) => `${groupDir(v)}/${id}.json`
 const draftFile = (v: string) => `${ROOT}/drafts/${v}.json`
@@ -487,6 +489,44 @@ export async function computeRecordingChecksum(uri: string): Promise<{ checksum:
     ? Uint8Array.from(atob(data), c => c.charCodeAt(0))
     : new Uint8Array(await (data as Blob).arrayBuffer())
   return { checksum: await sha256(bytes), sizeBytes: bytes.length }
+}
+
+// ── Miniaturas (~320px, no se suben) + descriptores opcionales ───────────────
+export async function writePhotoThumbnail(photoId: string, mimeType: string): Promise<string | null> {
+  if (typeof createImageBitmap === 'undefined' || typeof OffscreenCanvas === 'undefined') return null
+  try {
+    const { data } = await Filesystem.readFile({ path: photoPath(photoId), directory: Directory.Data })
+    const bytes = typeof data === 'string'
+      ? Uint8Array.from(atob(data), c => c.charCodeAt(0))
+      : new Uint8Array(await (data as unknown as Blob).arrayBuffer())
+    const bmp = await createImageBitmap(
+      new Blob([bytes as unknown as BlobPart], { type: mimeType }), { resizeWidth: 320 })
+    const canvas = new OffscreenCanvas(bmp.width, bmp.height)
+    const ctx = canvas.getContext('2d')
+    if (!ctx) return null
+    ctx.drawImage(bmp, 0, 0)
+    const blob = await canvas.convertToBlob({ type: 'image/jpeg', quality: 0.7 })
+    const tb = new Uint8Array(await blob.arrayBuffer())
+    let bin = ''
+    for (let i = 0; i < tb.length; i += 0x8000) bin += String.fromCharCode(...tb.subarray(i, i + 0x8000))
+    await Filesystem.writeFile({ path: thumbPath(photoId), data: btoa(bin), directory: Directory.Data, recursive: true })
+    return thumbPath(photoId)
+  } catch (e) { console.error('thumbnail:', e); return null }
+}
+
+export async function setPhotoThumbUrl(photoId: string, thumb: string): Promise<void> {
+  await ready()
+  const g = [...groups.values()].find(x => x.photos.some(p => p.id === photoId))
+  if (g) await mutate(g.id, cur => ({ ...cur, photos: cur.photos.map(p => (p.id === photoId ? { ...p, thumbUrl: thumb } : p)) }))
+}
+
+/** Extrae descriptores al sidecar features/<id>.json (apagado por flag). */
+export async function extractPhotoFeatures(photoId: string, fileUri: string): Promise<void> {
+  if (!RUN_FEATURE_EXTRACTION) return
+  try {
+    const { extractLocalFeatures } = await import('./local-features')
+    await writeJsonAtomic(`${ROOT}/features/${photoId}.json`, await extractLocalFeatures(fileUri))
+  } catch (e) { console.error('features:', e) }
 }
 
 // ── Migración única de GROUP_KEY ─────────────────────────────────────────────
