@@ -3,6 +3,7 @@ import { Capacitor } from '@capacitor/core';
 import { CameraPreview } from '@capacitor-community/camera-preview';
 import { ArchFormsAudio } from './native-audio';
 import { extractLocalFeatures } from './local-features';
+import { perfLog } from './perf';
 import { savePhoto, saveNativeAudioShell, computeRecordingChecksum, updateAudioClipChecksum, loadCaptureGroup, createCaptureGroup, persistCaptureGroup, type LabPhoto } from './lab-storage';
 import { enqueueGroupToOutbox, runMigrationIfNeeded, triggerMediaSync, notifyTranscriptionReady, notifyLocalChange, notifyGroupCreated } from './media-sync';
 import { mediaOutbox } from '../platform';
@@ -143,15 +144,18 @@ export function VisitCapture({
   };
 
   const takePhoto = async () => {
+    const t0 = performance.now();
     try {
       setFlash(true);
       setTimeout(() => setFlash(false), 150);
       const result   = await CameraPreview.capture({ quality: 88 });
+      perfLog('capture-nativo', performance.now() - t0);
       const displayUrl = `data:image/jpeg;base64,${result.value}`;
       const features = await extractLocalFeatures(displayUrl);
       // savePhoto now compresses + computes checksum internally
       const saved    = await savePhoto({ base64: result.value, mimeType: 'image/jpeg', features });
       setPhotos(current => [saved, ...current]);
+      perfLog('toque→pila', performance.now() - t0);
     } catch (caught) { console.error(caught); }
   };
 
