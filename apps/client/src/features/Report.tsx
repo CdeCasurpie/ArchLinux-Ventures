@@ -132,21 +132,17 @@ export function VisitReport({ visita, expediente, profile, ownerId, onSave }: {
 
   const generate = async () => {
     if (!doc) return;
-    // PDF vigente al día: no regenerar, ofrecer el archivo existente.
-    if (visita.estado_documento === 'GENERADO' && !isPdfStale(doc, visita.estado_documento)) {
-      if (Capacitor.isNativePlatform()) {
-        const { informeFileName } = await import('@archforms/report-pdf');
-        const existing = informeFileName(expediente, visita);
-        try {
-          await Filesystem.stat({ path: `ArchForms/${existing}`, directory: Directory.Documents });
-          setSavedFile({ filename: existing });
-          setFileSheetOpen(true);
-          return;
-        } catch { /* ya no está en disco: regenerar */ }
-      } else {
-        setPdfMsg('El PDF ya está actualizado.');
+    // PDF vigente al día: en nativo se ofrece el archivo existente.
+    // En web siempre se regenera y descarga a pedido explícito.
+    if (visita.estado_documento === 'GENERADO' && !isPdfStale(doc, visita.estado_documento) && Capacitor.isNativePlatform()) {
+      const { informeFileName } = await import('@archforms/report-pdf');
+      const existing = informeFileName(expediente, visita);
+      try {
+        await Filesystem.stat({ path: `ArchForms/${existing}`, directory: Directory.Documents });
+        setSavedFile({ filename: existing });
+        setFileSheetOpen(true);
         return;
-      }
+      } catch { /* ya no está en disco: regenerar */ }
     }
     setBusy(true);
     setPdfMsg('');
