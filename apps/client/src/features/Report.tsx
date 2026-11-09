@@ -56,9 +56,13 @@ export function VisitReport({ visita, expediente, profile, ownerId, onSave }: {
   const [fileSheetOpen, setFileSheetOpen] = useState(false);
   const [pendingPdf, setPendingPdfState] = useState<{ pdfId: string; filename: string } | null>(null);
   const initedFor = useRef<string | null>(null);
+  const [loadError,setLoadError]=useState('');
+  const [loadAttempt,setLoadAttempt]=useState(0);
 
   useEffect(() => {
     let cancelled = false;
+    setLoadError('');
+    const timeout=setTimeout(()=>{if(!cancelled)setLoadError('No se pudo abrir el contenido local a tiempo. Si usas el servidor de desarrollo sin conexión, algunos módulos pueden no estar disponibles.')},12000);
     loadCaptureGroups(visita.id).then(g => {
       if (cancelled || initedFor.current === visita.id) return;
       initedFor.current = visita.id;
@@ -77,10 +81,12 @@ export function VisitReport({ visita, expediente, profile, ownerId, onSave }: {
         setDoc(fresh);
         setSavedRevision(null);
       }
-    });
+      clearTimeout(timeout);
+      setLoadError('');
+    }).catch(error=>{if(!cancelled){clearTimeout(timeout);setLoadError(error instanceof Error?error.message:String(error))}});
     getPendingPdf(visita.id).then(p => { if (!cancelled) setPendingPdfState(p); }).catch(console.error);
-    return () => { cancelled = true; };
-  }, [visita.id]); // eslint-disable-line react-hooks/exhaustive-deps
+    return () => { cancelled = true;clearTimeout(timeout); };
+  }, [visita.id,loadAttempt]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const apply = (fn: (d: ReportDocumentV1) => ReportDocumentV1) => {
     setDoc(current => {
@@ -266,7 +272,7 @@ export function VisitReport({ visita, expediente, profile, ownerId, onSave }: {
   };
 
   if (!doc) {
-    return <article className="card" style={{ padding: 24 }}><p>Armando el informe…</p></article>;
+    return <article className="card" style={{ padding: 24 }}>{loadError?<><p role="alert">No se pudo abrir el informe: {loadError}</p><button className="btn btn-secondary" onClick={()=>setLoadAttempt(value=>value+1)}>Reintentar apertura</button></>:<p role="status">Armando el informe…</p>}</article>;
   }
 
   return (

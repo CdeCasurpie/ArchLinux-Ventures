@@ -15,6 +15,30 @@ Rama: `feat/offline-sync-foundation`. No se ha desplegado a Supabase online.
 
 ## Resultados automatizados
 
+### Ampliación: comprobación del caso observado y navegador real
+
+Se consultó la BD local en modo lectura para el expediente `IthinkIlltry`, visita 1.
+Se confirmó `FINALIZADA`, checklist completo y las respuestas `licencia=si`,
+`planos=no`, `cuaderno=si`, `epi=na`, `orden=si`, `observacion=no che`.
+
+La integración ahora comprueba también fallo antes del envío, reapertura de la cola,
+respuesta perdida después del commit, escritura posterior de otro dispositivo,
+30 cambios offline consecutivos y cinco solicitudes duplicadas concurrentes.
+
+`npm run test:e2e` pasó en Chromium real: guardado sin red, lectura directa de la BD
+que confirma que aún no recibió el cambio, reconexión y lectura desde otro contexto
+de navegador autenticado. Se usa un servidor independiente en el puerto 5178 y datos
+sintéticos locales, no la sesión ni el almacenamiento del usuario.
+
+El informe ahora presenta error/reintento si falla su carga local y una salida tras
+12 segundos de espera. Esto evita la espera indefinida, pero no hace disponibles
+módulos que Vite todavía no haya servido: para validar arranque totalmente offline
+hay que probar la APK o la PWA instalada y almacenada, no solo el servidor de desarrollo.
+La recuperación visual del informe no tiene aún una prueba automatizada de navegador.
+
+El indicador distingue offline, error, sincronización activa, pendientes e inactividad;
+no presenta cero pendientes como prueba de que todos los archivos estén sincronizados.
+
 - `npm run check`: 98 pruebas, TypeScript y build correctos. Permanecen tres advertencias anteriores de lint y advertencia de tamaño de bundles.
 - `npm run test:integration:local`: dos pruebas de integración correctas contra Postgres local.
 - La integración usa dos almacenes IndexedDB independientes del mismo propietario; prueba edición offline en campos diferentes y posterior guardado de estado sin revertir las respuestas.

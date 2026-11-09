@@ -68,7 +68,8 @@ describe('answer patch protocol v1 on local Postgres', () => {
 
       // Two independent offline stores from the same initial remote snapshot.
       const remote = new SupabaseWorkspaceRepository(client as SupabaseClient<Database>);
-      const a = new IndexedWorkspaceRepository(`device-a-${crypto.randomUUID()}`);
+      const deviceAName=`device-a-${crypto.randomUUID()}`;
+      const a = new IndexedWorkspaceRepository(deviceAName);
       const b = new IndexedWorkspaceRepository(`device-b-${crypto.randomUUID()}`);
       const snapshot = await remote.fetchAll();
       await a.mergeRemote(user!.id,snapshot);
@@ -82,6 +83,44 @@ describe('answer patch protocol v1 on local Postgres', () => {
       await new WorkspaceSyncEngine(b,remote,user!.id).run();
       expect((await client.from('visita').select('checklist_respuestas_json').eq('id',visitaId).single()).data?.checklist_respuestas_json).toEqual({a:'offline A',b:'no'});
       expect((await b.read(user!.id)).pending).toEqual([]);
+
+      // Connection fails before reaching the server: keep the durable operation.
+      await a.saveAnswers(user!.id,visitaId,{a:'retained during outage'});
+      const failingRemote={fetchAll:()=>remote.fetchAll(),push:async()=>{throw new Error('simulated network outage')}};
+      await expect(new WorkspaceSyncEngine(a,failingRemote,user!.id).run()).rejects.toThrow('outage');
+      const reopened=new IndexedWorkspaceRepository(deviceAName);
+      expect((await reopened.read(user!.id)).pending).toHaveLength(1);
+      expect((await reopened.read(user!.id)).visitas.find(v=>v.id===visitaId)?.checklist_respuestas_json.a).toBe('retained during outage');
+      await new WorkspaceSyncEngine(a,remote,user!.id).run();
+      expect((await a.read(user!.id)).pending).toHaveLength(0);
+
+      // Server commits but its response is lost. A later retry must not revert
+      // another device's newer accepted write.
+      await a.saveAnswers(user!.id,visitaId,{a:'accepted response lost'});
+      let loseResponse=true;
+      const lossyRemote={fetchAll:()=>remote.fetchAll(),push:async(op:Parameters<typeof remote.push>[0])=>{
+        await remote.push(op);
+        if(loseResponse){loseResponse=false;throw new Error('response lost after commit')}
+      }};
+      await expect(new WorkspaceSyncEngine(a,lossyRemote,user!.id).run()).rejects.toThrow('response lost');
+      expect((await a.read(user!.id)).pending).toHaveLength(1);
+      await b.saveAnswers(user!.id,visitaId,{a:'newer device B'});
+      await new WorkspaceSyncEngine(b,remote,user!.id).run();
+      await new WorkspaceSyncEngine(a,lossyRemote,user!.id).run();
+      expect((await a.read(user!.id)).pending).toHaveLength(0);
+      expect((await client.from('visita').select('checklist_respuestas_json').eq('id',visitaId).single()).data?.checklist_respuestas_json.a).toBe('newer device B');
+
+      // Burst of offline edits: preserve local insertion order through the queue.
+      for(let i=0;i<30;i++)await a.saveAnswers(user!.id,visitaId,{a:`burst-${i}`});
+      expect((await a.read(user!.id)).pending).toHaveLength(30);
+      await new WorkspaceSyncEngine(a,remote,user!.id).run();
+      expect((await a.read(user!.id)).pending).toHaveLength(0);
+      expect((await client.from('visita').select('checklist_respuestas_json').eq('id',visitaId).single()).data?.checklist_respuestas_json).toEqual({a:'burst-29',b:'no'});
+
+      // Duplicate requests in flight simultaneously have one durable acceptance.
+      const repeated={operation_id:crypto.randomUUID(),visita_id:visitaId,patch:{a:'concurrent duplicate'}};
+      const duplicateResults=await Promise.all(Array.from({length:5},()=>client.rpc('sync_patch_answers_v1',repeated)));
+      for(const result of duplicateResults){expect(result.error).toBeNull();expect(result.data).toEqual(duplicateResults[0].data)}
       const profileRequest={operation_id:crypto.randomUUID(),nombre:'Primer nombre',cargo:null,colegiatura:null};
       const profileFirst=await client.rpc('sync_profile_v1',profileRequest);
       expect(profileFirst.error).toBeNull();
