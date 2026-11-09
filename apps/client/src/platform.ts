@@ -1,4 +1,5 @@
 import {Capacitor} from '@capacitor/core';
+import {createTimedFetch} from './features/timed-fetch';
 import {IndexedRepository,SQLiteRepository,IndexedWorkspaceRepository,SQLiteWorkspaceRepository,SQLiteMediaOutboxRepository,IndexedMediaOutboxRepository} from '@archforms/data-local';
 import type {MediaOutboxRepository} from '@archforms/application';
 import {createClient} from '@archforms/data-supabase';
@@ -7,6 +8,7 @@ const url=import.meta.env.VITE_SUPABASE_URL;
 const key=import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
 export const configured=Boolean(url&&key);
 export const supabase=createClient<Database>(url||'http://127.0.0.1:54321',key||'not-configured',{
+ global:{fetch:createTimedFetch(fetch.bind(globalThis))},
  auth:{persistSession:true,autoRefreshToken:true,detectSessionInUrl:true}
 });
 export const local=Capacitor.isNativePlatform()?new SQLiteRepository():new IndexedRepository();

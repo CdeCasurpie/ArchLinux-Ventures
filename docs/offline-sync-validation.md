@@ -2,6 +2,40 @@
 
 Rama: `feat/offline-sync-foundation`. No se ha desplegado a Supabase online.
 
+## Validación física Android (CPH2783)
+
+Se recompiló, reinstaló con `adb install -r` y abrió la APK local, conservando datos.
+La prueba automatizada del WebView real y plugins nativos confirmó:
+
+1. Login contra Supabase local mediante `adb reverse tcp:54321 tcp:54321`.
+2. Guardado local con la red del WebView bloqueada y servidor todavía sin la respuesta.
+3. Cierre forzado y reapertura sin backend: sesión, respuesta y pendiente conservados en SQLite.
+4. Restauración del túnel y sincronización del pendiente, verificada leyendo Postgres local.
+5. Dos generaciones nativas de PDF sin red. Ambos archivos de Documentos/ArchForms
+   se leyeron mediante ADB y se abrieron con un parser PDF, con páginas válidas.
+
+Problemas encontrados y corregidos:
+
+- Android rechazaba HTTP local con `ERR_CLEARTEXT_NOT_PERMITTED`. Excepción restringida
+  a loopback en el source set debug; no se modifica la política de red de release.
+- Peticiones de datos sin límite podían dejar la UI en sincronización prolongada.
+  Ahora usan 15 segundos de timeout; Storage permite hasta 120 segundos.
+
+Ejecutar solo con el teléfono autorizado y la APK debug local abierta en login:
+
+```bash
+ANDROID_SERIAL=SERIAL_DEL_TELEFONO node scripts/test-android-local.mjs
+```
+
+La prueba no borra datos ni modifica radios. Puede cerrar la app para verificar
+persistencia y cortar/restaurar únicamente el túnel del backend local. Si ya hay una
+sesión de usuario no sintética, se detiene sin cerrarla. Las cuentas y archivos de
+prueba quedan disponibles para inspección. La screenshot se guarda bajo
+`/tmp/opencode/android-validation/`.
+
+Esto valida respuestas y PDF sin fotografías en un dispositivo; no certifica todavía
+la captura, transcripción, cola persistente de descargas ni todas las versiones de Android.
+
 ## Implementado y comprobado
 
 ### Última ampliación: workspace idempotente y PDF exclusivamente local
