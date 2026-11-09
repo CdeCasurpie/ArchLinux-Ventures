@@ -4,6 +4,35 @@ Rama: `feat/offline-sync-foundation`. No se ha desplegado a Supabase online.
 
 ## Implementado y comprobado
 
+### Última ampliación: workspace idempotente y PDF exclusivamente local
+
+- Migración 009 aplicada solo a la BD local: RPC `sync_workspace_v1` para creación
+  y parches de expedientes/visitas, comandos validados con lista de campos permitidos,
+  deduplicación y reconciliación de colisiones de numeración bajo bloqueo por propietario.
+- Los comandos nuevos se congelan en la transacción de guardado local. No se reconstruyen
+  a partir del estado actual durante un reintento. Los pendientes antiguos conservan
+  su camino anterior; aún falta cerrar esa compatibilidad antes del despliegue.
+- Un error bloquea las siguientes operaciones de esa entidad y sus dependencias,
+  pero permite procesar entidades independientes. El trabajo rechazado permanece local.
+- Lectura remota paginada por ID para evitar truncar el workspace a 1000 filas.
+  Sigue siendo una lectura completa: todavía no es la réplica incremental definitiva.
+- El PDF se genera de nuevo en cada solicitud; se retiraron la subida, el reintento de
+  subida y la reutilización automática. No se borraron archivos/columnas históricos.
+- La generación lee solo fotografías referenciadas y presenta error si faltan.
+- Chromium generó y abrió dos PDFs consecutivos con el backend bloqueado y sin
+  solicitudes de subida de binarios. La prueba mantiene disponible Vite; no equivale
+  a validar el arranque de una PWA completamente offline.
+- Integración adicional: creación offline con respuesta perdida, parches en campos
+  independientes y dos visitas simultáneas solicitando número 1, conservadas como 1 y 2.
+
+La UI aún no identifica explícitamente números provisionales antes de recibir el
+resultado remoto. El registro técnico de cambios de workspace existe, pero todavía
+no tiene consumidor incremental en el cliente. No hay aún borrados/tombstones generales.
+
+Resultados de esta ampliación: 102 pruebas unitarias, tres pruebas de integración
+local y una prueba de navegador correctas; TypeScript y build correctos. Se compiló
+APK local durante la entrega; no hubo validación en dispositivo físico.
+
 - Almacenes locales por entidad y cola transaccional en IndexedDB y SQLite.
 - Migración conservando el snapshot anterior como respaldo.
 - Autosave de respuestas con operaciones granulares; el guardado de estado/documento nuevo no reemplaza respuestas remotas.
@@ -86,8 +115,8 @@ No se instaló ni validó en teléfono en esta entrega: `adb devices` no mostró
 
 - El coordinador de datos/perfil convive todavía con `MediaSyncManager`; no es aún un coordinador único de todo el sistema.
 - La descarga incremental de respuestas existe como RPC/adaptador, pero el workspace de la app todavía se refresca mediante lectura completa.
-- Expedientes, creación/estado/documento de visitas y multimedia no tienen aún un protocolo idempotente integral equivalente al de respuestas/perfil.
-- No hay todavía tombstones generales ni reconciliación automática de números de visitas. Una colisión conserva la operación y presenta error, pero puede bloquear la cola de datos.
+- Las operaciones nuevas de expedientes/visitas ya usan RPC idempotente; los pendientes antiguos y multimedia aún requieren adaptación integral.
+- No hay todavía tombstones generales. Las creaciones nuevas reconcilian números en servidor; las operaciones antiguas no adquieren esa capacidad automáticamente.
 - Los clientes antiguos con escritura completa pueden sobrescribir respuestas; no desplegar sin resolver compatibilidad o exigir actualización.
 - La descarga prioriza la visita consultada frente al recorrido completo de arranque, pero no es todavía una cola persistente por archivo con prioridades, caché y reanudación completa.
 - El indicador de archivos refleja la consulta actual, no certifica que todo el expediente esté disponible offline. No se garantiza reparación de archivos previamente borrados del dispositivo.

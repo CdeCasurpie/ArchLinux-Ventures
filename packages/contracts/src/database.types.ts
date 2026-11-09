@@ -669,6 +669,10 @@ export type Database = {
         Args: { operation_id: string; patch: Json; visita_id: string }
         Returns: Json
       }
+      sync_workspace_v1: {
+        Args: {operation_id:string;entity:string;entity_id:string;mutation:string;payload:Json}
+        Returns: Json
+      }
       sync_profile_v1: {
         Args: { operation_id: string; nombre: string; cargo: string | null; colegiatura: string | null }
         Returns: Json

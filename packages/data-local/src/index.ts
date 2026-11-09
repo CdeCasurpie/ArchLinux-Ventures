@@ -1,4 +1,5 @@
 import { openDB, type IDBPDatabase } from 'idb';
+import { answerOperation, prepareMutation } from './workspace-mutations';
 import { CapacitorSQLite, SQLiteConnection, type SQLiteDBConnection } from '@capacitor-community/sqlite';
 import { type LocalRepository,type WorkspaceLocalRepository,queuedState,acknowledgedState,type MediaOutboxRepository } from '@archforms/application';
 import type {LocalState,Profile,ProfileEdit,Pending,WorkspaceState,WorkspacePending,MediaOutboxItem,EntityOutboxItem,Visita} from '@archforms/domain';
@@ -74,11 +75,6 @@ export class SQLiteRepository implements LocalRepository {
 }
 
 const emptyWorkspace=():WorkspaceState=>({expedientes:[],visitas:[],plantillas:[],pending:[],last_sync:null});
-function answerOperation(record:Visita,patch:Record<string,string|number|null>):WorkspacePending{
- const answers={...record.checklist_respuestas_json,...patch};
- return {id:crypto.randomUUID(),entity:'visita',created_at:new Date().toISOString(),answer_patch:patch,
-  record:{...record,checklist_respuestas_json:answers,checklist_completado:record.checklist_esquema_json.sections.flatMap(section=>section.fields).every(field=>answers[field.id]!==undefined&&answers[field.id]!==null&&answers[field.id]!==''),updated_at:new Date().toISOString()}};
-}
 function mergeWorkspace(state:WorkspaceState,remote:Pick<WorkspaceState,'expedientes'|'visitas'|'plantillas'>):WorkspaceState{
  const pendingCases=new Map(state.pending.filter(item=>item.entity==='expediente').map(item=>[item.record.id,item.record]));
  const pendingVisits=new Map(state.pending.filter(item=>item.entity==='visita').map(item=>[item.record.id,item.record]));
@@ -124,6 +120,7 @@ export class IndexedWorkspaceRepository implements WorkspaceLocalRepository{
   }
   async save(owner:string,operation:WorkspacePending){
    const tx=(await this.db).transaction(['records','pending','metadata'],'readwrite');
+   operation=prepareMutation(operation,await tx.objectStore('records').get([owner,operation.entity==='expediente'?'expedientes':'visitas',operation.record.id]));
    await tx.objectStore('records').put(operation.record,[owner,operation.entity==='expediente'?'expedientes':'visitas',operation.record.id]);
    const meta=await tx.objectStore('metadata').get(owner)??{last_sync:null,order:[]};
    const order:string[]=meta.order??(await this.snapshot(tx,owner)).pending.map(op=>op.id);
@@ -200,6 +197,8 @@ export class SQLiteWorkspaceRepository implements WorkspaceLocalRepository{
   private change(owner:string,fn:(state:WorkspaceState)=>WorkspaceState){return this.serial(async()=>{const db=await this.db;await this.writeSnapshot(db,owner,fn(await this.raw(owner)))})}
   save(owner:string,operation:WorkspacePending){return this.serial(async()=>{
    const db=await this.db;
+   const previous=await db.query('SELECT payload FROM workspace_records WHERE owner=? AND kind=? AND id=?',[owner,operation.entity==='expediente'?'expedientes':'visitas',operation.record.id]);
+   operation=prepareMutation(operation,previous.values?.[0]?JSON.parse(previous.values[0].payload):undefined);
    await db.executeSet([
     {statement:'INSERT INTO workspace_records(owner,kind,id,payload) VALUES(?,?,?,?) ON CONFLICT(owner,kind,id) DO UPDATE SET payload=excluded.payload',values:[owner,operation.entity==='expediente'?'expedientes':'visitas',operation.record.id,JSON.stringify(operation.record)]},
     {statement:'INSERT INTO workspace_pending(owner,id,position,payload) VALUES(?,?,(SELECT COALESCE(MAX(position),-1)+1 FROM workspace_pending WHERE owner=?),?) ON CONFLICT(owner,id) DO UPDATE SET payload=excluded.payload',values:[owner,operation.id,owner,JSON.stringify(operation)]},

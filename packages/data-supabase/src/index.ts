@@ -3,6 +3,7 @@ import { type Profile,type Pending,type WorkspacePending,type Expediente,type Vi
 import type { RemoteRepository,WorkspaceRemoteRepository,CaptureRemoteReader,RemoteCaptureState } from '@archforms/application';
 import type {Database} from '@archforms/contracts';
 import { SupabaseAnswerSyncRemote } from './answer-sync';
+import { readPages } from './read-pages';
 export {createClient};
 export { SupabaseAnswerSyncRemote } from './answer-sync';
 export class SupabaseProfileRepository implements RemoteRepository {
@@ -21,13 +22,24 @@ export class SupabaseProfileRepository implements RemoteRepository {
 export class SupabaseWorkspaceRepository implements WorkspaceRemoteRepository{
  constructor(private client:SupabaseClient<Database>){}
  async fetchAll(){
-  const [cases,visits,templates]=await Promise.all([this.client.from('expediente').select('*').order('updated_at',{ascending:false}),this.client.from('visita').select('*').order('fecha',{ascending:false}),this.client.from('plantilla_checklist').select('*').eq('activa',true).order('nombre')]);
-  const error=cases.error??visits.error??templates.error;if(error)throw new Error(error.message);
-  return {expedientes:cases.data as unknown as Expediente[],visitas:visits.data as unknown as Visita[],plantillas:(templates.data??[]).map(row=>({id:row.id,codigo:row.codigo,nombre:row.nombre,version:row.version,esquema:row.esquema_json,profesional_id:row.profesional_id})) as unknown as ChecklistTemplate[]};
+   const [cases,visits,templates]=await Promise.all([
+    readPages((after,size)=>{let q=this.client.from('expediente').select('*').order('id').limit(size);if(after)q=q.gt('id',after);return q}),
+    readPages((after,size)=>{let q=this.client.from('visita').select('*').order('id').limit(size);if(after)q=q.gt('id',after);return q}),
+    readPages((after,size)=>{let q=this.client.from('plantilla_checklist').select('*').eq('activa',true).order('id').limit(size);if(after)q=q.gt('id',after);return q}),
+   ]);
+   return {expedientes:cases.sort((a,b)=>b.updated_at.localeCompare(a.updated_at)) as unknown as Expediente[],visitas:visits.sort((a,b)=>b.fecha.localeCompare(a.fecha)) as unknown as Visita[],plantillas:templates.sort((a,b)=>a.nombre.localeCompare(b.nombre)).map(row=>({id:row.id,codigo:row.codigo,nombre:row.nombre,version:row.version,esquema:row.esquema_json,profesional_id:row.profesional_id})) as unknown as ChecklistTemplate[]};
  }
   async push(operation:WorkspacePending){
    if(operation.answer_patch){
     await new SupabaseAnswerSyncRemote(this.client).push({operationId:operation.id,visitaId:operation.record.id,patch:operation.answer_patch});
+    return;
+   }
+   if(operation.workspace_mutation){
+    const {error}=await this.client.rpc('sync_workspace_v1',{
+     operation_id:operation.id,entity:operation.entity,entity_id:operation.record.id,
+     mutation:operation.workspace_mutation.type,payload:operation.workspace_mutation.payload as import('@archforms/contracts').Json,
+    });
+    if(error)throw error;
     return;
    }
    if(operation.entity==='visita'&&operation.preserve_answers){

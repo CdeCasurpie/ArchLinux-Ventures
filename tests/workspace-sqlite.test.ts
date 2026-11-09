@@ -50,7 +50,7 @@ describe('workspace on real SQLite SQL engine (not Android plugin)', () => {
     await local.save(owner, next);
     expect((await local.read(owner)).pending.map(item => item.id)).toEqual([op.id, next.id]);
     await local.acknowledge(owner, op.id);
-    expect((await new SQLiteWorkspaceRepository().read(owner)).pending).toEqual([next]);
+    expect((await new SQLiteWorkspaceRepository().read(owner)).pending).toEqual([{...next,workspace_mutation:{type:'create',payload:next.record}}]);
     await local.saveAnswers(owner,visit.id,{note:'offline'});
     expect((await new SQLiteWorkspaceRepository().read(owner)).visitas[0].checklist_respuestas_json).toEqual({note:'offline'});
     const beforeFailure=(await local.read(owner)).pending;

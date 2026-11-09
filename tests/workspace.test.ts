@@ -69,8 +69,8 @@ describe('workspace offline',()=>{
    return realPush(op);
   };
    await expect(new WorkspaceSyncEngine(local,remote,owner).run()).rejects.toThrow('duplicate key');
-   expect(remote.calls).toEqual([]);
-   expect((await local.read(owner)).pending.map(op=>op.id)).toEqual([op1.id,op2.id]);
+   expect(remote.calls).toEqual([op2.id]);
+   expect((await local.read(owner)).pending.map(op=>op.id)).toEqual([op1.id]);
    expect((await local.read(owner)).visitas).toHaveLength(2);
  });
 });

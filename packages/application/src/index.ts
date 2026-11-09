@@ -53,14 +53,27 @@ export class WorkspaceSyncEngine {
  private running:Promise<void>|null=null;
  constructor(private local:WorkspaceLocalRepository,private remote:WorkspaceRemoteRepository,private owner:string){}
  run(){if(this.running)return this.running;this.running=this.perform().finally(()=>{this.running=null});return this.running}
- private async perform(){
-  for(let i=0;i<100;i++){
-   const next=(await this.local.read(this.owner)).pending[0];
-   if(!next){await this.local.mergeRemote(this.owner,await this.remote.fetchAll());return}
+  private async perform(){
+   const blocked=new Set<string>();
+   const errors:string[]=[];
+   for(let i=0;i<100;i++){
+    const next=(await this.local.read(this.owner)).pending.find(op=>
+     !blocked.has(`${op.entity}:${op.record.id}`)&&
+     !(op.entity==='visita'&&blocked.has(`expediente:${(op.record as Visita).expediente_id}`)));
+    if(!next){
+     await this.local.mergeRemote(this.owner,await this.remote.fetchAll());
+     if(errors.length)throw new Error(errors.join('\n'));
+     return;
+    }
     // Only a successful server acknowledgement can remove a local operation.
     // Uniqueness violations are not proof that this operation was applied.
-    await this.remote.push(next);
-   await this.local.acknowledge(this.owner,next.id);
+    try{
+     await this.remote.push(next);
+     await this.local.acknowledge(this.owner,next.id);
+    }catch(error){
+     blocked.add(`${next.entity}:${next.record.id}`);
+     errors.push(`${next.entity} ${next.record.id}: ${error instanceof Error?error.message:JSON.stringify(error)}`);
+    }
   }
   throw new Error('Hay demasiados cambios pendientes para una sola sincronización.');
  }
@@ -77,7 +90,7 @@ export function buildExpediente(owner:string,data:FormData,schema:Expediente['ch
 export function buildVisita(expediente:Expediente,number:number,date:string):Visita{
  const stamp=now();return {id:crypto.randomUUID(),expediente_id:expediente.id,nro_visita:number,codigo_informe:null,fecha:date,estado:'BORRADOR',checklist_nombre:expediente.checklist_nombre,checklist_esquema_json:structuredClone(expediente.checklist_esquema_json),checklist_respuestas_json:{},checklist_completado:false,documento_json:{version:1,blocks:[]},estado_documento:'BORRADOR',pdf_archivo_id:null,responsable_obra_nombre:expediente.responsable_obra_nombre,responsable_obra_colegiatura:expediente.responsable_obra_colegiatura,created_at:stamp,updated_at:stamp};
 }
-export function workspaceOperation(entity:WorkspacePending['entity'],record:Expediente|Visita):WorkspacePending{return {id:crypto.randomUUID(),entity,record,created_at:now(),preserve_answers:entity==='visita'}}
+export function workspaceOperation(entity:WorkspacePending['entity'],record:Expediente|Visita):WorkspacePending{return {id:crypto.randomUUID(),entity,record,created_at:now(),preserve_answers:entity==='visita',protocol:1}}
 
 // ── Media Sync (Iteración 4) ──────────────────────────────────────────────────
 
