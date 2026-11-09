@@ -1,6 +1,7 @@
 import { execFileSync } from 'node:child_process';
 import { test, expect } from '@playwright/test';
 import { createClient } from '@supabase/supabase-js';
+import { PDFDocument } from 'pdf-lib';
 
 test('browser saves offline, reconnects and another browser reads server values',async({browser,page,context})=>{
   const status=JSON.parse(execFileSync('npx',['supabase','status','-o','json'],{encoding:'utf8'}));
@@ -38,6 +39,27 @@ test('browser saves offline, reconnects and another browser reads server values'
       await openVisit(otherPage);
       await expect(otherPage.locator('.check-item textarea')).toHaveValue('Guardado offline desde Chromium');
     }finally{await other.close()}
+    // PDF rendering must not depend on a reachable backend or upload a binary.
+    await page.getByRole('button',{name:/3 Resumen/}).click();
+    await page.getByRole('button',{name:/Concluir visita/}).click();
+    await expect(page.getByRole('button',{name:'Generar PDF',exact:true})).toBeVisible();
+    let binaryUploads=0;
+    page.on('request',request=>{
+      if(request.url().includes('/storage/v1/object/')&&['POST','PUT'].includes(request.method()))binaryUploads++;
+    });
+    await page.route(`${status.API_URL}/**`,route=>route.abort('connectionrefused'));
+    for(let attempt=0;attempt<2;attempt++){
+      const downloadPromise=page.waitForEvent('download');
+      await page.getByRole('button',{name:'Generar PDF',exact:true}).click();
+      const download=await downloadPromise;
+      expect(download.suggestedFilename()).toMatch(/\.pdf$/);
+      const stream=await download.createReadStream();
+      const chunks:Buffer[]=[];
+      for await(const chunk of stream!)chunks.push(Buffer.from(chunk));
+      const pdf=await PDFDocument.load(Buffer.concat(chunks));
+      expect(pdf.getPageCount()).toBeGreaterThan(0);
+    }
+    expect(binaryUploads).toBe(0);
   }finally{
     await client.from('visita').delete().eq('id',visitId);
     await client.from('expediente').delete().eq('id',caseId);

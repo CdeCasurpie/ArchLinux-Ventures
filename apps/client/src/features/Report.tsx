@@ -7,12 +7,11 @@ import { Share } from '@capacitor/share';
 import {
   initReportDocument, parseReportDocument, moveReportBlock, removeReportBlock,
   restoreGroupBlock, addTextBlock, setBlockPhotos, setBlockComment, setTextContent,
-  isPdfStale, type ReportDocumentV1, type ReportBlock,
+  type ReportDocumentV1, type ReportBlock,
 } from '@archforms/domain';
 import type { Expediente, LocalState, Visita } from '@archforms/domain';
 import { loadCaptureGroups, photoDataUrl, type CaptureGroup, type LabPhoto } from './lab-storage';
-import { getPendingPdf, setPendingPdf, uploadPdfArtifact } from './media-sync';
-import { supabase } from '../platform';
+import { loadReportPhotos } from './report-photos';
 
 function bytesToBase64(bytes: Uint8Array): string {
   let binary = '';
@@ -36,7 +35,7 @@ function orderedPhotos(group: CaptureGroup | undefined, photoIds: string[]): Lab
   });
 }
 
-export function VisitReport({ visita, expediente, profile, ownerId, onSave }: {
+export function VisitReport({ visita, expediente, profile, onSave }: {
   visita: Visita;
   expediente: Expediente;
   profile: LocalState['profile'];
@@ -54,7 +53,6 @@ export function VisitReport({ visita, expediente, profile, ownerId, onSave }: {
   const [fileMsg, setFileMsg] = useState('');
   const [savedFile, setSavedFile] = useState<{ filename: string } | null>(null);
   const [fileSheetOpen, setFileSheetOpen] = useState(false);
-  const [pendingPdf, setPendingPdfState] = useState<{ pdfId: string; filename: string } | null>(null);
   const initedFor = useRef<string | null>(null);
   const [loadError,setLoadError]=useState('');
   const [loadAttempt,setLoadAttempt]=useState(0);
@@ -84,7 +82,6 @@ export function VisitReport({ visita, expediente, profile, ownerId, onSave }: {
       clearTimeout(timeout);
       setLoadError('');
     }).catch(error=>{if(!cancelled){clearTimeout(timeout);setLoadError(error instanceof Error?error.message:String(error))}});
-    getPendingPdf(visita.id).then(p => { if (!cancelled) setPendingPdfState(p); }).catch(console.error);
     return () => { cancelled = true;clearTimeout(timeout); };
   }, [visita.id,loadAttempt]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -120,7 +117,6 @@ export function VisitReport({ visita, expediente, profile, ownerId, onSave }: {
 
   const dirty = doc !== null && savedRevision !== null && doc.revision !== savedRevision;
   const fresh = doc !== null && savedRevision === null;
-  const stale = doc !== null && isPdfStale(doc, visita.estado_documento);
   const groupById = new Map(groups.map(g => [g.id, g]));
   const missingGroups = groups.filter(g => doc && !doc.blocks.some(b => b.type === 'capture-group' && b.groupId === g.id));
 
@@ -138,21 +134,11 @@ export function VisitReport({ visita, expediente, profile, ownerId, onSave }: {
 
   const generate = async () => {
     if (!doc) return;
-    // PDF vigente al día: en nativo se ofrece el archivo existente.
-    // En web siempre se regenera y descarga a pedido explícito.
-    if (visita.estado_documento === 'GENERADO' && !isPdfStale(doc, visita.estado_documento) && Capacitor.isNativePlatform()) {
-      const { informeFileName } = await import('@archforms/report-pdf');
-      const existing = informeFileName(expediente, visita);
-      try {
-        await Filesystem.stat({ path: `ArchForms/${existing}`, directory: Directory.Documents });
-        setSavedFile({ filename: existing });
-        setFileSheetOpen(true);
-        return;
-      } catch { /* ya no está en disco: regenerar */ }
-    }
     setBusy(true);
     setPdfMsg('');
     try {
+      // Persist content, never the generated binary, before rendering this snapshot.
+      await save(doc);
       // El stack PDF (pesado) se carga diferido: no enlentece el arranque.
       const [{ pdf }, { buildInformeDoc, informeFileName, stampPageNumbers }] = await Promise.all([
         import('@react-pdf/renderer'),
@@ -160,8 +146,7 @@ export function VisitReport({ visita, expediente, profile, ownerId, onSave }: {
       ]);
       // Fotos resueltas a dataURL desde disco (el displayUrl en memoria puede ser
       // una URL de archivo, que react-pdf no puede incrustar).
-      const photos: Record<string, string> = {};
-      for (const g of groups) for (const p of g.photos) photos[p.id] = await photoDataUrl(p.path, p.mimeType);
+      const photos = await loadReportPhotos(doc,groups,photoDataUrl);
       const element = buildInformeDoc({
         doc, visita, expediente,
         profesional: profile ? { ...profile, email: '', updated_at: '' } : null,
@@ -187,31 +172,7 @@ export function VisitReport({ visita, expediente, profile, ownerId, onSave }: {
         a.href = url; a.download = filename; a.click();
         setTimeout(() => URL.revokeObjectURL(url), 5000);
       }
-      // Sellar GENERADO con la revisión actual.
-      const pdfId = crypto.randomUUID();
-      const stamped: ReportDocumentV1 = { ...doc, generatedRevision: doc.revision };
-      await onSave({ ...visita, documento_json: stamped as unknown as Record<string, unknown>, estado_documento: 'GENERADO', updated_at: new Date().toISOString() });
-      setDoc(stamped);
-      setSavedRevision(stamped.revision);
-      // Registrar en la nube cuando haya red (reutiliza el remoto de medios).
-      if (navigator.onLine) {
-        try {
-          await uploadPdfArtifact(supabase, ownerId, visita.id, pdfId, filename, bytes);
-          await onSave({ ...visita, documento_json: stamped as unknown as Record<string, unknown>, estado_documento: 'GENERADO', pdf_archivo_id: pdfId, updated_at: new Date().toISOString() });
-          await setPendingPdf(visita.id, null);
-          setPendingPdfState(null);
-          setPdfMsg('PDF generado, guardado y subido a la nube.');
-        } catch (e) {
-          await setPendingPdf(visita.id, { pdfId, filename });
-          setPendingPdfState({ pdfId, filename });
-          setPdfMsg(`PDF generado en este dispositivo. No se pudo subir: ${e instanceof Error ? e.message : String(e)}`);
-        }
-      } else {
-        await setPendingPdf(visita.id, { pdfId, filename });
-        setPendingPdfState({ pdfId, filename });
-        setPdfMsg('PDF generado en este dispositivo. Sin conexión: la subida queda pendiente.');
-      }
-      // Recién al terminar todo (sellado + subida) se abre el panel: los botones ya sirven.
+      setPdfMsg('PDF generado en este dispositivo. No se sube a la nube.');
       setFileSheetOpen(true);
     } catch (e) {
       setPdfMsg(`No se pudo generar: ${e instanceof Error ? e.message : String(e)}`);
@@ -249,28 +210,6 @@ export function VisitReport({ visita, expediente, profile, ownerId, onSave }: {
     }
   };
 
-  const uploadPending = async () => {
-    if (!pendingPdf || !doc) return;
-    setBusy(true);
-    try {
-      const { data } = Capacitor.isNativePlatform()
-        ? await Filesystem.readFile({ path: `ArchForms/${pendingPdf.filename}`, directory: Directory.Documents })
-        : { data: null };
-      if (typeof data !== 'string' || !data) throw new Error('No se encontró el PDF local.');
-      const bytes = Uint8Array.from(atob(data), c => c.charCodeAt(0));
-      await uploadPdfArtifact(supabase, ownerId, visita.id, pendingPdf.pdfId, pendingPdf.filename, bytes);
-      const stamped: ReportDocumentV1 = { ...doc, generatedRevision: doc.revision };
-      await onSave({ ...visita, documento_json: stamped as unknown as Record<string, unknown>, estado_documento: 'GENERADO', pdf_archivo_id: pendingPdf.pdfId, updated_at: new Date().toISOString() });
-      await setPendingPdf(visita.id, null);
-      setPendingPdfState(null);
-      setPdfMsg('PDF pendiente subido a la nube.');
-    } catch (e) {
-      setPdfMsg(`Sigue sin subirse: ${e instanceof Error ? e.message : String(e)}`);
-    } finally {
-      setBusy(false);
-    }
-  };
-
   if (!doc) {
     return <article className="card" style={{ padding: 24 }}>{loadError?<><p role="alert">No se pudo abrir el informe: {loadError}</p><button className="btn btn-secondary" onClick={()=>setLoadAttempt(value=>value+1)}>Reintentar apertura</button></>:<p role="status">Armando el informe…</p>}</article>;
   }
@@ -278,9 +217,7 @@ export function VisitReport({ visita, expediente, profile, ownerId, onSave }: {
   return (
     <div className="page-enter">
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12, flexWrap: 'wrap' }}>
-        <span className={`status ${stale ? 'draft' : 'active'}`}>
-          {stale ? '⚠ PDF desactualizado' : visita.estado_documento === 'GENERADO' ? 'PDF generado' : 'Borrador'}
-        </span>
+        <span className="status active">PDF local · se genera en cada descarga</span>
         <span style={{ flex: 1 }} />
         <button className="btn btn-secondary" onClick={undo} disabled={!past.length}>←</button>
         <button className="btn btn-secondary" onClick={redo} disabled={!future.length}>→</button>
@@ -317,15 +254,6 @@ export function VisitReport({ visita, expediente, profile, ownerId, onSave }: {
         </>,
         document.body,
       )}
-      {pendingPdf && (
-        <div className="alert notice">
-          Hay un PDF generado pendiente de subir ({pendingPdf.filename}).
-          <button className="btn btn-secondary" style={{ marginLeft: 8 }} onClick={() => void uploadPending()} disabled={busy || !navigator.onLine}>
-            Subir ahora
-          </button>
-        </div>
-      )}
-
       {missingGroups.length > 0 && (
         <div className="card" style={{ padding: 16, marginBottom: 12 }}>
           <strong>Hallazgos fuera del informe ({missingGroups.length})</strong>
