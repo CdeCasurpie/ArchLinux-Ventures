@@ -14,6 +14,17 @@ class Remote implements WorkspaceRemoteRepository{
  async push(operation:WorkspacePending){this.calls.push(operation.id);if(operation.entity==='expediente')this.state.expedientes=[operation.record as never];else this.state.visitas=[operation.record as never]}
 }
 describe('workspace offline',()=>{
+  it('guarda parches de respuestas conservando otros campos y pendientes',async()=>{
+   const name=`answers-${crypto.randomUUID()}`,record=expediente(),visit=buildVisita(record,1,'2026-09-17');
+   const local=new IndexedWorkspaceRepository(name);
+   await local.save(owner,workspaceOperation('visita',visit));
+   await Promise.all([local.saveAnswers(owner,visit.id,{licencia:'si'}),local.saveAnswers(owner,visit.id,{otro:'texto'})]);
+   const state=await new IndexedWorkspaceRepository(name).read(owner);
+   expect(state.visitas[0].checklist_respuestas_json).toEqual({licencia:'si',otro:'texto'});
+   expect(state.pending.slice(1).map(op=>op.answer_patch)).toEqual([{licencia:'si'},{otro:'texto'}]);
+   await expect(local.saveAnswers(owner,'missing',{licencia:'no'})).rejects.toThrow();
+   expect((await local.read(owner)).pending).toHaveLength(3);
+  });
   it('migra v1 preservando datos, orden y copia de recuperación sin volver a importarla',async()=>{
    const name=`legacy-${crypto.randomUUID()}`,record=expediente();
    const visit=buildVisita(record,1,'2026-09-17');

@@ -35,7 +35,7 @@ export interface Visita {
  pdf_archivo_id:string|null;responsable_obra_colegiatura:string|null;created_at:string;updated_at:string;
 }
 export type WorkspaceEntity='expediente'|'visita';
-export interface WorkspacePending {id:string;entity:WorkspaceEntity;record:Expediente|Visita;created_at:string}
+export interface WorkspacePending {id:string;entity:WorkspaceEntity;record:Expediente|Visita;created_at:string;answer_patch?:Record<string,string|number|null>;preserve_answers?:boolean}
 export interface WorkspaceState {expedientes:Expediente[];visitas:Visita[];plantillas:ChecklistTemplate[];pending:WorkspacePending[];last_sync:string|null}
 export function assertChecklist(schema:ChecklistSchema){
  if(schema.version!==1||!schema.sections.length)throw new Error('El checklist necesita al menos una sección.');
@@ -226,4 +226,3 @@ export interface GrupoCapturaPayload {
   mime_type:string;size_bytes:number;checksum:string;
  }>;
 }
-

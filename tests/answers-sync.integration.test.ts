@@ -1,6 +1,9 @@
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { describe, expect, it } from 'vitest';
-import { SupabaseAnswerSyncRemote } from '@archforms/data-supabase';
+import 'fake-indexeddb/auto';
+import { SupabaseAnswerSyncRemote, SupabaseWorkspaceRepository } from '@archforms/data-supabase';
+import { IndexedWorkspaceRepository } from '@archforms/data-local';
+import { WorkspaceSyncEngine, workspaceOperation } from '@archforms/application';
 import type { Database } from '@archforms/contracts';
 
 const url = process.env.TEST_SUPABASE_URL;
@@ -62,6 +65,29 @@ describe('answer patch protocol v1 on local Postgres', () => {
       expect(changes).toHaveLength(5);
       expect(new Set(changes.map(change => change.revision)).size).toBe(5);
       expect((await client.rpc('sync_pull_answers_v1', { after_revision: -1 })).error).not.toBeNull();
+
+      // Two independent offline stores from the same initial remote snapshot.
+      const remote = new SupabaseWorkspaceRepository(client as SupabaseClient<Database>);
+      const a = new IndexedWorkspaceRepository(`device-a-${crypto.randomUUID()}`);
+      const b = new IndexedWorkspaceRepository(`device-b-${crypto.randomUUID()}`);
+      const snapshot = await remote.fetchAll();
+      await a.mergeRemote(user!.id,snapshot);
+      await b.mergeRemote(user!.id,snapshot);
+      await a.saveAnswers(user!.id,visitaId,{a:'offline A'});
+      await b.saveAnswers(user!.id,visitaId,{b:'no'});
+      await new WorkspaceSyncEngine(a,remote,user!.id).run();
+      await new WorkspaceSyncEngine(b,remote,user!.id).run();
+      const staleVisit=snapshot.visitas.find(visit=>visit.id===visitaId)!;
+      await b.save(user!.id,workspaceOperation('visita',{...staleVisit,estado:'FINALIZADA'}));
+      await new WorkspaceSyncEngine(b,remote,user!.id).run();
+      expect((await client.from('visita').select('checklist_respuestas_json').eq('id',visitaId).single()).data?.checklist_respuestas_json).toEqual({a:'offline A',b:'no'});
+      expect((await b.read(user!.id)).pending).toEqual([]);
+      const profileRequest={operation_id:crypto.randomUUID(),nombre:'Primer nombre',cargo:null,colegiatura:null};
+      const profileFirst=await client.rpc('sync_profile_v1',profileRequest);
+      expect(profileFirst.error).toBeNull();
+      expect((await client.rpc('sync_profile_v1',{...profileRequest,operation_id:crypto.randomUUID(),nombre:'Último nombre'})).error).toBeNull();
+      expect((await client.rpc('sync_profile_v1',profileRequest)).data).toEqual(profileFirst.data);
+      expect((await client.from('profesional').select('nombre_completo').single()).data?.nombre_completo).toBe('Último nombre');
     } finally {
       await client.from('visita').delete().eq('id', visitaId);
       await client.from('expediente').delete().eq('id', expedienteId);

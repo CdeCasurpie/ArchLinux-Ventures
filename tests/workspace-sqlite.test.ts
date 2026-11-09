@@ -51,11 +51,14 @@ describe('workspace on real SQLite SQL engine (not Android plugin)', () => {
     expect((await local.read(owner)).pending.map(item => item.id)).toEqual([op.id, next.id]);
     await local.acknowledge(owner, op.id);
     expect((await new SQLiteWorkspaceRepository().read(owner)).pending).toEqual([next]);
+    await local.saveAnswers(owner,visit.id,{note:'offline'});
+    expect((await new SQLiteWorkspaceRepository().read(owner)).visitas[0].checklist_respuestas_json).toEqual({note:'offline'});
+    const beforeFailure=(await local.read(owner)).pending;
 
     db.exec("CREATE TRIGGER reject_pending BEFORE INSERT ON workspace_pending BEGIN SELECT RAISE(ABORT,'disk failure'); END");
     const rejected = { ...visit, id: crypto.randomUUID() };
     await expect(local.save(owner, workspaceOperation('visita', rejected))).rejects.toThrow('disk failure');
     expect((await local.read(owner)).visitas.map(item => item.id)).not.toContain(rejected.id);
-    expect((await local.read(owner)).pending).toEqual([next]);
+    expect((await local.read(owner)).pending).toEqual(beforeFailure);
   });
 });

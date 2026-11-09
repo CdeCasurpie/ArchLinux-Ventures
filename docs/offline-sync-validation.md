@@ -1,0 +1,75 @@
+# Validación de la base offline — entorno local
+
+Rama: `feat/offline-sync-foundation`. No se ha desplegado a Supabase online.
+
+## Implementado y comprobado
+
+- Almacenes locales por entidad y cola transaccional en IndexedDB y SQLite.
+- Migración conservando el snapshot anterior como respaldo.
+- Autosave de respuestas con operaciones granulares; el guardado de estado/documento nuevo no reemplaza respuestas remotas.
+- RPC de respuestas y perfil con deduplicación por usuario e identificador de operación.
+- Coordinador de datos/perfil independiente de React: ejecución única por instancia, reconexión, polling y reintentos.
+- Recuperación visible si la sesión inicial falla o excede el tiempo de espera.
+- Consulta de archivos al abrir la visita, progreso por cantidad y comprobación de tamaño/checksum antes de escribir el archivo.
+- Cancelación cooperativa al abandonar la visita (la petición en curso puede acabar, pero no se publica después de observar la cancelación).
+
+## Resultados automatizados
+
+- `npm run check`: 98 pruebas, TypeScript y build correctos. Permanecen tres advertencias anteriores de lint y advertencia de tamaño de bundles.
+- `npm run test:integration:local`: dos pruebas de integración correctas contra Postgres local.
+- La integración usa dos almacenes IndexedDB independientes del mismo propietario; prueba edición offline en campos diferentes y posterior guardado de estado sin revertir las respuestas.
+- SQLite se prueba con motor real de Node y adaptador de plugin simulado, no con Android real.
+- `npm run android:build:local`: APK compilada correctamente contra Supabase local.
+
+Migraciones aplicadas únicamente en local: 007 (respuestas) y 008 (perfil). La 006 existente también se aplicó porque estaba pendiente.
+
+## Probar sin cambiar `.env.local`
+
+```bash
+npx supabase start
+npx supabase migration up --local
+npm run dev:local
+```
+
+El último comando obtiene la clave pública del entorno local y sobreescribe las variables solo para ese proceso. No imprime claves ni modifica la configuración online del cliente.
+
+1. Crear una cuenta local y un expediente con visita.
+2. Desconectar la red desde DevTools o usar modo avión en Android.
+3. Editar varias respuestas y esperar «Guardado en este dispositivo».
+4. Salir de la visita y volver; recargar o cerrar/reabrir después de guardar.
+5. Recuperar conexión y comprobar que desaparecen los pendientes de datos.
+6. Abrir el mismo usuario en otro navegador y comprobar respuestas.
+7. Cambiar campos diferentes en ambos clientes; comprobar que se conservan ambos.
+8. Cambiar el mismo campo; prevalece la última operación aceptada por el servidor.
+
+Las cuentas locales son independientes de las online. Las pruebas crean cuentas sintéticas locales; no eliminan esas cuentas ni el registro técnico de operaciones. La prueba nueva elimina su visita y expediente de prueba.
+
+## Android local por USB
+
+APK: `apps/client/android/app/build/outputs/apk/debug/app-debug.apk`.
+
+Para usar `127.0.0.1:54321` desde el teléfono se necesita el túnel USB:
+
+```bash
+adb reverse tcp:54321 tcp:54321
+adb install -r apps/client/android/app/build/outputs/apk/debug/app-debug.apk
+adb shell am start -n com.archventures.archforms/.MainActivity
+```
+
+No se instaló ni validó en teléfono en esta entrega: `adb devices` no mostró dispositivos.
+
+## Límites actuales: no declarar terminada toda la arquitectura
+
+- El coordinador de datos/perfil convive todavía con `MediaSyncManager`; no es aún un coordinador único de todo el sistema.
+- La descarga incremental de respuestas existe como RPC/adaptador, pero el workspace de la app todavía se refresca mediante lectura completa.
+- Expedientes, creación/estado/documento de visitas y multimedia no tienen aún un protocolo idempotente integral equivalente al de respuestas/perfil.
+- No hay todavía tombstones generales ni reconciliación automática de números de visitas. Una colisión conserva la operación y presenta error, pero puede bloquear la cola de datos.
+- Los clientes antiguos con escritura completa pueden sobrescribir respuestas; no desplegar sin resolver compatibilidad o exigir actualización.
+- La descarga prioriza la visita consultada frente al recorrido completo de arranque, pero no es todavía una cola persistente por archivo con prioridades, caché y reanudación completa.
+- El indicador de archivos refleja la consulta actual, no certifica que todo el expediente esté disponible offline. No se garantiza reparación de archivos previamente borrados del dispositivo.
+- No hay coordinación explícita entre pestañas, ni garantía de sincronización con Android cerrado.
+- Falta validar navegación global durante errores de autosave y extraer el formulario de `App.tsx`.
+
+## Recuperación
+
+No borrar almacenamiento local para resolver fallos: podría haber operaciones pendientes. No volver a una app que abra IndexedDB versión 1 después de migrar a versión 2; hace falta una versión compatible o una recuperación específica. No eliminar los registros técnicos de deduplicación mientras puedan existir reintentos antiguos.

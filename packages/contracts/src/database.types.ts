@@ -669,6 +669,10 @@ export type Database = {
         Args: { operation_id: string; patch: Json; visita_id: string }
         Returns: Json
       }
+      sync_profile_v1: {
+        Args: { operation_id: string; nombre: string; cargo: string | null; colegiatura: string | null }
+        Returns: Json
+      }
       sync_pull_answers_v1: {
         Args: { after_revision?: number; page_size?: number }
         Returns: Json

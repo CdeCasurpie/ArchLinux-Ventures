@@ -1,5 +1,6 @@
 import { type Profile,type ProfileEdit,type LocalState,type Pending,validateProfile,type WorkspaceState,type WorkspacePending,type Expediente,type Visita,assertChecklist,type MediaOutboxItem,type EntityOutboxItem,type GrupoCapturaPayload,type MediaSyncStatus,type EntitySyncStatus,type RemoteArchivo,type RemoteFoto,type RemoteGrupo } from '@archforms/domain';
 export * from './answer-sync';
+export * from './sync-coordinator';
 export interface LocalRepository {
  read(owner:string):Promise<LocalState>;
  // Record and outbox are written together in one durable transaction.
@@ -42,7 +43,8 @@ export function acknowledgedState(state:LocalState,operation:Pending,profile:Pro
 
 export interface WorkspaceLocalRepository {
  read(owner:string):Promise<WorkspaceState>;
- save(owner:string,operation:WorkspacePending):Promise<void>;
+  save(owner:string,operation:WorkspacePending):Promise<void>;
+  saveAnswers(owner:string,visitaId:string,patch:Record<string,string|number|null>):Promise<void>;
  acknowledge(owner:string,operationId:string):Promise<void>;
  mergeRemote(owner:string,remote:Pick<WorkspaceState,'expedientes'|'visitas'|'plantillas'>):Promise<void>;
 }
@@ -75,7 +77,7 @@ export function buildExpediente(owner:string,data:FormData,schema:Expediente['ch
 export function buildVisita(expediente:Expediente,number:number,date:string):Visita{
  const stamp=now();return {id:crypto.randomUUID(),expediente_id:expediente.id,nro_visita:number,codigo_informe:null,fecha:date,estado:'BORRADOR',checklist_nombre:expediente.checklist_nombre,checklist_esquema_json:structuredClone(expediente.checklist_esquema_json),checklist_respuestas_json:{},checklist_completado:false,documento_json:{version:1,blocks:[]},estado_documento:'BORRADOR',pdf_archivo_id:null,responsable_obra_nombre:expediente.responsable_obra_nombre,responsable_obra_colegiatura:expediente.responsable_obra_colegiatura,created_at:stamp,updated_at:stamp};
 }
-export function workspaceOperation(entity:WorkspacePending['entity'],record:Expediente|Visita):WorkspacePending{return {id:crypto.randomUUID(),entity,record,created_at:now()}}
+export function workspaceOperation(entity:WorkspacePending['entity'],record:Expediente|Visita):WorkspacePending{return {id:crypto.randomUUID(),entity,record,created_at:now(),preserve_answers:entity==='visita'}}
 
 // ── Media Sync (Iteración 4) ──────────────────────────────────────────────────
 

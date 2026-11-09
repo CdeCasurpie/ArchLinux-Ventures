@@ -1,7 +1,7 @@
 import { openDB, type IDBPDatabase } from 'idb';
 import { CapacitorSQLite, SQLiteConnection, type SQLiteDBConnection } from '@capacitor-community/sqlite';
 import { type LocalRepository,type WorkspaceLocalRepository,queuedState,acknowledgedState,type MediaOutboxRepository } from '@archforms/application';
-import type {LocalState,Profile,ProfileEdit,Pending,WorkspaceState,WorkspacePending,MediaOutboxItem,EntityOutboxItem} from '@archforms/domain';
+import type {LocalState,Profile,ProfileEdit,Pending,WorkspaceState,WorkspacePending,MediaOutboxItem,EntityOutboxItem,Visita} from '@archforms/domain';
 const empty=():LocalState=>({profile:null,pending:null});
 const sqliteManager=new SQLiteConnection(CapacitorSQLite);
 // One creation promise per database name: SQLiteRepository and
@@ -74,6 +74,11 @@ export class SQLiteRepository implements LocalRepository {
 }
 
 const emptyWorkspace=():WorkspaceState=>({expedientes:[],visitas:[],plantillas:[],pending:[],last_sync:null});
+function answerOperation(record:Visita,patch:Record<string,string|number|null>):WorkspacePending{
+ const answers={...record.checklist_respuestas_json,...patch};
+ return {id:crypto.randomUUID(),entity:'visita',created_at:new Date().toISOString(),answer_patch:patch,
+  record:{...record,checklist_respuestas_json:answers,checklist_completado:record.checklist_esquema_json.sections.flatMap(section=>section.fields).every(field=>answers[field.id]!==undefined&&answers[field.id]!==null&&answers[field.id]!==''),updated_at:new Date().toISOString()}};
+}
 function mergeWorkspace(state:WorkspaceState,remote:Pick<WorkspaceState,'expedientes'|'visitas'|'plantillas'>):WorkspaceState{
  const pendingCases=new Map(state.pending.filter(item=>item.entity==='expediente').map(item=>[item.record.id,item.record]));
  const pendingVisits=new Map(state.pending.filter(item=>item.entity==='visita').map(item=>[item.record.id,item.record]));
@@ -131,6 +136,17 @@ export class IndexedWorkspaceRepository implements WorkspaceLocalRepository{
    await tx.objectStore('pending').delete([owner,id]);
    const meta=await tx.objectStore('metadata').get(owner);
    if(meta)await tx.objectStore('metadata').put({...meta,order:meta.order?.filter((item:string)=>item!==id)},owner);
+   await tx.done;
+  }
+  async saveAnswers(owner:string,visitaId:string,patch:Record<string,string|number|null>){
+   const tx=(await this.db).transaction(['records','pending','metadata'],'readwrite');
+   const record=await tx.objectStore('records').get([owner,'visitas',visitaId]);
+   if(!record){await tx.done;throw new Error('Visita no disponible en este dispositivo')}
+   const operation=answerOperation(record,patch);
+   const state=await this.snapshot(tx,owner);
+   await tx.objectStore('records').put(operation.record,[owner,'visitas',visitaId]);
+   await tx.objectStore('pending').put(operation,[owner,operation.id]);
+   await tx.objectStore('metadata').put({last_sync:state.last_sync,order:[...state.pending.map(op=>op.id),operation.id]},owner);
    await tx.done;
   }
   async mergeRemote(owner:string,remote:Pick<WorkspaceState,'expedientes'|'visitas'|'plantillas'>){
@@ -191,6 +207,12 @@ export class SQLiteWorkspaceRepository implements WorkspaceLocalRepository{
    ],true);
   })}
   acknowledge(owner:string,id:string){return this.serial(async()=>{await (await this.db).run('DELETE FROM workspace_pending WHERE owner=? AND id=?',[owner,id])})}
+  saveAnswers(owner:string,visitaId:string,patch:Record<string,string|number|null>){return this.serial(async()=>{
+   const state=await this.raw(owner),record=state.visitas.find(item=>item.id===visitaId);
+   if(!record)throw new Error('Visita no disponible en este dispositivo');
+   const operation=answerOperation(record,patch);
+   await this.writeSnapshot(await this.db,owner,{...state,visitas:state.visitas.map(item=>item.id===visitaId?operation.record as Visita:item),pending:[...state.pending,operation]});
+  })}
  mergeRemote(owner:string,remote:Pick<WorkspaceState,'expedientes'|'visitas'|'plantillas'>){return this.change(owner,state=>mergeWorkspace(state,remote))}
 }
 

@@ -17,6 +17,7 @@ import {
 import { Preferences } from '@capacitor/preferences'
 import { Capacitor } from '@capacitor/core'
 import { captureActivity } from './activity'
+import { verifyDownload } from './verify-download'
 
 // ── Supabase Media Remote ────────────────────────────────────────────────────
 // Usa el bucket congelado en la Iteración 1 (`visita-media`, privado).
@@ -469,8 +470,11 @@ export async function pullVisitaFromCloud(
   reader: CaptureRemoteReader,
   visitaId: string,
   onProgress?: (p: PullProgress) => void,
+  signal?: AbortSignal,
 ): Promise<PullResult> {
+  signal?.throwIfAborted();
   const remote = await reader.fetchCapture([visitaId]);
+  signal?.throwIfAborted();
   onProgress?.({ phase: 'meta', done: 1, total: 1 });
 
   // Snapshot local: qué grupos tienen filas pendientes (local manda si sí).
@@ -493,6 +497,7 @@ export async function pullVisitaFromCloud(
   const plan = planCapturePull(snapshots, remote);
   let downloaded = 0;
   const total = plan.upserts.reduce((n, u) => n + u.archivos.length, 0);
+  onProgress?.({ phase: 'binaries', done: 0, total });
 
   for (const u of plan.upserts) {
     // 1. Descargar binarios faltantes a Filesystem (mismo layout que captura).
@@ -501,8 +506,11 @@ export async function pullVisitaFromCloud(
     let audio: Omit<AudioClip, 'displayUrl'> | null = null;
     const fotoByArchivo = new Map(u.fotos.map(f => [f.archivo_id, f]));
     for (const a of u.archivos) {
+      signal?.throwIfAborted();
       if (!a.storage_key) continue;
       const bytes = await reader.downloadBytes(a.storage_key);
+      signal?.throwIfAborted();
+      await verifyDownload(bytes,a.tamanio_bytes,a.checksum_sha256);
       const b64 = bytesToBase64(bytes);
       if (a.tipo === 'AUDIO') {
         const ext = audioExtension(a.mime_type);
@@ -527,6 +535,7 @@ export async function pullVisitaFromCloud(
       onProgress?.({ phase: 'binaries', done: downloaded, total });
     }
     if (!audio) continue; // grupo sin audio descargable: se omite (no se inventa)
+    signal?.throwIfAborted();
 
     // 2. Espejar el grupo local como 'synced'.
     photos.sort((p1, p2) => {
@@ -594,6 +603,7 @@ export class MediaSyncManager {
   private ownerId: string
   private listeners: Array<() => void> = []
   private started = false
+  private generation = 0
   lastRun: { at: string; error: string | null } | null = null
 
   constructor(outbox: MediaOutboxRepository, ownerId: string) {
@@ -646,13 +656,18 @@ export class MediaSyncManager {
   start(): void {
     if (this.started) return
     this.started = true
+    const generation=++this.generation;
+    const keepListener=(handle:{remove:()=>Promise<void>})=>{
+      if(!this.started||generation!==this.generation)void handle.remove();
+      else this.listeners.push(()=>{void handle.remove()});
+    };
     // eslint-disable-next-line no-this-alias -- intentional: module registry lets features trigger a run after enqueue
     activeManager = this
 
     // Sync on network restore (Capacitor + browser fallback for web)
     void Network.addListener('networkStatusChange', ({ connected }) => {
       if (connected) void this.sync()
-    }).then(h => this.listeners.push(() => h.remove()))
+    }).then(keepListener).catch(console.error)
     const onOnline = () => { void this.sync() };
     window.addEventListener('online', onOnline);
     this.listeners.push(() => window.removeEventListener('online', onOnline));
@@ -660,7 +675,7 @@ export class MediaSyncManager {
     // Sync when app comes to foreground
     void App.addListener('appStateChange', ({ isActive }) => {
       if (isActive) void this.sync()
-    }).then(h => this.listeners.push(() => h.remove()))
+    }).then(keepListener).catch(console.error)
 
     // Crash recovery + GC + initial sync attempt (fire-and-forget)
     void (async () => {
@@ -671,6 +686,7 @@ export class MediaSyncManager {
   }
 
   stop(): void {
+    this.generation++;
     this.listeners.forEach(fn => fn())
     this.listeners = []
     this.started   = false

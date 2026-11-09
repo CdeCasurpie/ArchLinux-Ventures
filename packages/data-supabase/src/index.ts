@@ -1,7 +1,8 @@
 import { createClient,type SupabaseClient } from '@supabase/supabase-js';
-import { ConflictError,type Profile,type Pending,type WorkspacePending,type Expediente,type Visita,type ChecklistTemplate,type RemoteArchivo,type RemoteFoto,type RemoteGrupo } from '@archforms/domain';
+import { type Profile,type Pending,type WorkspacePending,type Expediente,type Visita,type ChecklistTemplate,type RemoteArchivo,type RemoteFoto,type RemoteGrupo } from '@archforms/domain';
 import type { RemoteRepository,WorkspaceRemoteRepository,CaptureRemoteReader,RemoteCaptureState } from '@archforms/application';
 import type {Database} from '@archforms/contracts';
+import { SupabaseAnswerSyncRemote } from './answer-sync';
 export {createClient};
 export { SupabaseAnswerSyncRemote } from './answer-sync';
 export class SupabaseProfileRepository implements RemoteRepository {
@@ -11,9 +12,10 @@ export class SupabaseProfileRepository implements RemoteRepository {
   if(error)throw new Error(error.message);return data as Profile;
  }
  async push(op:Pending):Promise<Profile>{
-  const {data,error}=await this.client.rpc('sync_profesional',{base_updated_at:op.base,nombre:op.edit.nombre_completo,cargo_nuevo:op.edit.cargo??'',colegiatura:op.edit.nro_colegiatura??''});
-  if(error?.code==='40001')throw new ConflictError();
-  if(error)throw new Error(error.message);return data as Profile;
+   const {data,error}=await this.client.rpc('sync_profile_v1',{operation_id:op.id,nombre:op.edit.nombre_completo,cargo:op.edit.cargo,colegiatura:op.edit.nro_colegiatura});
+   if(error)throw error;
+   if(!data||typeof data!=='object'||Array.isArray(data)||typeof data.id!=='string'||typeof data.updated_at!=='string'||typeof data.nombre_completo!=='string')throw new Error('Invalid profile response');
+   return data as unknown as Profile;
  }
 }
 export class SupabaseWorkspaceRepository implements WorkspaceRemoteRepository{
@@ -23,7 +25,23 @@ export class SupabaseWorkspaceRepository implements WorkspaceRemoteRepository{
   const error=cases.error??visits.error??templates.error;if(error)throw new Error(error.message);
   return {expedientes:cases.data as unknown as Expediente[],visitas:visits.data as unknown as Visita[],plantillas:(templates.data??[]).map(row=>({id:row.id,codigo:row.codigo,nombre:row.nombre,version:row.version,esquema:row.esquema_json,profesional_id:row.profesional_id})) as unknown as ChecklistTemplate[]};
  }
- async push(operation:WorkspacePending){const {error}=await this.client.from(operation.entity).upsert(operation.record as never);if(error)throw new Error(error.message)}
+  async push(operation:WorkspacePending){
+   if(operation.answer_patch){
+    await new SupabaseAnswerSyncRemote(this.client).push({operationId:operation.id,visitaId:operation.record.id,patch:operation.answer_patch});
+    return;
+   }
+   if(operation.entity==='visita'&&operation.preserve_answers){
+    // Creation can carry initial answers; subsequent document/status writes cannot.
+    const {error:insertError}=await this.client.from('visita').upsert(operation.record as never,{onConflict:'id',ignoreDuplicates:true});
+    if(insertError)throw insertError;
+    const {checklist_respuestas_json:_answers,checklist_completado:_complete,...fields}=operation.record as Visita;
+    const {error}=await this.client.from('visita').update(fields as never).eq('id',operation.record.id);
+    if(error)throw error;
+    return;
+   }
+   const {error}=await this.client.from(operation.entity).upsert(operation.record as never);
+   if(error)throw error;
+  }
 }
 
 export class SupabaseCaptureReader implements CaptureRemoteReader{
