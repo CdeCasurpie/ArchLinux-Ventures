@@ -59,6 +59,19 @@ npm run check
 ```
 *(Esto corre `oxlint`, TypeScript `tsc --noEmit`, y las pruebas de `vitest` en todo el monorepo).*
 
+`npm run check` también compila el cliente. Las pruebas de integración se ejecutan
+por separado, exclusivamente contra Supabase local:
+
+```bash
+npx supabase start
+npm run test:integration:local
+```
+
+El comando descubre la URL y clave públicas del entorno local mediante la CLI;
+no utiliza `apps/client/.env.local` ni acepta endpoints remotos. La prueba RLS crea
+cuentas y datos sintéticos en la BD local; cerrar sus sesiones no elimina esos datos.
+No es necesario resetear la BD ni modificar la configuración del cliente.
+
 ---
 
 ## 📱 Compilar y Desplegar la App de Android

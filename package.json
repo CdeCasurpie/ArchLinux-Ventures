@@ -13,6 +13,7 @@
     "deploy:android": "JAVA_HOME=$HOME/.jvm/java-21-temurin ANDROID_HOME=$HOME/Android/Sdk PATH=$HOME/.jvm/java-21-temurin/bin:$HOME/Android/Sdk/platform-tools:$PATH npm run android:build -w @archforms/client && adb install -r apps/client/android/app/build/outputs/apk/debug/app-debug.apk && adb shell am force-stop com.archventures.archforms && adb shell monkey -p com.archventures.archforms -c android.intent.category.LAUNCHER 1",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
+    "test:integration:local": "node scripts/test-local-integration.mjs",
     "test:e2e": "playwright test",
     "check": "npm run lint && npm run typecheck && npm test && npm run build",
     "lint": "oxlint apps/client/src packages tests"

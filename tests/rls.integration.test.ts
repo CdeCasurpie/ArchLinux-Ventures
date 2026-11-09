@@ -1,19 +1,20 @@
-import {existsSync,readFileSync} from 'node:fs';
 import {afterAll,describe,expect,it} from 'vitest';
 import {createClient,type SupabaseClient} from '@supabase/supabase-js';
 
-const envPath='apps/client/.env.local';
-const vars=existsSync(envPath)?Object.fromEntries(readFileSync(envPath,'utf8').trim().split('\n').map(line=>line.split('=',2))):{};
+const url=process.env.TEST_SUPABASE_URL;
+const key=process.env.TEST_SUPABASE_KEY;
+if(!url||!key)throw new Error('Run npm run test:integration:local with Supabase local running.');
+const endpoint=new URL(url);
+if(endpoint.protocol!=='http:'||!['127.0.0.1','localhost'].includes(endpoint.hostname))throw new Error('Remote integration endpoints are forbidden.');
 const clients:SupabaseClient[]=[];
 async function account(label:string){
- const client=createClient(vars.VITE_SUPABASE_URL,vars.VITE_SUPABASE_PUBLISHABLE_KEY);
+ const client=createClient(url!,key!,{auth:{persistSession:false,autoRefreshToken:false}});
  const email=`${label}-${crypto.randomUUID()}@archforms.test`;
  const {data,error}=await client.auth.signUp({email,password:'Prueba-segura-2026',options:{data:{nombre_completo:`Usuario ${label}`}}});
  if(error||!data.session)throw error??new Error('La confirmación de correo debe estar desactivada en local.');
  clients.push(client);return {client,user:data.user!};
 }
-const describeWithSupabase=vars.VITE_SUPABASE_URL&&vars.VITE_SUPABASE_PUBLISHABLE_KEY?describe:describe.skip;
-describeWithSupabase('RLS por propietario',()=>{
+describe('RLS por propietario',()=>{
  afterAll(async()=>{await Promise.all(clients.map(client=>client.auth.signOut()))});
  it('crea el perfil y aísla expedientes entre dos cuentas',async()=>{
   const a=await account('A'),b=await account('B');
