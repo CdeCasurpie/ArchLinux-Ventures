@@ -1,4 +1,5 @@
 import { type Profile,type ProfileEdit,type LocalState,type Pending,validateProfile,type WorkspaceState,type WorkspacePending,type Expediente,type Visita,assertChecklist,type MediaOutboxItem,type EntityOutboxItem,type GrupoCapturaPayload,type MediaSyncStatus,type EntitySyncStatus,type RemoteArchivo,type RemoteFoto,type RemoteGrupo } from '@archforms/domain';
+export * from './answer-sync';
 export interface LocalRepository {
  read(owner:string):Promise<LocalState>;
  // Record and outbox are written together in one durable transaction.

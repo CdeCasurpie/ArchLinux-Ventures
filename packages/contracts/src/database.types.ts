@@ -665,6 +665,14 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      sync_patch_answers_v1: {
+        Args: { operation_id: string; patch: Json; visita_id: string }
+        Returns: Json
+      }
+      sync_pull_answers_v1: {
+        Args: { after_revision?: number; page_size?: number }
+        Returns: Json
+      }
       owns_archivo: { Args: { target: string }; Returns: boolean }
       owns_expediente: { Args: { target: string }; Returns: boolean }
       owns_visita: { Args: { target: string }; Returns: boolean }

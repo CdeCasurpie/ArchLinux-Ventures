@@ -3,6 +3,7 @@ import { ConflictError,type Profile,type Pending,type WorkspacePending,type Expe
 import type { RemoteRepository,WorkspaceRemoteRepository,CaptureRemoteReader,RemoteCaptureState } from '@archforms/application';
 import type {Database} from '@archforms/contracts';
 export {createClient};
+export { SupabaseAnswerSyncRemote } from './answer-sync';
 export class SupabaseProfileRepository implements RemoteRepository {
  constructor(private client:SupabaseClient<Database>){}
  async fetch():Promise<Profile>{
