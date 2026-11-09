@@ -13,6 +13,20 @@ class Remote implements WorkspaceRemoteRepository{
  async push(operation:WorkspacePending){this.calls.push(operation.id);if(operation.entity==='expediente')this.state.expedientes=[operation.record as never];else this.state.visitas=[operation.record as never]}
 }
 describe('workspace offline',()=>{
+  it('reabre las respuestas guardadas y conserva una edición nueva frente a confirmaciones anteriores',async()=>{
+   const name=`workspace-${crypto.randomUUID()}`;
+   const local=new IndexedWorkspaceRepository(name);
+   const visit=buildVisita(expediente(),1,'2026-09-17');
+   const first=workspaceOperation('visita',{...visit,checklist_respuestas_json:{licencia:'si'}});
+   const latest=workspaceOperation('visita',{...visit,checklist_respuestas_json:{licencia:'no'}});
+   await local.save(owner,first);
+   await local.save(owner,latest);
+   await local.acknowledge(owner,first.id);
+   await local.mergeRemote(owner,{expedientes:[],visitas:[first.record as typeof visit],plantillas:[]});
+   const reopened=await new IndexedWorkspaceRepository(name).read(owner);
+   expect(reopened.visitas[0].checklist_respuestas_json).toEqual({licencia:'no'});
+   expect(reopened.pending.map(op=>op.id)).toEqual([latest.id]);
+  });
  it('guarda expediente y outbox juntos, y sincroniza sin duplicar',async()=>{const local=new IndexedWorkspaceRepository(`workspace-${crypto.randomUUID()}`),record=expediente(),operation=workspaceOperation('expediente',record);await local.save(owner,operation);expect(await local.read(owner)).toMatchObject({expedientes:[{id:record.id}],pending:[{id:operation.id}]});const remote=new Remote(),engine=new WorkspaceSyncEngine(local,remote,owner);await Promise.all([engine.run(),engine.run()]);expect(remote.calls).toEqual([operation.id]);expect((await local.read(owner)).pending).toEqual([])});
  it('la visita conserva una copia independiente del checklist',()=>{const record=expediente(),visit=buildVisita(record,1,'2026-09-17');record.checklist_esquema_json.sections[0].fields[0].label='Modificado después';expect(visit.checklist_esquema_json.sections[0].fields[0].label).toBe('Licencia')});
  it('descarta la operacion duplicada sin bloquear el resto de la cola',async()=>{
