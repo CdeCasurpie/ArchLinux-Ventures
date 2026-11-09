@@ -1,0 +1,61 @@
+import { DatabaseSync } from 'node:sqlite';
+import { describe, expect, it, vi } from 'vitest';
+
+const databases = vi.hoisted(() => new Map<string, unknown>());
+vi.mock('@capacitor-community/sqlite', () => ({
+  CapacitorSQLite: {},
+  SQLiteConnection: class {
+    async isConnection() { return { result: false }; }
+    async createConnection(name: string) {
+      const db = databases.get(name) as DatabaseSync ?? new DatabaseSync(':memory:');
+      databases.set(name, db);
+      return {
+        isDBOpen: async () => ({ result: true }),
+        execute: async (sql: string) => { db.exec(sql); },
+        query: async (sql: string, values: never[] = []) => ({ values: db.prepare(sql).all(...values) }),
+        run: async (sql: string, values: never[] = []) => { db.prepare(sql).run(...values); },
+        executeSet: async (statements: { statement: string; values: never[] }[]) => {
+          db.exec('BEGIN');
+          try {
+            for (const item of statements) db.prepare(item.statement).run(...item.values);
+            db.exec('COMMIT');
+          } catch (error) { db.exec('ROLLBACK'); throw error; }
+        },
+      };
+    }
+  },
+}));
+
+import { SQLiteWorkspaceRepository } from '@archforms/data-local';
+import { buildExpediente, buildVisita, workspaceOperation } from '@archforms/application';
+
+describe('workspace on real SQLite SQL engine (not Android plugin)', () => {
+  it('migrates legacy state and commits entity and outbox atomically', async () => {
+    const owner = crypto.randomUUID();
+    const form = new FormData();
+    form.set('nro_expediente', 'SQL-1');
+    form.set('ubicacion', 'Lima');
+    const record = buildExpediente(owner, form, { version: 1, sections: [{id:'base',title:'Base',fields:[]}] });
+    const op = workspaceOperation('expediente', record);
+    const db = new DatabaseSync(':memory:');
+    db.exec('CREATE TABLE workspace_state(owner TEXT PRIMARY KEY, payload TEXT NOT NULL)');
+    db.prepare('INSERT INTO workspace_state VALUES(?,?)').run(owner, JSON.stringify({
+      expedientes: [record], visitas: [], plantillas: [], pending: [op], last_sync: null,
+    }));
+    databases.set('archforms_workspace', db);
+    const local = new SQLiteWorkspaceRepository();
+    expect((await local.read(owner)).pending).toEqual([op]);
+    const visit = buildVisita(record, 1, '2026-09-17');
+    const next = workspaceOperation('visita', visit);
+    await local.save(owner, next);
+    expect((await local.read(owner)).pending.map(item => item.id)).toEqual([op.id, next.id]);
+    await local.acknowledge(owner, op.id);
+    expect((await new SQLiteWorkspaceRepository().read(owner)).pending).toEqual([next]);
+
+    db.exec("CREATE TRIGGER reject_pending BEFORE INSERT ON workspace_pending BEGIN SELECT RAISE(ABORT,'disk failure'); END");
+    const rejected = { ...visit, id: crypto.randomUUID() };
+    await expect(local.save(owner, workspaceOperation('visita', rejected))).rejects.toThrow('disk failure');
+    expect((await local.read(owner)).visitas.map(item => item.id)).not.toContain(rejected.id);
+    expect((await local.read(owner)).pending).toEqual([next]);
+  });
+});

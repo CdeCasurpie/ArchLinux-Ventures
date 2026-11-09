@@ -74,11 +74,6 @@ export class SQLiteRepository implements LocalRepository {
 }
 
 const emptyWorkspace=():WorkspaceState=>({expedientes:[],visitas:[],plantillas:[],pending:[],last_sync:null});
-function applyOperation(state:WorkspaceState,operation:WorkspacePending):WorkspaceState{
- const key=operation.entity==='expediente'?'expedientes':'visitas';
- const records=state[key].filter(item=>item.id!==operation.record.id);
- return {...state,[key]:[operation.record,...records],pending:[...state.pending.filter(item=>item.id!==operation.id),operation]};
-}
 function mergeWorkspace(state:WorkspaceState,remote:Pick<WorkspaceState,'expedientes'|'visitas'|'plantillas'>):WorkspaceState{
  const pendingCases=new Map(state.pending.filter(item=>item.entity==='expediente').map(item=>[item.record.id,item.record]));
  const pendingVisits=new Map(state.pending.filter(item=>item.entity==='visita').map(item=>[item.record.id,item.record]));
@@ -86,22 +81,116 @@ function mergeWorkspace(state:WorkspaceState,remote:Pick<WorkspaceState,'expedie
 }
 export class IndexedWorkspaceRepository implements WorkspaceLocalRepository{
  private db:Promise<IDBPDatabase>;
- constructor(name='archforms-workspace-v1'){this.db=openDB(name,1,{upgrade(db){db.createObjectStore('workspace')}})}
- async read(owner:string):Promise<WorkspaceState>{return (await (await this.db).get('workspace',owner))??emptyWorkspace()}
- private async change(owner:string,fn:(state:WorkspaceState)=>WorkspaceState){const tx=(await this.db).transaction('workspace','readwrite');const state=(await tx.store.get(owner))??emptyWorkspace();await tx.store.put(fn(state),owner);await tx.done}
- save(owner:string,operation:WorkspacePending){return this.change(owner,state=>applyOperation(state,operation))}
- acknowledge(owner:string,id:string){return this.change(owner,state=>({...state,pending:state.pending.filter(item=>item.id!==id)}))}
- mergeRemote(owner:string,remote:Pick<WorkspaceState,'expedientes'|'visitas'|'plantillas'>){return this.change(owner,state=>mergeWorkspace(state,remote))}
+  constructor(name='archforms-workspace-v1'){
+   this.db=openDB(name,2,{upgrade(db,oldVersion,_version,tx){
+    if(oldVersion<1)db.createObjectStore('workspace');
+    const records=db.createObjectStore('records');
+    const pending=db.createObjectStore('pending');
+    const metadata=db.createObjectStore('metadata');
+    // Upgrade transaction is atomic; legacy snapshots remain as recovery copies.
+    void tx.objectStore('workspace').openCursor().then(async function migrate(cursor):Promise<void>{
+     if(!cursor)return;
+     const owner=String(cursor.key),state=cursor.value as WorkspaceState;
+     for(const kind of ['expedientes','visitas','plantillas'] as const){
+      for(const record of state[kind])await records.put(record,[owner,kind,record.id]);
+     }
+     for(const op of state.pending)await pending.put(op,[owner,op.id]);
+     await metadata.put({last_sync:state.last_sync,order:state.pending.map(op=>op.id)},owner);
+     await migrate(await cursor.continue());
+    }).catch(()=>tx.abort());
+   }});
+  }
+  private async snapshot(tx:ReturnType<IDBPDatabase['transaction']>,owner:string):Promise<WorkspaceState>{
+   const state=emptyWorkspace();
+   for(const kind of ['expedientes','visitas','plantillas'] as const){
+    (state[kind] as unknown[]) .push(...await tx.objectStore('records').getAll(IDBKeyRange.bound([owner,kind,''],[owner,kind,'\uffff'])));
+   }
+   state.pending=await tx.objectStore('pending').getAll(IDBKeyRange.bound([owner,''],[owner,'\uffff']));
+   state.pending.sort((a,b)=>a.created_at.localeCompare(b.created_at)||a.id.localeCompare(b.id));
+   // Insertion order is stored separately: timestamps may tie within one millisecond.
+   const meta=await tx.objectStore('metadata').get(owner);
+   if(meta?.order){const rank=new Map<string,number>(meta.order.map((id:string,i:number)=>[id,i]));state.pending.sort((a,b)=>(rank.get(a.id)??0)-(rank.get(b.id)??0))}
+   state.last_sync=meta?.last_sync??null;
+   return state;
+  }
+  async read(owner:string):Promise<WorkspaceState>{
+   const tx=(await this.db).transaction(['records','pending','metadata']);
+   const state=await this.snapshot(tx,owner);await tx.done;return state;
+  }
+  async save(owner:string,operation:WorkspacePending){
+   const tx=(await this.db).transaction(['records','pending','metadata'],'readwrite');
+   await tx.objectStore('records').put(operation.record,[owner,operation.entity==='expediente'?'expedientes':'visitas',operation.record.id]);
+   const meta=await tx.objectStore('metadata').get(owner)??{last_sync:null,order:[]};
+   const order:string[]=meta.order??(await this.snapshot(tx,owner)).pending.map(op=>op.id);
+   await tx.objectStore('pending').put(operation,[owner,operation.id]);
+   await tx.objectStore('metadata').put({...meta,order:[...order.filter(id=>id!==operation.id),operation.id]},owner);
+   await tx.done;
+  }
+  async acknowledge(owner:string,id:string){
+   const tx=(await this.db).transaction(['pending','metadata'],'readwrite');
+   await tx.objectStore('pending').delete([owner,id]);
+   const meta=await tx.objectStore('metadata').get(owner);
+   if(meta)await tx.objectStore('metadata').put({...meta,order:meta.order?.filter((item:string)=>item!==id)},owner);
+   await tx.done;
+  }
+  async mergeRemote(owner:string,remote:Pick<WorkspaceState,'expedientes'|'visitas'|'plantillas'>){
+   const tx=(await this.db).transaction(['records','pending','metadata'],'readwrite');
+   const state=await this.snapshot(tx,owner),next=mergeWorkspace(state,remote);
+   for(const kind of ['expedientes','visitas','plantillas'] as const){
+    await tx.objectStore('records').delete(IDBKeyRange.bound([owner,kind,''],[owner,kind,'\uffff']));
+    for(const record of next[kind])await tx.objectStore('records').put(record,[owner,kind,record.id]);
+   }
+   await tx.objectStore('metadata').put({last_sync:next.last_sync,order:state.pending.map(op=>op.id)},owner);
+   await tx.done;
+  }
 }
 export class SQLiteWorkspaceRepository implements WorkspaceLocalRepository{
  private db:Promise<SQLiteDBConnection>;private tail:Promise<unknown>=Promise.resolve();
- constructor(){this.db=(async()=>{const db=await openNativeDatabase('archforms_workspace');await db.execute('CREATE TABLE IF NOT EXISTS workspace_state (owner TEXT PRIMARY KEY, payload TEXT NOT NULL);');return db})()}
+  constructor(){this.db=(async()=>{
+   const db=await openNativeDatabase('archforms_workspace');
+   await db.execute(`CREATE TABLE IF NOT EXISTS workspace_state (owner TEXT PRIMARY KEY, payload TEXT NOT NULL);
+    CREATE TABLE IF NOT EXISTS workspace_records (owner TEXT NOT NULL, kind TEXT NOT NULL, id TEXT NOT NULL, payload TEXT NOT NULL, PRIMARY KEY(owner,kind,id));
+    CREATE TABLE IF NOT EXISTS workspace_pending (owner TEXT NOT NULL, id TEXT NOT NULL, position INTEGER NOT NULL, payload TEXT NOT NULL, PRIMARY KEY(owner,id));
+    CREATE TABLE IF NOT EXISTS workspace_metadata (owner TEXT PRIMARY KEY, last_sync TEXT);`);
+   const legacy=await db.query('SELECT owner,payload FROM workspace_state WHERE owner NOT IN (SELECT owner FROM workspace_metadata)');
+   for(const row of legacy.values??[]){
+    const state=JSON.parse(row.payload) as WorkspaceState;
+    await this.writeSnapshot(db,row.owner,state);
+   }
+   return db;
+  })()}
  private serial<T>(fn:()=>Promise<T>):Promise<T>{const next=this.tail.then(fn);this.tail=next.catch(()=>undefined);return next}
- private async raw(owner:string){const rows=await (await this.db).query('SELECT payload FROM workspace_state WHERE owner = ?',[owner]);return rows.values?.[0]?JSON.parse(rows.values[0].payload) as WorkspaceState:emptyWorkspace()}
+  private async raw(owner:string){
+   const db=await this.db,state=emptyWorkspace();
+   const records=await db.query('SELECT kind,payload FROM workspace_records WHERE owner = ?',[owner]);
+   for(const row of records.values??[]){if(row.kind==='expedientes'||row.kind==='visitas'||row.kind==='plantillas')(state[row.kind as 'visitas'] as unknown[]).push(JSON.parse(row.payload))}
+   const pending=await db.query('SELECT payload FROM workspace_pending WHERE owner = ? ORDER BY position',[owner]);
+   state.pending=(pending.values??[]).map(row=>JSON.parse(row.payload));
+   const meta=await db.query('SELECT last_sync FROM workspace_metadata WHERE owner = ?',[owner]);
+   state.last_sync=meta.values?.[0]?.last_sync??null;
+   return state;
+  }
+  private async writeSnapshot(db:SQLiteDBConnection,owner:string,state:WorkspaceState){
+   const statements:{statement:string;values:(string|number|null)[]}[]=[
+    {statement:'DELETE FROM workspace_records WHERE owner = ?',values:[owner]},
+    {statement:'DELETE FROM workspace_pending WHERE owner = ?',values:[owner]},
+   ];
+   for(const kind of ['expedientes','visitas','plantillas'] as const)for(const record of state[kind])statements.push({statement:'INSERT INTO workspace_records(owner,kind,id,payload) VALUES(?,?,?,?)',values:[owner,kind,record.id,JSON.stringify(record)]});
+   state.pending.forEach((op,position)=>statements.push({statement:'INSERT INTO workspace_pending(owner,id,position,payload) VALUES(?,?,?,?)',values:[owner,op.id,position,JSON.stringify(op)]}));
+   statements.push({statement:'INSERT INTO workspace_metadata(owner,last_sync) VALUES(?,?) ON CONFLICT(owner) DO UPDATE SET last_sync=excluded.last_sync',values:[owner,state.last_sync]});
+   await db.executeSet(statements,true);
+  }
  read(owner:string){return this.serial(()=>this.raw(owner))}
- private change(owner:string,fn:(state:WorkspaceState)=>WorkspaceState){return this.serial(async()=>{const db=await this.db,next=fn(await this.raw(owner));await db.run('INSERT INTO workspace_state(owner,payload) VALUES(?,?) ON CONFLICT(owner) DO UPDATE SET payload=excluded.payload',[owner,JSON.stringify(next)])})}
- save(owner:string,operation:WorkspacePending){return this.change(owner,state=>applyOperation(state,operation))}
- acknowledge(owner:string,id:string){return this.change(owner,state=>({...state,pending:state.pending.filter(item=>item.id!==id)}))}
+  private change(owner:string,fn:(state:WorkspaceState)=>WorkspaceState){return this.serial(async()=>{const db=await this.db;await this.writeSnapshot(db,owner,fn(await this.raw(owner)))})}
+  save(owner:string,operation:WorkspacePending){return this.serial(async()=>{
+   const db=await this.db;
+   await db.executeSet([
+    {statement:'INSERT INTO workspace_records(owner,kind,id,payload) VALUES(?,?,?,?) ON CONFLICT(owner,kind,id) DO UPDATE SET payload=excluded.payload',values:[owner,operation.entity==='expediente'?'expedientes':'visitas',operation.record.id,JSON.stringify(operation.record)]},
+    {statement:'INSERT INTO workspace_pending(owner,id,position,payload) VALUES(?,?,(SELECT COALESCE(MAX(position),-1)+1 FROM workspace_pending WHERE owner=?),?) ON CONFLICT(owner,id) DO UPDATE SET payload=excluded.payload',values:[owner,operation.id,owner,JSON.stringify(operation)]},
+    {statement:'INSERT OR IGNORE INTO workspace_metadata(owner,last_sync) VALUES(?,NULL)',values:[owner]},
+   ],true);
+  })}
+  acknowledge(owner:string,id:string){return this.serial(async()=>{await (await this.db).run('DELETE FROM workspace_pending WHERE owner=? AND id=?',[owner,id])})}
  mergeRemote(owner:string,remote:Pick<WorkspaceState,'expedientes'|'visitas'|'plantillas'>){return this.change(owner,state=>mergeWorkspace(state,remote))}
 }
 
