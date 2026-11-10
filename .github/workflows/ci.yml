@@ -17,5 +17,7 @@ jobs:
       - run: npm run check
       - run: npx supabase start
       - run: npm run test:integration:local
+      - run: npx playwright install --with-deps chromium
+      - run: npm run test:e2e
       - if: always()
         run: npx supabase stop

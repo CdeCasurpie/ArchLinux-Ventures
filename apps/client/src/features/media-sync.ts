@@ -1,9 +1,7 @@
-import { Network } from '@capacitor/network'
-import { App } from '@capacitor/app'
 import { Filesystem, Directory } from '@capacitor/filesystem'
-import { supabase } from '../platform'
+import { supabase, workspaceLocal } from '../platform'
 import type { GrupoCapturaPayload } from '@archforms/domain'
-import { MediaSyncEngine, exponentialBackoff, planCapturePull } from '@archforms/application'
+import { MediaSyncEngine, exponentialBackoff, planCapturePull, scopeMediaOutbox } from '@archforms/application'
 import type { MediaOutboxRepository, MediaRemoteRepository, CaptureRemoteReader, LocalCaptureSnapshot } from '@archforms/application'
 import {
   loadCaptureGroups,
@@ -69,145 +67,13 @@ class SupabaseMediaRemote implements MediaRemoteRepository {
     return path
   }
 
-  /** Next orden for a per-visita sequence, reusing the row's own on retry. */
-  private async nextOrden(
-    table: 'grupo_captura' | 'foto',
-    column: 'orden' | 'orden_captura',
-    visitaId: string,
-    rowId: string,
-  ): Promise<number> {
-    return (await this.rowOrden(table, column, rowId))
-      ?? ((await this.maxOrden(table, column, visitaId)) + 1);
+  async pushGrupo(payload:GrupoCapturaPayload):Promise<void>{
+    const hash=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(JSON.stringify(payload)));
+    const hex=Array.from(new Uint8Array(hash),byte=>byte.toString(16).padStart(2,'0')).join('').slice(0,32);
+    const operationId=`${hex.slice(0,8)}-${hex.slice(8,12)}-${hex.slice(12,16)}-${hex.slice(16,20)}-${hex.slice(20)}`;
+    const {error}=await supabase.rpc('sync_capture_v1',{operation_id:operationId,payload:payload as unknown as import('@archforms/contracts').Json});
+    if(error)throw error;
   }
-
-  /** Own orden of an existing row (null when absent). Reused on retry for stability. */
-  private async rowOrden(
-    table: 'grupo_captura' | 'foto',
-    column: 'orden' | 'orden_captura',
-    rowId: string,
-  ): Promise<number | null> {
-    // Dynamic column name: typed structurally instead of via generated types.
-    type OrdenResult = { data: { id: string } & Record<string, number | null> | null; error: { message: string } | null };
-    const res = (await supabase
-      .from(table)
-      .select(`id, ${column}`)
-      .eq('id', rowId)
-      .maybeSingle()) as unknown as OrdenResult;
-    if (res.error) throw new Error(res.error.message);
-    return res.data ? (res.data[column] as number) : null;
-  }
-
-  /** Max orden used in a visita (0 when none). Computed once per batch. */
-  private async maxOrden(
-    table: 'grupo_captura' | 'foto',
-    column: 'orden' | 'orden_captura',
-    visitaId: string,
-  ): Promise<number> {
-    const res = (await supabase
-      .from(table)
-      .select(column)
-      .eq('visita_id', visitaId)
-      .order(column, { ascending: false })
-      .limit(1)
-      .maybeSingle()) as unknown as { data: Record<string, number | null> | null; error: { message: string } | null };
-    if (res.error) throw new Error(res.error.message);
-    return res.data?.[column] ?? 0;
-  }
-
-  async pushGrupo(payload: GrupoCapturaPayload): Promise<void> {
-    const now = new Date().toISOString();
-    const remoteOrThrow = (remote: string | null, id: string) => {
-      if (!remote) throw new Error(`Media ${id} sin subir (gating del outbox violado).`);
-      return remote;
-    };
-
-    // 1. Archivos primero: las policies owns_archivo de grupo/foto los exigen.
-    const archivos = [
-      {
-        id: payload.audio.id,
-        profesional_id: payload.profesional_id,
-        tipo: 'AUDIO' as const,
-        storage_key: remoteOrThrow(payload.audio.remote_path, payload.audio.id),
-        mime_type: payload.audio.mime_type,
-        tamanio_bytes: payload.audio.size_bytes,
-        checksum_sha256: payload.audio.checksum,
-        estado_sincronizacion: 'SINCRONIZADO' as const,
-        sincronizado_at: now,
-      },
-      ...payload.fotos.map(f => ({
-        id: f.archivo_id,
-        profesional_id: payload.profesional_id,
-        tipo: 'IMAGEN' as const,
-        storage_key: remoteOrThrow(f.remote_path, f.archivo_id),
-        mime_type: f.mime_type,
-        tamanio_bytes: f.size_bytes,
-        checksum_sha256: f.checksum,
-        estado_sincronizacion: 'SINCRONIZADO' as const,
-        sincronizado_at: now,
-      })),
-    ];
-    const { error: ae } = await supabase.from('archivo').upsert(archivos);
-    if (ae) throw new Error(ae.message);
-
-    // 2. Grupo de captura (hallazgo confirmado con su audio y transcripción).
-    const orden = await this.nextOrden('grupo_captura', 'orden', payload.visita_id, payload.id);
-    const { error: ge } = await supabase.from('grupo_captura').upsert({
-      id: payload.id,
-      visita_id: payload.visita_id,
-      orden,
-      estado: 'CONFIRMADO',
-      audio_archivo_id: payload.audio.id,
-      transcripcion_original: payload.transcripcion,
-      audio_duracion_ms: payload.audio.duration_ms,
-      iniciado_at: payload.iniciado_at,
-      confirmado_at: payload.confirmado_at,
-    });
-    if (ge) throw new Error(ge.message);
-
-    // 3. Fotos del grupo con orden de captura por visita.
-    // The base is computed ONCE: rows of the same batch are inserted together,
-    // so per-row max() queries would all return the same value and collide.
-    // Fresh rows take base, base+1, …; rows that already exist (retry) keep
-    // their own orden for stability.
-    if (payload.fotos.length) {
-      let next = (await this.maxOrden('foto', 'orden_captura', payload.visita_id)) + 1;
-      const rows = [];
-      for (const f of payload.fotos) {
-        const own = await this.rowOrden('foto', 'orden_captura', f.id);
-        let ordenCaptura: number;
-        if (own !== null) ordenCaptura = own;
-        else { ordenCaptura = next; next += 1; }
-        rows.push({
-          id: f.id,
-          visita_id: payload.visita_id,
-          grupo_captura_id: payload.id,
-          archivo_id: f.archivo_id,
-          orden_captura: ordenCaptura,
-          orden_en_grupo: f.orden_en_grupo,
-          capturada_at: f.capturada_at,
-          seleccionada_para_informe: true,
-        });
-      }
-      // Optimistic concurrency: if another device took our base meanwhile,
-      // Postgres raises 23505 — recompute the base and retry (bounded).
-      for (let attempt = 1; ; attempt += 1) {
-        const { error: fe } = await supabase.from('foto').upsert(rows);
-        if (!fe) break;
-        if (!isUniqueViolation(fe) || attempt >= 3) throw new Error(fe.message);
-        let rebased = (await this.maxOrden('foto', 'orden_captura', payload.visita_id)) + 1;
-        for (const r of rows) {
-          if ((await this.rowOrden('foto', 'orden_captura', r.id)) === null) {
-            r.orden_captura = rebased; rebased += 1;
-          }
-        }
-      }
-    }
-  }
-}
-
-/** Postgres unique-violation code (PostgREST surfaces it as `code`). */
-function isUniqueViolation(error: { code?: string }): boolean {
-  return error?.code === '23505';
 }
 
 // ── File reader for native Filesystem ────────────────────────────────────────
@@ -332,8 +198,7 @@ export async function enqueueGroupToOutbox(
   // Payload for entity_outbox.
   // Foto row ids ARE the archivo/media ids: stable across rebuilds, so a late
   // transcription re-push overwrites the same rows instead of duplicating.
-  // The entity payload is only a dirty trigger — the live payload is rebuilt
-  // from local state at push time (see buildLivePayload).
+  // Freeze the payload here. Retries resolve paths but never reread edited text.
   const payload: GrupoCapturaPayload = {
     id:             group.id,
     visita_id:      group.visitaId,
@@ -374,9 +239,8 @@ export async function enqueueGroupToOutbox(
 }
 
 // ── Live payload resolver ────────────────────────────────────────────────────
-// Rebuilds the entity payload from CURRENT local state at push time.
-// Foto row ids are the archivo/media ids (stable), so a re-push after a late
-// transcription overwrites the same rows instead of duplicating.
+// Builds a new snapshot when enqueueing a transcription or recovering a legacy
+// marker. It is persisted before dispatch, not rebuilt during retries.
 async function buildLivePayload(
   outbox: MediaOutboxRepository,
   entityId: string,
@@ -408,26 +272,18 @@ async function buildLivePayload(
   };
 }
 
-/** Called when whisper finishes: requeues the entity (payload is rebuilt live
- *  at push time) and runs the engine so the transcription reaches Supabase.
- *  Re-enqueues instead of only forceRetry: if the group already synced, its
- *  entity row was deleted and forceRetry would update zero rows (the text
- *  would never arrive). INSERT/IGNORE keeps the existing row when present. */
+/** A completed transcription creates a new frozen snapshot. If its account is
+ * inactive, retain a legacy marker for account-scoped recovery on next login. */
 export async function notifyTranscriptionReady(
   outbox: MediaOutboxRepository,
   groupId: string,
 ): Promise<void> {
-  const group = await loadCaptureGroup(groupId).catch(() => null);
-  if (group) {
-    await outbox.enqueueEntity({
-      id:          groupId,
-      entity_type: 'grupo_captura',
-      payload:     '{}',
-      depends_on:  [...group.photos.map(p => p.id), group.audio.id],
-      created_at:  new Date().toISOString(),
-    }).catch(console.error);
+  await updateCaptureGroupSyncStatus(groupId,'pending');
+  if(activeManager)await activeManager.freezeGroup(groupId);
+  else{
+    const group=await loadCaptureGroup(groupId);
+    if(group)await outbox.enqueueEntity({id:groupId,entity_type:'grupo_captura',payload:'{}',depends_on:[...group.photos.map(photo=>photo.id),group.audio.id],created_at:new Date().toISOString()});
   }
-  await outbox.forceRetry([groupId]);
   emitMediaSync();
   await triggerMediaSync();
 }
@@ -491,7 +347,11 @@ export async function pullVisitaFromCloud(
       const e = await outbox.entityStatus(g.id).catch(() => null);
       if (e) hasPending = true;
     }
-    snapshots.push({ groupId: g.id, mediaIds: ids, hasPending });
+    const present:string[]=[];
+    if(!hasPending)for(const item of [...g.photos,g.audio]){
+      try{const bytes=await readLocalFile(item.path);await verifyDownload(bytes,item.sizeBytes,item.checksum||null);present.push(item.id)}catch{/* Missing/corrupt local copies must be repaired. */}
+    }
+    snapshots.push({ groupId: g.id, mediaIds: hasPending?ids:present, hasPending });
   }
 
   const plan = planCapturePull(snapshots, remote);
@@ -502,13 +362,18 @@ export async function pullVisitaFromCloud(
   for (const u of plan.upserts) {
     // 1. Descargar binarios faltantes a Filesystem (mismo layout que captura).
     // Sin displayUrl: se hidrata en upsertRemoteGroup (Fase 1, sin base64 en el JSON).
-    const photos: Omit<LabPhoto, 'displayUrl'>[] = [];
-    let audio: Omit<AudioClip, 'displayUrl'> | null = null;
+    const known=groups.find(group=>group.id===u.grupo.id);
+    const wantedPhotos=new Set(u.fotos.map(photo=>photo.archivo_id));
+    const photos: Omit<LabPhoto, 'displayUrl'>[] = (known?.photos??[]).filter(photo=>wantedPhotos.has(photo.id));
+    let audio: Omit<AudioClip, 'displayUrl'> | null = known?.audio.id===u.grupo.audio_archivo_id?known.audio:null;
     const fotoByArchivo = new Map(u.fotos.map(f => [f.archivo_id, f]));
     for (const a of u.archivos) {
       signal?.throwIfAborted();
       if (!a.storage_key) continue;
-      const bytes = await reader.downloadBytes(a.storage_key);
+      const path=a.tipo==='AUDIO'?`archforms-lab/audio/${a.id}.${audioExtension(a.mime_type)}`:`archforms-lab/photos/${a.id}.jpg`;
+      let bytes:Uint8Array;
+      try{bytes=await readLocalFile(path);await verifyDownload(bytes,a.tamanio_bytes,a.checksum_sha256)}
+      catch{bytes=await reader.downloadBytes(a.storage_key,signal)}
       signal?.throwIfAborted();
       await verifyDownload(bytes,a.tamanio_bytes,a.checksum_sha256);
       const b64 = bytesToBase64(bytes);
@@ -525,6 +390,7 @@ export async function pullVisitaFromCloud(
         const path = `archforms-lab/photos/${a.id}.jpg`;
         await Filesystem.writeFile({ path, data: b64, directory: Directory.Data, recursive: true });
         const f = fotoByArchivo.get(a.id);
+        const previous=photos.findIndex(photo=>photo.id===a.id);if(previous>=0)photos.splice(previous,1);
         photos.push({
           id: a.id, path, mimeType: a.mime_type, features: [],
           sizeBytes: bytes.length, checksum: a.checksum_sha256 ?? '',
@@ -534,7 +400,7 @@ export async function pullVisitaFromCloud(
       downloaded += 1;
       onProgress?.({ phase: 'binaries', done: downloaded, total });
     }
-    if (!audio) continue; // grupo sin audio descargable: se omite (no se inventa)
+    if (!audio) throw new Error(`El grupo ${u.grupo.id} no tiene audio disponible; no se marcó como descargado.`);
     signal?.throwIfAborted();
 
     // 2. Espejar el grupo local como 'synced'.
@@ -601,13 +467,14 @@ export class MediaSyncManager {
   private engine: MediaSyncEngine
   private outbox: MediaOutboxRepository
   private ownerId: string
-  private listeners: Array<() => void> = []
   private started = false
-  private generation = 0
   lastRun: { at: string; error: string | null } | null = null
 
   constructor(outbox: MediaOutboxRepository, ownerId: string) {
-    this.outbox  = outbox
+    this.outbox = scopeMediaOutbox(outbox,ownerId,async()=>new Set((await workspaceLocal.read(ownerId)).visitas.map(visit=>visit.id)),async id=>{
+      const payload=await buildLivePayload(outbox,id,ownerId);return payload?JSON.stringify(payload):null;
+    });
+    outbox=this.outbox
     this.ownerId = ownerId
     this.engine  = new MediaSyncEngine(
       outbox,
@@ -627,70 +494,40 @@ export class MediaSyncManager {
             .catch(console.error);
         },
       },
-      // Live payload: rebuilt from current local state at push time, so late
-      // arrivals (transcription) are included without touching the queue.
-      (entityId) => buildLivePayload(outbox, entityId, ownerId),
     )
   }
 
-  sync(): Promise<void> {
-    return captureActivity.whenIdle()      // no marcar "uploading" mientras el inspector sigue capturando
-      .then(() => this.engine.run())
-      .then(
-      () => {
-        this.lastRun = { at: new Date().toISOString(), error: null };
-        emitMediaSync();
-      },
-      (caught: unknown) => {
-        this.lastRun = {
-          at: new Date().toISOString(),
-          error: caught instanceof Error ? caught.message : String(caught),
-        };
-        emitMediaSync();
-      },
-    );
+  private initialization:Promise<void>=Promise.resolve();
+  private schedule:(()=>Promise<void>)|undefined;
+  async freezeGroup(id:string){
+    const group=await loadCaptureGroup(id);
+    if(!group)return;
+    const workspace=await workspaceLocal.read(this.ownerId);
+    if(!workspace.visitas.some(visit=>visit.id===group.visitaId))return;
+    const payload=await buildLivePayload(this.outbox,id,this.ownerId);
+    if(payload)await this.outbox.enqueueEntity({id,entity_type:'grupo_captura',payload:JSON.stringify(payload),depends_on:[...group.photos.map(photo=>photo.id),group.audio.id],created_at:new Date().toISOString()});
+  }
+  requestSync(){return this.schedule?.()??this.sync()}
+  async sync():Promise<void>{
+    await this.initialization;
+    if(!this.started||!captureActivity.isIdle())return;
+    try{await this.engine.run();this.lastRun={at:new Date().toISOString(),error:null}}
+    catch(error){this.lastRun={at:new Date().toISOString(),error:String(error)};throw error}
+    finally{emitMediaSync()}
   }
 
   isRunning(): boolean { return this.engine.active(); }
 
-  start(): void {
-    if (this.started) return
-    this.started = true
-    const generation=++this.generation;
-    const keepListener=(handle:{remove:()=>Promise<void>})=>{
-      if(!this.started||generation!==this.generation)void handle.remove();
-      else this.listeners.push(()=>{void handle.remove()});
-    };
-    // eslint-disable-next-line no-this-alias -- intentional: module registry lets features trigger a run after enqueue
-    activeManager = this
-
-    // Sync on network restore (Capacitor + browser fallback for web)
-    void Network.addListener('networkStatusChange', ({ connected }) => {
-      if (connected) void this.sync()
-    }).then(keepListener).catch(console.error)
-    const onOnline = () => { void this.sync() };
-    window.addEventListener('online', onOnline);
-    this.listeners.push(() => window.removeEventListener('online', onOnline));
-
-    // Sync when app comes to foreground
-    void App.addListener('appStateChange', ({ isActive }) => {
-      if (isActive) void this.sync()
-    }).then(keepListener).catch(console.error)
-
-    // Crash recovery + GC + initial sync attempt (fire-and-forget)
-    void (async () => {
-      try { await this.outbox.resetStuck() } catch (caught) { console.error(caught) }
-      await this.gcAndSync()
-      emitMediaSync()
-    })().catch(console.error)
+  start(schedule?:()=>Promise<void>):void{
+    if(this.started)return;
+    this.started=true;this.schedule=schedule;
+    // eslint-disable-next-line no-this-alias -- registry forwards feature events to the account coordinator
+    activeManager=this;
+    this.initialization=this.outbox.resetStuck();
   }
-
-  stop(): void {
-    this.generation++;
-    this.listeners.forEach(fn => fn())
-    this.listeners = []
-    this.started   = false
-    if (activeManager === this) activeManager = null
+  stop():void{
+    this.started=false;this.schedule=undefined;
+    if(activeManager===this)activeManager=null;
   }
 
   async gcAndSync(): Promise<void> {
@@ -704,7 +541,7 @@ export class MediaSyncManager {
 // waiting for the next network/foreground event.
 let activeManager: MediaSyncManager | null = null;
 export function triggerMediaSync(): Promise<void> {
-  return activeManager?.sync() ?? Promise.resolve();
+  return activeManager?.requestSync() ?? Promise.resolve();
 }
 
 // ── Debug helpers (panel de diagnóstico) ─────────────────────────────────────

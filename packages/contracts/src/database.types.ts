@@ -673,6 +673,10 @@ export type Database = {
         Args: {operation_id:string;entity:string;entity_id:string;mutation:string;payload:Json}
         Returns: Json
       }
+      sync_replica_head_v1: {Args:Record<PropertyKey,never>;Returns:number}
+      sync_capture_v1:{Args:{operation_id:string;payload:Json};Returns:Json}
+      sync_legacy_workspace_v1:{Args:{operation_id:string;entity:string;entity_id:string;record:Json;preserve_answers?:boolean};Returns:Json}
+      sync_replica_pull_v1: {Args:{after_revision:number;page_size?:number};Returns:Json}
       sync_profile_v1: {
         Args: { operation_id: string; nombre: string; cargo: string | null; colegiatura: string | null }
         Returns: Json

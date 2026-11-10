@@ -14,6 +14,31 @@ class Remote implements WorkspaceRemoteRepository{
  async push(operation:WorkspacePending){this.calls.push(operation.id);if(operation.entity==='expediente')this.state.expedientes=[operation.record as never];else this.state.visitas=[operation.record as never]}
 }
 describe('workspace offline',()=>{
+  it('quarantines permanent validation failures until an explicit retry',async()=>{
+   const local=new IndexedWorkspaceRepository(`blocked-${crypto.randomUUID()}`),record=expediente();
+   await local.save(owner,workspaceOperation('expediente',record));
+   const remote=new Remote();let attempts=0;
+   remote.push=async()=>{attempts++;throw {code:'22023',message:'Invalid field'}};
+   const engine=new WorkspaceSyncEngine(local,remote,owner);
+   await expect(engine.run()).rejects.toThrow('Invalid field');
+   await expect(engine.run()).rejects.toThrow('Invalid field');
+   expect(attempts).toBe(1);
+   expect((await local.read(owner)).pending[0].blocked_error).toContain('Invalid field');
+   await local.retryPending(owner);
+   await expect(engine.run()).rejects.toThrow();expect(attempts).toBe(2);
+  });
+  it('aplica deltas y cursor juntos y reaplica solo respuestas locales pendientes',async()=>{
+   const local=new IndexedWorkspaceRepository(`delta-${crypto.randomUUID()}`),record=expediente(),visit=buildVisita(record,1,'2026-09-17');
+   await local.mergeRemote(owner,{expedientes:[record],visitas:[visit],plantillas:[]},{cursor:10,partial:false,deleted:[]});
+   await local.saveAnswers(owner,visit.id,{licencia:'no'});
+   await local.mergeRemote(owner,{expedientes:[],visitas:[{...visit,checklist_respuestas_json:{licencia:'si',otro:'remoto'}}],plantillas:[]},{cursor:20,partial:true,deleted:[]});
+   expect(await local.read(owner)).toMatchObject({sync_cursor:20,visitas:[{checklist_respuestas_json:{licencia:'no',otro:'remoto'}}]});
+   await local.saveAnswers(owner,visit.id,{licencia:'na'});
+   expect((await local.read(owner)).sync_cursor).toBe(20);
+   for(const op of (await local.read(owner)).pending)await local.acknowledge(owner,op.id);
+   await local.mergeRemote(owner,{expedientes:[],visitas:[],plantillas:[]},{cursor:30,partial:true,deleted:[{entity:'expediente',id:record.id}]});
+   expect(await local.read(owner)).toMatchObject({sync_cursor:30,expedientes:[],visitas:[]});
+  });
   it('guarda parches de respuestas conservando otros campos y pendientes',async()=>{
    const name=`answers-${crypto.randomUUID()}`,record=expediente(),visit=buildVisita(record,1,'2026-09-17');
    const local=new IndexedWorkspaceRepository(name);
@@ -46,9 +71,9 @@ describe('workspace offline',()=>{
    const local=new IndexedWorkspaceRepository(name);
    const visit=buildVisita(expediente(),1,'2026-09-17');
    const first=workspaceOperation('visita',{...visit,checklist_respuestas_json:{licencia:'si'}});
-   const latest=workspaceOperation('visita',{...visit,checklist_respuestas_json:{licencia:'no'}});
    await local.save(owner,first);
-   await local.save(owner,latest);
+   await local.saveAnswers(owner,visit.id,{licencia:'no'});
+   const latest=(await local.read(owner)).pending[1];
    await local.acknowledge(owner,first.id);
    await local.mergeRemote(owner,{expedientes:[],visitas:[first.record as typeof visit],plantillas:[]});
    const reopened=await new IndexedWorkspaceRepository(name).read(owner);

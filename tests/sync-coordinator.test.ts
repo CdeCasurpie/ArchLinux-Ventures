@@ -2,6 +2,28 @@ import { describe, expect, it, vi } from 'vitest';
 import { SyncCoordinator, type SyncState } from '@archforms/application';
 
 describe('sync coordinator', () => {
+  it('does not block new data passes behind a large file transfer',async()=>{
+    let finish!:()=>void;
+    const gate=new Promise<void>(resolve=>{finish=resolve});
+    const data=vi.fn(async()=>{}),files=vi.fn(async()=>gate);
+    const coordinator=new SyncCoordinator([{name:'data',run:data},{name:'files',background:true,run:files}],()=>true);
+    await coordinator.run();await coordinator.run();
+    expect(data).toHaveBeenCalledTimes(2);expect(files).toHaveBeenCalledTimes(1);
+    finish();coordinator.stop();
+  });
+  it('does not lose a reconnection/local-edit request arriving during an active pass',async()=>{
+    vi.useFakeTimers();
+    let release!:()=>void;
+    const gate=new Promise<void>(resolve=>{release=resolve});
+    const task=vi.fn(async()=>{await gate});
+    const coordinator=new SyncCoordinator([{name:'data',run:task}],()=>true);
+    const first=coordinator.run();
+    void coordinator.request();
+    release();await first;
+    await vi.advanceTimersByTimeAsync(0);
+    expect(task).toHaveBeenCalledTimes(2);
+    coordinator.stop();vi.useRealTimers();
+  });
   it('does not run offline and retries while active', async () => {
     vi.useFakeTimers();
     let online = false;

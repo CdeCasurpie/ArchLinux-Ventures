@@ -51,11 +51,26 @@ describe('workspace protocol against local Postgres',()=>{
       expect(new Set(rows.data?.map(v=>v.id))).toEqual(new Set([first.id,second.id]));
       expect((await a.read(owner)).pending).toHaveLength(0);
       expect((await b.read(owner)).pending).toHaveLength(0);
+      const initial=await remote.fetchReplica();
+      expect(initial.replica.partial).toBe(false);
+      await client.from('visita').update({estado:'FINALIZADA'}).eq('id',first.id);
+      const delta=await remote.fetchReplica(initial.replica.cursor);
+      expect(delta.replica.partial).toBe(true);
+      expect(delta.visitas.find(visit=>visit.id===first.id)?.estado).toBe('FINALIZADA');
+      await client.from('visita').delete().eq('id',second.id);
+      const deletion=await remote.fetchReplica(delta.replica.cursor);
+      expect(deletion.replica.deleted).toContainEqual({entity:'visita',id:second.id});
       // Immutable identity and answer ownership cannot be patched through this RPC.
       const forbidden=await client.rpc('sync_workspace_v1',{operation_id:crypto.randomUUID(),entity:'visita',entity_id:first.id,mutation:'patch',payload:{checklist_respuestas_json:{note:'bypass'}}});
       expect(forbidden.error).not.toBeNull();
       const spoof=await client.rpc('sync_workspace_v1',{operation_id:crypto.randomUUID(),entity:'expediente',entity_id:record.id,mutation:'patch',payload:{profesional_id:crypto.randomUUID()}});
       expect(spoof.error).not.toBeNull();
+      // A frozen pre-protocol command is adapted idempotently, not sent via upsert.
+      const legacy={id:crypto.randomUUID(),entity:'expediente' as const,record:{...record,ubicacion:'Legacy'},created_at:new Date().toISOString()};
+      await remote.push(legacy);
+      const newer=await client.from('expediente').update({ubicacion:'Newer after legacy'}).eq('id',record.id);expect(newer.error).toBeNull();
+      await remote.push(legacy);
+      expect((await client.from('expediente').select('ubicacion').eq('id',record.id).single()).data?.ubicacion).toBe('Newer after legacy');
     }finally{
       await client.from('visita').delete().eq('expediente_id',record.id);
       await client.from('expediente').delete().eq('id',record.id);

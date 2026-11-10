@@ -35,8 +35,9 @@ export interface Visita {
  pdf_archivo_id:string|null;responsable_obra_colegiatura:string|null;created_at:string;updated_at:string;
 }
 export type WorkspaceEntity='expediente'|'visita';
-export interface WorkspacePending {id:string;entity:WorkspaceEntity;record:Expediente|Visita;created_at:string;answer_patch?:Record<string,string|number|null>;preserve_answers?:boolean;protocol?:1;workspace_mutation?:{type:'create'|'patch';payload:Record<string,unknown>}}
-export interface WorkspaceState {expedientes:Expediente[];visitas:Visita[];plantillas:ChecklistTemplate[];pending:WorkspacePending[];last_sync:string|null}
+export interface WorkspacePending {id:string;entity:WorkspaceEntity;record:Expediente|Visita;created_at:string;answer_patch?:Record<string,string|number|null>;preserve_answers?:boolean;protocol?:1;workspace_mutation?:{type:'create'|'patch';payload:Record<string,unknown>};blocked_error?:string}
+export interface WorkspaceState {expedientes:Expediente[];visitas:Visita[];plantillas:ChecklistTemplate[];pending:WorkspacePending[];last_sync:string|null;sync_cursor?:number}
+export interface ReplicaInfo {cursor:number;partial:boolean;deleted:{entity:WorkspaceEntity;id:string}[]}
 export function assertChecklist(schema:ChecklistSchema){
  if(schema.version!==1||!schema.sections.length)throw new Error('El checklist necesita al menos una sección.');
  const ids=new Set<string>();

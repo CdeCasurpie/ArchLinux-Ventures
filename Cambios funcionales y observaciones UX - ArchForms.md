@@ -2,6 +2,13 @@
 
 Este documento reúne y reorganiza las necesidades identificadas durante la revisión con arquitectos y la revisión del código actual. Es un inventario de cambios de comportamiento y experiencia de uso: no define una secuencia de implementación, estimaciones ni una arquitectura técnica.
 
+**Revisión 2026-11-10:** se implementaron autosave, protocolo idempotente, réplica incremental
+de expedientes/visitas y transferencias persistentes. Estado y pruebas en
+`docs/offline-sync-validation.md`. Esto no da por implementadas las funcionalidades de
+formularios, firmas, resumen ni editor descritas a continuación. El PDF ahora se regenera
+siempre en el dispositivo y no se almacena en Supabase; las observaciones originales
+de vigencia del PDF deben interpretarse a la luz de esa decisión.
+
 Se distinguen las solicitudes de los usuarios, las capacidades que ya existen parcialmente y las observaciones adicionales detectadas en el código. Una observación de código no equivale a un fallo reproducido en todos los dispositivos.
 
 ## 1. Navegación y conservación del estado
@@ -72,7 +79,9 @@ Si el usuario está creando un expediente y necesita un formulario nuevo, debe p
 - Mostrar un estado de guardado comprensible, sin confundirlo con la sincronización en la nube.
 - Conservar las respuestas al cambiar de pestaña, retroceder o volver a abrir la visita.
 
-**Situación actual:** hay botones «Guardar checklist» y las respuestas se mantienen en estado de la interfaz hasta ejecutar el guardado. El cambio solicitado afecta al comportamiento, no solo al texto o a la eliminación del botón.
+**Situación actual:** autosave implementado y botones manuales retirados. Las respuestas y
+su operación pendiente se persisten juntas. Hay indicadores de guardado/error y una
+barrera de navegación interna que espera el guardado local.
 
 ### Edición posterior
 

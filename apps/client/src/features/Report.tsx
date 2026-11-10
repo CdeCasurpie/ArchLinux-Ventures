@@ -35,12 +35,13 @@ function orderedPhotos(group: CaptureGroup | undefined, photoIds: string[]): Lab
   });
 }
 
-export function VisitReport({ visita, expediente, profile, onSave }: {
+export function VisitReport({ visita, expediente, profile, onSave,provisional=false }: {
   visita: Visita;
   expediente: Expediente;
   profile: LocalState['profile'];
   ownerId: string;
   onSave: (record: Visita) => Promise<void>;
+  provisional?:boolean;
 }) {
   const [groups, setGroups] = useState<CaptureGroup[]>([]);
   const [doc, setDoc] = useState<ReportDocumentV1 | null>(null);
@@ -157,7 +158,7 @@ export function VisitReport({ visita, expediente, profile, onSave }: {
       // Pie X/Y por página con coordenadas exactas (pdf-lib, 100% offline).
       const bytes = await stampPageNumbers(
         raw,
-        (p, t) => `Pág. ${p}/${t} · Rev. ${doc.revision} · ${expediente.nro_expediente}`,
+        (p, t) => `Pág. ${p}/${t} · Rev. ${doc.revision} · ${expediente.nro_expediente}${provisional?' · Numeración provisional':''}`,
       );
       const filename = informeFileName(expediente, visita);
       if (Capacitor.isNativePlatform()) {
@@ -216,6 +217,7 @@ export function VisitReport({ visita, expediente, profile, onSave }: {
 
   return (
     <div className="page-enter">
+      {provisional&&<p role="status">El número de visita es provisional hasta sincronizar. El PDF llevará esa advertencia.</p>}
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12, flexWrap: 'wrap' }}>
         <span className="status active">PDF local · se genera en cada descarga</span>
         <span style={{ flex: 1 }} />

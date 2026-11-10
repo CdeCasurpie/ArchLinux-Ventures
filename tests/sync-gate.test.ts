@@ -110,18 +110,21 @@ describe('sync con gate (Fase 2)', () => {
     captureActivity.setTabActive(true);
   });
 
-  it('manager.sync espera al idle mientras se graba', async () => {
+  it('manager.sync defers capture work without blocking the shared coordinator', async () => {
     const manager = new MediaSyncManager(noopOutbox(), 'owner-1');
+    manager.start();
     captureActivity.setRecording(true);
     let done = false;
     const p = manager.sync().then(() => { done = true; });
     await vi.advanceTimersByTimeAsync(2000);
-    expect(done).toBe(false);
+    expect(done).toBe(true);
+    expect(manager.lastRun).toBeNull();
     captureActivity.setRecording(false);
     await vi.advanceTimersByTimeAsync(5000);
-    await p;
+    await p;await manager.sync();
     expect(done).toBe(true);
     expect(manager.lastRun?.error).toBeNull();
+    manager.stop();
   });
 
   it('enqueueGroupToOutbox rechaza foto sin checksum', async () => {

@@ -26,10 +26,20 @@ vi.mock('@capacitor-community/sqlite', () => ({
   },
 }));
 
-import { SQLiteWorkspaceRepository } from '@archforms/data-local';
+import { SQLiteWorkspaceRepository,SQLiteMediaOutboxRepository } from '@archforms/data-local';
 import { buildExpediente, buildVisita, workspaceOperation } from '@archforms/application';
 
 describe('workspace on real SQLite SQL engine (not Android plugin)', () => {
+  it('preserves newer media payloads and does not evict uploaded originals by age',async()=>{
+    const repository=new SQLiteMediaOutboxRepository();
+    const row={id:'media-group',entity_type:'grupo_captura' as const,payload:'old',depends_on:[],created_at:'2020-01-01T00:00:00.000Z'};
+    await repository.enqueueEntity(row);
+    await repository.markEntitySyncing(row.id);
+    await repository.enqueueEntity({...row,payload:'new'});
+    await repository.markEntitySynced(row.id,'old');
+    expect(await repository.entityStatus(row.id)).toMatchObject({payload:'new',status:'pending'});
+    expect(await repository.collectGarbage(new Date().toISOString())).toEqual([]);
+  });
   it('migrates legacy state and commits entity and outbox atomically', async () => {
     const owner = crypto.randomUUID();
     const form = new FormData();

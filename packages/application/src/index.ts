@@ -1,6 +1,8 @@
 import { type Profile,type ProfileEdit,type LocalState,type Pending,validateProfile,type WorkspaceState,type WorkspacePending,type Expediente,type Visita,assertChecklist,type MediaOutboxItem,type EntityOutboxItem,type GrupoCapturaPayload,type MediaSyncStatus,type EntitySyncStatus,type RemoteArchivo,type RemoteFoto,type RemoteGrupo } from '@archforms/domain';
 export * from './answer-sync';
 export * from './sync-coordinator';
+export * from './transfer-queue';
+export * from './scoped-media';
 export interface LocalRepository {
  read(owner:string):Promise<LocalState>;
  // Record and outbox are written together in one durable transaction.
@@ -45,10 +47,12 @@ export interface WorkspaceLocalRepository {
  read(owner:string):Promise<WorkspaceState>;
   save(owner:string,operation:WorkspacePending):Promise<void>;
   saveAnswers(owner:string,visitaId:string,patch:Record<string,string|number|null>):Promise<void>;
- acknowledge(owner:string,operationId:string):Promise<void>;
- mergeRemote(owner:string,remote:Pick<WorkspaceState,'expedientes'|'visitas'|'plantillas'>):Promise<void>;
+  acknowledge(owner:string,operationId:string):Promise<void>;
+  markBlocked(owner:string,operationId:string,error:string):Promise<void>;
+  retryPending(owner:string):Promise<void>;
+  mergeRemote(owner:string,remote:Pick<WorkspaceState,'expedientes'|'visitas'|'plantillas'>,replica?:import('@archforms/domain').ReplicaInfo):Promise<void>;
 }
-export interface WorkspaceRemoteRepository {fetchAll():Promise<Pick<WorkspaceState,'expedientes'|'visitas'|'plantillas'>>;push(operation:WorkspacePending):Promise<void>}
+export interface WorkspaceRemoteRepository {fetchAll():Promise<Pick<WorkspaceState,'expedientes'|'visitas'|'plantillas'>>;fetchReplica?(cursor?:number):Promise<Pick<WorkspaceState,'expedientes'|'visitas'|'plantillas'>&{replica:import('@archforms/domain').ReplicaInfo}>;push(operation:WorkspacePending):Promise<void>}
 export class WorkspaceSyncEngine {
  private running:Promise<void>|null=null;
  constructor(private local:WorkspaceLocalRepository,private remote:WorkspaceRemoteRepository,private owner:string){}
@@ -56,12 +60,16 @@ export class WorkspaceSyncEngine {
   private async perform(){
    const blocked=new Set<string>();
    const errors:string[]=[];
+   for(const op of (await this.local.read(this.owner)).pending)if(op.blocked_error){blocked.add(`${op.entity}:${op.record.id}`);errors.push(op.blocked_error)}
    for(let i=0;i<100;i++){
     const next=(await this.local.read(this.owner)).pending.find(op=>
      !blocked.has(`${op.entity}:${op.record.id}`)&&
      !(op.entity==='visita'&&blocked.has(`expediente:${(op.record as Visita).expediente_id}`)));
     if(!next){
-     await this.local.mergeRemote(this.owner,await this.remote.fetchAll());
+     if(this.remote.fetchReplica){
+      const packet=await this.remote.fetchReplica((await this.local.read(this.owner)).sync_cursor);
+      await this.local.mergeRemote(this.owner,packet,packet.replica);
+     }else await this.local.mergeRemote(this.owner,await this.remote.fetchAll());
      if(errors.length)throw new Error(errors.join('\n'));
      return;
     }
@@ -72,7 +80,9 @@ export class WorkspaceSyncEngine {
      await this.local.acknowledge(this.owner,next.id);
     }catch(error){
      blocked.add(`${next.entity}:${next.record.id}`);
-     errors.push(`${next.entity} ${next.record.id}: ${error instanceof Error?error.message:JSON.stringify(error)}`);
+     const text=`${next.entity} ${next.record.id}: ${error instanceof Error?error.message:JSON.stringify(error)}`;
+     errors.push(text);
+     if(error&&typeof error==='object'&&'code' in error&&['22023','42501','23514','23505'].includes(String(error.code)))await this.local.markBlocked(this.owner,next.id,text);
     }
   }
   throw new Error('Hay demasiados cambios pendientes para una sola sincronización.');
@@ -107,7 +117,7 @@ export interface MediaOutboxRepository {
  markMediaError(id:string,error:string,nextRetry:string):Promise<void>;
  pendingEntities(now:string):Promise<EntityOutboxItem[]>;
  markEntitySyncing(id:string):Promise<void>;
- markEntitySynced(id:string):Promise<void>;
+  markEntitySynced(id:string,expectedPayload?:string):Promise<void>;
  markEntityError(id:string,error:string,nextRetry:string):Promise<void>;
  mediaStatus(id:string):Promise<MediaOutboxItem|null>;
  entityStatus(id:string):Promise<EntityOutboxItem|null>;
@@ -185,7 +195,11 @@ export class MediaSyncEngine {
    if(item.size_bytes>10_000_000){
     throw new Error(`Archivo demasiado grande (${item.size_bytes} bytes). Máx 10 MB.`);
    }
-   const data=await this.readFile(item.local_path);
+    const data=await this.readFile(item.local_path);
+    if(data.length!==item.size_bytes)throw new Error('El archivo local está incompleto; no se subió.');
+    const digest=await crypto.subtle.digest('SHA-256',Uint8Array.from(data));
+    const checksum=Array.from(new Uint8Array(digest),byte=>byte.toString(16).padStart(2,'0')).join('');
+    if(checksum!==item.checksum)throw new Error('El checksum local no coincide; no se subió el archivo.');
    const path=await this.remote.upload(item.visita_id,item.id,data,item.mime_type);
    await this.outbox.markMediaSynced(item.id,path);
    this.listener?.onMedia?.(item,'synced');
@@ -214,7 +228,7 @@ export class MediaSyncEngine {
    const audioMedia=await this.outbox.mediaStatus(raw.audio.id);
    raw.audio.remote_path=audioMedia?.bucket_path??null;
    await this.remote.pushGrupo(raw);
-   await this.outbox.markEntitySynced(item.id);
+    await this.outbox.markEntitySynced(item.id,item.payload);
    this.listener?.onEntity?.(item.id,'synced');
   }catch(err){
    const attempts=item.attempts+1;
@@ -285,5 +299,5 @@ export interface CaptureRemoteReader {
  /** Reads capture rows for the given visitas (RLS limits to the owner's). */
  fetchCapture(visitaIds:string[]):Promise<RemoteCaptureState>;
  /** Downloads raw bytes for a storage_key in `visita-media`. */
- downloadBytes(storageKey:string):Promise<Uint8Array>;
+  downloadBytes(storageKey:string,signal?:AbortSignal):Promise<Uint8Array>;
 }

@@ -7,7 +7,7 @@ import type {EntityOutboxItem,GrupoCapturaPayload,MediaOutboxItem,RemoteArchivo,
 const NOW='2026-09-23T00:00:00.000Z';
 
 function media(id:string,visita='visita-1',grupo='grupo-1'):MediaOutboxItem{
- return {id,entity_type:'foto',entity_id:id,grupo_id:grupo,visita_id:visita,local_path:`archforms-lab/photos/${id}.jpg`,mime_type:'image/jpeg',size_bytes:1000,checksum:`sha-${id}`,bucket_path:null,attempts:0,last_error:null,next_retry:null,status:'pending',created_at:NOW};
+ return {id,entity_type:'foto',entity_id:id,grupo_id:grupo,visita_id:visita,local_path:`archforms-lab/photos/${id}.jpg`,mime_type:'image/jpeg',size_bytes:3,checksum:'039058c6f2c0cb492c533b0a4d14ef77cc0f78abccced5287d84a1a2011cfb81',bucket_path:null,attempts:0,last_error:null,next_retry:null,status:'pending',created_at:NOW};
 }
 
 function entity(id:string,depends:string[]= ['m-1']):EntityOutboxItem{
@@ -61,6 +61,13 @@ class FakeRemote implements MediaRemoteRepository{
 const readFile=async()=>new Uint8Array([1,2,3]);
 
 describe('MediaSyncEngine (Iteración 4)',()=>{
+  it('refuses to upload corrupted local bytes',async()=>{
+   const outbox=new MemoryOutbox();await outbox.enqueueMedia(media('corrupt'));
+   const remote=new FakeRemote();
+   await new MediaSyncEngine(outbox,remote,async()=>new Uint8Array([4,5,6])).run();
+   expect(remote.uploads).toBe(0);
+   expect(await outbox.mediaStatus('corrupt')).toMatchObject({status:'error',last_error:expect.stringContaining('checksum')});
+  });
  it('backoff exponencial acotado con jitter',()=>{
   expect(exponentialBackoff(0)).toBeGreaterThanOrEqual(2_000);
   expect(exponentialBackoff(0)).toBeLessThan(3_000);
@@ -147,13 +154,13 @@ describe('IndexedMediaOutboxRepository (web)',()=>{
   await outbox.enqueueMedia(media('m-2'));
   await outbox.markMediaError('m-2','boom',new Date(Date.now()+60_000).toISOString());
   expect((await outbox.pendingMedia(NOW)).map(m=>m.id)).toEqual([]);
-  // GC: borra synced de hace +7 días y devuelve sus paths
+   // Uploaded originals remain available offline, regardless of age.
   const old={...media('m-3'),created_at:'2026-09-01T00:00:00.000Z'} as MediaOutboxItem;
   await outbox.enqueueMedia(old);
   await outbox.markMediaSynced('m-3','visita-1/m-3');
   const garbage=await outbox.collectGarbage(NOW);
-  expect(garbage).toEqual([old.local_path]);
-  expect(await outbox.mediaStatus('m-3')).toBeNull();
+   expect(garbage).toEqual([]);
+   expect((await outbox.mediaStatus('m-3'))?.status).toBe('synced');
  });
 
  it('mueve un grupo completo de extremo a extremo con el engine',async()=>{
@@ -244,6 +251,7 @@ let mockGroup: any = null;
 vi.mock('../apps/client/src/features/lab-storage', async importOriginal => ({
   ...(await importOriginal<typeof import('../apps/client/src/features/lab-storage')>()),
   loadCaptureGroup: async () => mockGroup,
+  updateCaptureGroupSyncStatus:async()=>undefined,
 }));
 
 import { notifyTranscriptionReady } from '../apps/client/src/features/media-sync';

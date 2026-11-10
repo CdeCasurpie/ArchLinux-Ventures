@@ -75,10 +75,27 @@ export class SQLiteRepository implements LocalRepository {
 }
 
 const emptyWorkspace=():WorkspaceState=>({expedientes:[],visitas:[],plantillas:[],pending:[],last_sync:null});
-function mergeWorkspace(state:WorkspaceState,remote:Pick<WorkspaceState,'expedientes'|'visitas'|'plantillas'>):WorkspaceState{
- const pendingCases=new Map(state.pending.filter(item=>item.entity==='expediente').map(item=>[item.record.id,item.record]));
- const pendingVisits=new Map(state.pending.filter(item=>item.entity==='visita').map(item=>[item.record.id,item.record]));
- return {expedientes:[...pendingCases.values(),...remote.expedientes.filter(item=>!pendingCases.has(item.id))] as WorkspaceState['expedientes'],visitas:[...pendingVisits.values(),...remote.visitas.filter(item=>!pendingVisits.has(item.id))] as WorkspaceState['visitas'],plantillas:remote.plantillas,pending:state.pending,last_sync:new Date().toISOString()};
+function mergeWorkspace(state:WorkspaceState,remote:Pick<WorkspaceState,'expedientes'|'visitas'|'plantillas'>,replica?:import('@archforms/domain').ReplicaInfo):WorkspaceState{
+ const cases=new Map((replica?.partial?state.expedientes:[]).map(row=>[row.id,row]));
+ const visits=new Map((replica?.partial?state.visitas:[]).map(row=>[row.id,row]));
+ for(const row of remote.expedientes)cases.set(row.id,row);
+ for(const row of remote.visitas)visits.set(row.id,row);
+ for(const removed of replica?.deleted??[]){
+  if(removed.entity==='expediente'){cases.delete(removed.id);for(const [id,row] of visits)if(row.expediente_id===removed.id)visits.delete(id)}
+  else visits.delete(removed.id);
+ }
+ for(const operation of state.pending){
+  const records=operation.entity==='expediente'?cases:visits;
+  const base=records.get(operation.record.id)??operation.record;
+  let next=operation.record;
+  if(operation.answer_patch){
+   const visit=base as Visita,answers={...visit.checklist_respuestas_json,...operation.answer_patch};
+   next={...visit,checklist_respuestas_json:answers,checklist_completado:visit.checklist_esquema_json.sections.flatMap(section=>section.fields).every(field=>answers[field.id]!==undefined&&answers[field.id]!==null&&answers[field.id]!==''),updated_at:operation.record.updated_at};
+  }
+  else if(operation.workspace_mutation?.type==='patch')next={...base,...operation.workspace_mutation.payload} as typeof next;
+  (records as Map<string,typeof next>).set(next.id,next);
+ }
+ return {expedientes:[...cases.values()],visitas:[...visits.values()],plantillas:remote.plantillas,pending:state.pending,last_sync:new Date().toISOString(),...(replica?{sync_cursor:replica.cursor}:state.sync_cursor===undefined?{}:{sync_cursor:state.sync_cursor})};
 }
 export class IndexedWorkspaceRepository implements WorkspaceLocalRepository{
  private db:Promise<IDBPDatabase>;
@@ -112,6 +129,7 @@ export class IndexedWorkspaceRepository implements WorkspaceLocalRepository{
    const meta=await tx.objectStore('metadata').get(owner);
    if(meta?.order){const rank=new Map<string,number>(meta.order.map((id:string,i:number)=>[id,i]));state.pending.sort((a,b)=>(rank.get(a.id)??0)-(rank.get(b.id)??0))}
    state.last_sync=meta?.last_sync??null;
+   if(meta?.sync_cursor!==undefined)state.sync_cursor=meta.sync_cursor;
    return state;
   }
   async read(owner:string):Promise<WorkspaceState>{
@@ -135,6 +153,8 @@ export class IndexedWorkspaceRepository implements WorkspaceLocalRepository{
    if(meta)await tx.objectStore('metadata').put({...meta,order:meta.order?.filter((item:string)=>item!==id)},owner);
    await tx.done;
   }
+  async markBlocked(owner:string,id:string,error:string){const tx=(await this.db).transaction('pending','readwrite');const op=await tx.store.get([owner,id]);if(op)await tx.store.put({...op,blocked_error:error},[owner,id]);await tx.done}
+  async retryPending(owner:string){const tx=(await this.db).transaction('pending','readwrite');let cursor=await tx.store.openCursor(IDBKeyRange.bound([owner,''],[owner,'\uffff']));while(cursor){const {blocked_error:_error,...op}=cursor.value;await cursor.update(op);cursor=await cursor.continue()}await tx.done}
   async saveAnswers(owner:string,visitaId:string,patch:Record<string,string|number|null>){
    const tx=(await this.db).transaction(['records','pending','metadata'],'readwrite');
    const record=await tx.objectStore('records').get([owner,'visitas',visitaId]);
@@ -143,17 +163,17 @@ export class IndexedWorkspaceRepository implements WorkspaceLocalRepository{
    const state=await this.snapshot(tx,owner);
    await tx.objectStore('records').put(operation.record,[owner,'visitas',visitaId]);
    await tx.objectStore('pending').put(operation,[owner,operation.id]);
-   await tx.objectStore('metadata').put({last_sync:state.last_sync,order:[...state.pending.map(op=>op.id),operation.id]},owner);
+   await tx.objectStore('metadata').put({last_sync:state.last_sync,sync_cursor:state.sync_cursor,order:[...state.pending.map(op=>op.id),operation.id]},owner);
    await tx.done;
   }
-  async mergeRemote(owner:string,remote:Pick<WorkspaceState,'expedientes'|'visitas'|'plantillas'>){
+  async mergeRemote(owner:string,remote:Pick<WorkspaceState,'expedientes'|'visitas'|'plantillas'>,replica?:import('@archforms/domain').ReplicaInfo){
    const tx=(await this.db).transaction(['records','pending','metadata'],'readwrite');
-   const state=await this.snapshot(tx,owner),next=mergeWorkspace(state,remote);
+   const state=await this.snapshot(tx,owner),next=mergeWorkspace(state,remote,replica);
    for(const kind of ['expedientes','visitas','plantillas'] as const){
     await tx.objectStore('records').delete(IDBKeyRange.bound([owner,kind,''],[owner,kind,'\uffff']));
     for(const record of next[kind])await tx.objectStore('records').put(record,[owner,kind,record.id]);
    }
-   await tx.objectStore('metadata').put({last_sync:next.last_sync,order:state.pending.map(op=>op.id)},owner);
+   await tx.objectStore('metadata').put({last_sync:next.last_sync,sync_cursor:next.sync_cursor,order:state.pending.map(op=>op.id)},owner);
    await tx.done;
   }
 }
@@ -164,7 +184,8 @@ export class SQLiteWorkspaceRepository implements WorkspaceLocalRepository{
    await db.execute(`CREATE TABLE IF NOT EXISTS workspace_state (owner TEXT PRIMARY KEY, payload TEXT NOT NULL);
     CREATE TABLE IF NOT EXISTS workspace_records (owner TEXT NOT NULL, kind TEXT NOT NULL, id TEXT NOT NULL, payload TEXT NOT NULL, PRIMARY KEY(owner,kind,id));
     CREATE TABLE IF NOT EXISTS workspace_pending (owner TEXT NOT NULL, id TEXT NOT NULL, position INTEGER NOT NULL, payload TEXT NOT NULL, PRIMARY KEY(owner,id));
-    CREATE TABLE IF NOT EXISTS workspace_metadata (owner TEXT PRIMARY KEY, last_sync TEXT);`);
+    CREATE TABLE IF NOT EXISTS workspace_metadata (owner TEXT PRIMARY KEY, last_sync TEXT);
+    CREATE TABLE IF NOT EXISTS workspace_cursor(owner TEXT PRIMARY KEY,revision INTEGER NOT NULL);`);
    const legacy=await db.query('SELECT owner,payload FROM workspace_state WHERE owner NOT IN (SELECT owner FROM workspace_metadata)');
    for(const row of legacy.values??[]){
     const state=JSON.parse(row.payload) as WorkspaceState;
@@ -181,6 +202,8 @@ export class SQLiteWorkspaceRepository implements WorkspaceLocalRepository{
    state.pending=(pending.values??[]).map(row=>JSON.parse(row.payload));
    const meta=await db.query('SELECT last_sync FROM workspace_metadata WHERE owner = ?',[owner]);
    state.last_sync=meta.values?.[0]?.last_sync??null;
+   const cursor=await db.query('SELECT revision FROM workspace_cursor WHERE owner=?',[owner]);
+   if(cursor.values?.[0])state.sync_cursor=cursor.values[0].revision;
    return state;
   }
   private async writeSnapshot(db:SQLiteDBConnection,owner:string,state:WorkspaceState){
@@ -191,6 +214,7 @@ export class SQLiteWorkspaceRepository implements WorkspaceLocalRepository{
    for(const kind of ['expedientes','visitas','plantillas'] as const)for(const record of state[kind])statements.push({statement:'INSERT INTO workspace_records(owner,kind,id,payload) VALUES(?,?,?,?)',values:[owner,kind,record.id,JSON.stringify(record)]});
    state.pending.forEach((op,position)=>statements.push({statement:'INSERT INTO workspace_pending(owner,id,position,payload) VALUES(?,?,?,?)',values:[owner,op.id,position,JSON.stringify(op)]}));
    statements.push({statement:'INSERT INTO workspace_metadata(owner,last_sync) VALUES(?,?) ON CONFLICT(owner) DO UPDATE SET last_sync=excluded.last_sync',values:[owner,state.last_sync]});
+   if(state.sync_cursor!==undefined)statements.push({statement:'INSERT INTO workspace_cursor(owner,revision) VALUES(?,?) ON CONFLICT(owner) DO UPDATE SET revision=excluded.revision',values:[owner,state.sync_cursor]});
    await db.executeSet(statements,true);
   }
  read(owner:string){return this.serial(()=>this.raw(owner))}
@@ -206,13 +230,15 @@ export class SQLiteWorkspaceRepository implements WorkspaceLocalRepository{
    ],true);
   })}
   acknowledge(owner:string,id:string){return this.serial(async()=>{await (await this.db).run('DELETE FROM workspace_pending WHERE owner=? AND id=?',[owner,id])})}
+  markBlocked(owner:string,id:string,error:string){return this.serial(async()=>{const db=await this.db,rows=await db.query('SELECT payload FROM workspace_pending WHERE owner=? AND id=?',[owner,id]);if(rows.values?.[0])await db.run('UPDATE workspace_pending SET payload=? WHERE owner=? AND id=?',[JSON.stringify({...JSON.parse(rows.values[0].payload),blocked_error:error}),owner,id])})}
+  retryPending(owner:string){return this.serial(async()=>{const db=await this.db;const rows=await db.query('SELECT id,payload FROM workspace_pending WHERE owner=?',[owner]);for(const row of rows.values??[]){const {blocked_error:_error,...op}=JSON.parse(row.payload);await db.run('UPDATE workspace_pending SET payload=? WHERE owner=? AND id=?',[JSON.stringify(op),owner,row.id])}})}
   saveAnswers(owner:string,visitaId:string,patch:Record<string,string|number|null>){return this.serial(async()=>{
    const state=await this.raw(owner),record=state.visitas.find(item=>item.id===visitaId);
    if(!record)throw new Error('Visita no disponible en este dispositivo');
    const operation=answerOperation(record,patch);
    await this.writeSnapshot(await this.db,owner,{...state,visitas:state.visitas.map(item=>item.id===visitaId?operation.record as Visita:item),pending:[...state.pending,operation]});
   })}
- mergeRemote(owner:string,remote:Pick<WorkspaceState,'expedientes'|'visitas'|'plantillas'>){return this.change(owner,state=>mergeWorkspace(state,remote))}
+ mergeRemote(owner:string,remote:Pick<WorkspaceState,'expedientes'|'visitas'|'plantillas'>,replica?:import('@archforms/domain').ReplicaInfo){return this.change(owner,state=>mergeWorkspace(state,remote,replica))}
 }
 
 // ── Media Outbox Repository (Iteración 4) ─────────────────────────────────────
@@ -292,7 +318,11 @@ export class SQLiteMediaOutboxRepository implements MediaOutboxRepository {
   return rows.map(r=>({...r,depends_on:JSON.parse(r.depends_on as string) as string[],attempts:Number(r.attempts)})) as EntityOutboxItem[];
  }
  markEntitySyncing(id:string){return this.serial(()=>this.run(`UPDATE entity_outbox SET status='syncing' WHERE id=?`,[id]))}
- markEntitySynced(id:string){return this.serial(()=>this.run(`DELETE FROM entity_outbox WHERE id=?`,[id]))}
+  markEntitySynced(id:string,expectedPayload?:string){return this.serial(async()=>{
+   if(expectedPayload===undefined){await this.run('DELETE FROM entity_outbox WHERE id=?',[id]);return}
+   await this.run('DELETE FROM entity_outbox WHERE id=? AND payload=?',[id,expectedPayload]);
+   await this.run("UPDATE entity_outbox SET status='pending',next_retry=NULL WHERE id=? AND payload<>?",[id,expectedPayload]);
+  })}
  markEntityError(id:string,error:string,nextRetry:string){return this.serial(()=>this.run(`UPDATE entity_outbox SET status='error', attempts=attempts+1, last_error=?, next_retry=? WHERE id=?`,[error,nextRetry,id]))}
 
  async mediaStatus(id:string):Promise<MediaOutboxItem|null>{
@@ -331,22 +361,14 @@ export class SQLiteMediaOutboxRepository implements MediaOutboxRepository {
  /** Insert a grupo entity into the outbox with its media dependencies. */
  async enqueueEntity(item:Omit<EntityOutboxItem,'attempts'|'last_error'|'next_retry'|'status'>):Promise<void>{
   await this.serial(()=>this.run(
-   `INSERT OR IGNORE INTO entity_outbox(id,entity_type,payload,depends_on,attempts,last_error,next_retry,status,created_at)
-    VALUES(?,?,?,?,0,NULL,NULL,'pending',?)`,
+    `INSERT INTO entity_outbox(id,entity_type,payload,depends_on,attempts,last_error,next_retry,status,created_at)
+     VALUES(?,?,?,?,0,NULL,NULL,'pending',?) ON CONFLICT(id) DO UPDATE SET payload=excluded.payload,depends_on=excluded.depends_on,status='pending',attempts=0,last_error=NULL,next_retry=NULL WHERE entity_outbox.payload<>excluded.payload`,
    [item.id,item.entity_type,item.payload,JSON.stringify(item.depends_on),item.created_at]
   ));
  }
 
- /** Delete synced media older than 7 days. Returns local_path list for file deletion. */
- async collectGarbage(now:string):Promise<string[]>{
-  const cutoff=new Date(new Date(now).getTime()-7*24*60*60*1000).toISOString();
-  const rows=await this.q(`SELECT id,local_path FROM media_outbox WHERE status='synced' AND created_at < ?`,[cutoff]);
-  if(!rows.length)return [];
-  const ids=rows.map((r:Record<string,unknown>)=>r.id as string);
-  const placeholders=ids.map(()=>'?').join(',');
-  await this.serial(()=>this.run(`DELETE FROM media_outbox WHERE id IN (${placeholders})`,ids));
-  return rows.map((r:Record<string,unknown>)=>r.local_path as string);
- }
+  /** Uploaded originals remain needed for offline use. No implicit age eviction. */
+  collectGarbage(_now:string):Promise<string[]>{return Promise.resolve([])}
 
  /** Requeue items left in transient states by an abrupt close (crash/kill). */
  resetStuck(){
@@ -424,7 +446,11 @@ export class IndexedMediaOutboxRepository implements MediaOutboxRepository {
   await db.put('entities',{...cur,...patch},id);
  }
  markEntitySyncing(id:string){return this.patchEntity(id,{status:'syncing'})}
- async markEntitySynced(id:string){await (await this.db).delete('entities',id)}
+  async markEntitySynced(id:string,expectedPayload?:string){
+   const tx=(await this.db).transaction('entities','readwrite');const item=await tx.store.get(id);
+   if(item){if(expectedPayload===undefined||item.payload===expectedPayload)await tx.store.delete(id);else await tx.store.put({...item,status:'pending',next_retry:null},id)}
+   await tx.done;
+  }
  async markEntityError(id:string,error:string,nextRetry:string){
   const db=await this.db;const cur=await db.get('entities',id) as EntityOutboxItem|undefined;if(!cur)return;
   await db.put('entities',{...cur,status:'error',attempts:cur.attempts+1,last_error:error,next_retry:nextRetry} as EntityOutboxItem,id);
@@ -454,16 +480,12 @@ export class IndexedMediaOutboxRepository implements MediaOutboxRepository {
  }
 
  async enqueueEntity(item:Omit<EntityOutboxItem,'attempts'|'last_error'|'next_retry'|'status'>){
-  const db=await this.db;if(await db.get('entities',item.id))return;
-  await db.add('entities',{...item,attempts:0,last_error:null,next_retry:null,status:'pending'} as EntityOutboxItem,item.id);
+   const tx=(await this.db).transaction('entities','readwrite');const existing=await tx.store.get(item.id);
+   if(!existing||existing.payload!==item.payload)await tx.store.put({...item,attempts:0,last_error:null,next_retry:null,status:'pending'} as EntityOutboxItem,item.id);
+   await tx.done;
  }
 
- async collectGarbage(now:string):Promise<string[]>{
-  const cutoff=new Date(new Date(now).getTime()-7*24*60*60*1000).toISOString();
-  const db=await this.db;const stale=(await this.allMedia()).filter(m=>m.status==='synced'&&m.created_at<cutoff);
-  await Promise.all(stale.map(m=>db.delete('media',m.id)));
-  return stale.map(m=>m.local_path);
- }
+  collectGarbage(_now:string):Promise<string[]>{return Promise.resolve([])}
 
  async resetStuck(){
   const db=await this.db;
