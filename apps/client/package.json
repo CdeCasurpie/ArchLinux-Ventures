@@ -27,6 +27,7 @@
     "@capacitor/network": "^8.0.1",
     "@capacitor/preferences": "^8.0.1",
     "@capacitor/share": "^8.0.2",
+    "@fontsource-variable/geist": "^5.3.0",
     "@react-pdf/renderer": "^4.9.0",
     "capacitor-whisper": "^0.2.1"
   }

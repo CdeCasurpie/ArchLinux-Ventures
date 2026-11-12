@@ -13,6 +13,7 @@ import type { Expediente, LocalState, Visita } from '@archforms/domain';
 import { loadCaptureGroups, photoDataUrl, type CaptureGroup, type LabPhoto } from './lab-storage';
 import { getPendingPdf, setPendingPdf, uploadPdfArtifact } from './media-sync';
 import { supabase } from '../platform';
+import { Icon } from '../ui/Icon';
 
 function bytesToBase64(bytes: Uint8Array): string {
   let binary = '';
@@ -266,78 +267,74 @@ export function VisitReport({ visita, expediente, profile, ownerId, onSave }: {
   };
 
   if (!doc) {
-    return <article className="card" style={{ padding: 24 }}><p>Armando el informe…</p></article>;
+    return <article className="card block-card"><p>Preparando el informe…</p></article>;
   }
 
   return (
     <div className="page-enter">
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12, flexWrap: 'wrap' }}>
-        <span className={`status ${stale ? 'draft' : 'active'}`}>
-          {stale ? '⚠ PDF desactualizado' : visita.estado_documento === 'GENERADO' ? 'PDF generado' : 'Borrador'}
+      <div className="report-toolbar">
+        <span className={`badge ${stale ? 'badge-draft' : visita.estado_documento === 'GENERADO' ? 'badge-done' : ''}`}>
+          {stale ? 'El PDF no tiene los últimos cambios' : visita.estado_documento === 'GENERADO' ? 'PDF al día' : 'Sin PDF todavía'}
         </span>
-        <span style={{ flex: 1 }} />
-        <button className="btn btn-secondary" onClick={undo} disabled={!past.length}>←</button>
-        <button className="btn btn-secondary" onClick={redo} disabled={!future.length}>→</button>
+        <span className="spacer" />
+        <button className="btn btn-ghost" onClick={undo} disabled={!past.length}><Icon name="undo" size={20} />Deshacer</button>
+        <button className="btn btn-ghost" onClick={redo} disabled={!future.length}><Icon name="redo" size={20} />Rehacer</button>
         <button className="btn btn-secondary" onClick={() => void save()} disabled={saving || (!dirty && !fresh)}>
-          {saving ? 'Guardando…' : 'Guardar informe'}
+          {saving ? 'Guardando…' : dirty || fresh ? 'Guardar cambios' : 'Guardado'}
         </button>
         <button className="btn btn-primary" onClick={() => void generate()} disabled={busy}>
-          {busy ? 'Generando…' : 'Generar PDF'}
+          <Icon name="file" size={20} />{busy ? 'Generando…' : 'Generar PDF'}
         </button>
       </div>
-      {pdfMsg && <div className="alert notice">{pdfMsg}</div>}
+      {pdfMsg && <div className="alert notice" role="status">{pdfMsg}</div>}
       {fileSheetOpen && savedFile && Capacitor.isNativePlatform() && createPortal(
         <>
-          <div onClick={() => setFileSheetOpen(false)} style={{ position: 'fixed', inset: 0, background: 'rgba(10,25,45,.45)', zIndex: 80 }} />
-          <div className="card" style={{ position: 'fixed', left: 0, right: 0, bottom: 0, zIndex: 90, borderRadius: '20px 20px 0 0', padding: '10px 20px calc(20px + env(safe-area-inset-bottom))', animation: 'sheetUp .22s ease both' }}>
-            <div style={{ width: 40, height: 4, borderRadius: 4, background: '#dde5ee', margin: '0 auto 12px' }} />
-            <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8 }}>
-              <div style={{ flex: 1 }}>
-                <p style={{ margin: '0 0 4px 0', fontSize: 14, fontWeight: 800, color: 'var(--navy)' }}>✓ PDF guardado en el dispositivo</p>
-                <p style={{ margin: 0, fontSize: 12, color: '#475569' }}>{savedFile.filename} · Documentos/ArchForms/</p>
+          <div className="sheet-backdrop" onClick={() => setFileSheetOpen(false)} />
+          <div className="sheet" role="dialog" aria-labelledby="pdf-sheet-title">
+            <div className="sheet-grip" />
+            <div className="sheet-head">
+              <div>
+                <strong id="pdf-sheet-title"><Icon name="check" />PDF guardado en el teléfono</strong>
+                <p>{savedFile.filename} · carpeta Documentos/ArchForms</p>
               </div>
-              <button className="btn btn-secondary" aria-label="Cerrar" onClick={() => setFileSheetOpen(false)} style={{ padding: '6px 12px' }}>×</button>
+              <button className="icon-btn" aria-label="Cerrar" onClick={() => setFileSheetOpen(false)}><Icon name="close" /></button>
             </div>
-            <div style={{ display: 'flex', gap: 8, marginTop: 14 }}>
-              <button className="btn btn-primary" style={{ flex: 1 }} onClick={() => void openSavedPdf(savedFile.filename)} disabled={busy}>
-                Abrir PDF
-              </button>
-              <button className="btn btn-secondary" style={{ flex: 1 }} onClick={() => void shareSavedPdf(savedFile.filename)} disabled={busy}>
-                Compartir
-              </button>
+            <div className="sheet-actions">
+              <button className="btn btn-primary" onClick={() => void openSavedPdf(savedFile.filename)} disabled={busy}>Abrir PDF</button>
+              <button className="btn btn-secondary" onClick={() => void shareSavedPdf(savedFile.filename)} disabled={busy}>Compartir</button>
             </div>
-            {fileMsg && <p style={{ margin: '12px 0 0 0', fontSize: 12, color: 'var(--danger)' }}>{fileMsg}</p>}
+            {fileMsg && <p className="finding-note error">{fileMsg}</p>}
           </div>
         </>,
         document.body,
       )}
       {pendingPdf && (
-        <div className="alert notice">
-          Hay un PDF generado pendiente de subir ({pendingPdf.filename}).
-          <button className="btn btn-secondary" style={{ marginLeft: 8 }} onClick={() => void uploadPending()} disabled={busy || !navigator.onLine}>
+        <div className="alert notice" role="status">
+          <span>El PDF {pendingPdf.filename} está guardado aquí pero falta subirlo a la nube.</span>
+          <button className="btn btn-secondary" onClick={() => void uploadPending()} disabled={busy || !navigator.onLine}>
             Subir ahora
           </button>
         </div>
       )}
 
       {missingGroups.length > 0 && (
-        <div className="card" style={{ padding: 16, marginBottom: 12 }}>
-          <strong>Hallazgos fuera del informe ({missingGroups.length})</strong>
-          <div style={{ display: 'flex', gap: 8, marginTop: 8, flexWrap: 'wrap' }}>
+        <div className="panel missing-groups">
+          <strong>{missingGroups.length === 1 ? 'Un hallazgo no está en el informe' : `${missingGroups.length} hallazgos no están en el informe`}</strong>
+          <div className="row-actions">
             {missingGroups.map((g) => (
               <button
                 key={g.id}
                 className="btn btn-secondary"
                 onClick={() => apply(d => restoreGroupBlock(d, g.id, g.photos.map(p => p.id), g.transcripcion ?? ''))}
               >
-                ＋ Hallazgo {groups.length - groups.indexOf(g)}
+                <Icon name="plus" size={20} />Incluir hallazgo {groups.length - groups.indexOf(g)}
               </button>
             ))}
           </div>
         </div>
       )}
 
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+      <div className="blocks">
         {doc.blocks.map((block, i) => (
           <BlockCard
             key={block.id}
@@ -371,62 +368,62 @@ function BlockCard({ block, index, total, group, onMove, onRemove, onPhotos, onC
   onAddText: () => void;
 }) {
   const locked = block.type === 'header' || block.type === 'checklist' || block.type === 'signatures';
-  const title = block.type === 'header' ? 'Cabecera (fija)'
-    : block.type === 'checklist' ? 'Checklist (fijo)'
-    : block.type === 'capture-group' ? `Hallazgo · ${group ? new Date(group.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '?'}` 
+  const title = block.type === 'header' ? 'Cabecera'
+    : block.type === 'checklist' ? 'Checklist'
+    : block.type === 'capture-group' ? `Hallazgo de las ${group ? new Date(group.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '…'}`
     : block.type === 'conclusions' ? 'Conclusiones'
-    : block.type === 'signatures' ? 'Firmas (fijo)'
-    : 'Texto';
+    : block.type === 'signatures' ? 'Firmas'
+    : 'Texto libre';
   return (
-    <article className="card" style={{ padding: 16 }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
+    <article className="card block-card">
+      <div className="block-head">
         <strong>{title}</strong>
-        <span style={{ flex: 1 }} />
-        {!locked && (
+        {locked ? <span className="lock">Se completa solo</span> : (
           <>
-            <button className="btn btn-secondary" onClick={() => onMove(-1)} disabled={index === 0} aria-label="Subir">↑</button>
-            <button className="btn btn-secondary" onClick={() => onMove(1)} disabled={index === total - 1} aria-label="Bajar">↓</button>
-            <button className="btn btn-secondary" onClick={onRemove} aria-label="Quitar del informe">×</button>
+            <button className="icon-btn" onClick={() => onMove(-1)} disabled={index === 0} aria-label={`Subir «${title}»`}><Icon name="up" /></button>
+            <button className="icon-btn" onClick={() => onMove(1)} disabled={index === total - 1} aria-label={`Bajar «${title}»`}><Icon name="down" /></button>
+            <button className="icon-btn" onClick={onRemove} aria-label={`Quitar «${title}» del informe`}><Icon name="close" /></button>
           </>
         )}
       </div>
 
-      {block.type === 'header' && <p style={{ margin: 0, fontSize: 13, color: '#475569' }}>Se genera desde la cabecera del expediente y la visita. Para cambiarla, edita su fuente.</p>}
-      {block.type === 'checklist' && <p style={{ margin: 0, fontSize: 13, color: '#475569' }}>Se genera desde las respuestas del checklist. Para cambiarlo, vuelve a la pestaña 1.</p>}
-      {block.type === 'signatures' && <p style={{ margin: 0, fontSize: 13, color: '#475569' }}>Responsable de obra + profesional. Espacio físico si no hay firma digital.</p>}
+      {block.type === 'header' && <p className="block-hint">Datos del expediente y de la visita. Para cambiarlos, edita el expediente.</p>}
+      {block.type === 'checklist' && <p className="block-hint">Respuestas del checklist de esta visita. Para cambiarlas, vuelve a la visita, paso 1.</p>}
+      {block.type === 'signatures' && <p className="block-hint">Espacios para la firma a mano del responsable de obra y del profesional.</p>}
 
       {block.type === 'capture-group' && (
         <>
           {group?.audio && (
-            <div style={{ padding: '8px 12px', background: '#f8fafc', borderRadius: 10, border: '1px solid #e2e8f0', marginBottom: 8 }}>
-              <span style={{ display: 'block', fontSize: 12, fontWeight: 700, marginBottom: 6 }}>🎙 Escucha el audio mientras corriges</span>
-              <audio controls src={group.audio.displayUrl} style={{ width: '100%', height: 32 }} />
+            <div className="audio-hint">
+              <span><Icon name="mic" size={18} />Escucha la nota mientras corriges el texto</span>
+              <audio controls src={group.audio.displayUrl} />
             </div>
           )}
           <textarea
-            rows={3}
+            rows={4}
             value={block.comment}
             onChange={e => onComment(e.target.value)}
-            placeholder="Comentario del hallazgo (editable; la transcripción original se conserva en la pestaña Resumen)"
-            style={{ width: '100%', marginBottom: 8 }}
+            aria-label="Texto del hallazgo"
+            placeholder="Describe el hallazgo. La transcripción original se conserva en el resumen de la visita."
           />
-          <span style={{ display: 'block', fontSize: 11, fontWeight: 700, color: '#81909d', textTransform: 'uppercase', marginBottom: 8 }}>
-            Fotos en el informe ({block.photoIds.length}/{group?.photos.length ?? 0})
-          </span>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(90px, 1fr))', gap: 8 }}>
+          <span className="photo-label">Fotos en el informe: {block.photoIds.length} de {group?.photos.length ?? 0}</span>
+          <div className="pick-grid">
             {orderedPhotos(group, block.photoIds).map((p) => {
               const included = block.photoIds.includes(p.id);
+              const position = block.photoIds.indexOf(p.id) + 1;
               return (
-                <div key={p.id} style={{ position: 'relative', borderRadius: 8, overflow: 'hidden', border: included ? '2px solid var(--blue-700)' : '1px solid #e2e8f0', opacity: included ? 1 : 0.45 }}>
-                  <img src={p.displayUrl} alt="" style={{ width: '100%', aspectRatio: '1', objectFit: 'cover', display: 'block' }} />
-                  <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, display: 'flex', background: 'rgba(255,255,255,0.9)' }}>
-                    <button style={{ flex: 1 }} onClick={() => {
+                <div key={p.id} className={`pick ${included ? 'on' : 'off'}`}>
+                  <img src={p.displayUrl} alt={included ? `Foto ${position} del hallazgo` : 'Foto no incluida'} />
+                  {included && <span className="pick-order">{position}</span>}
+                  <div className="pick-bar">
+                    <button aria-pressed={included} onClick={() => {
                       const ids = included ? block.photoIds.filter(id => id !== p.id) : [...block.photoIds, p.id];
                       // Mantener el orden de captura al reincorporar.
                       const order = new Map((group?.photos ?? []).map((ph, idx) => [ph.id, idx]));
                       onPhotos(ids.sort((a, b) => (order.get(a) ?? 0) - (order.get(b) ?? 0)));
-                    }}>{included ? '✓' : '＋'}</button>
+                    }}>{included ? 'Quitar' : 'Incluir'}</button>
                     <button
+                      aria-label="Mover antes"
                       disabled={!included || block.photoIds.length < 2}
                       onClick={() => {
                         const ids = [...block.photoIds];
@@ -435,8 +432,9 @@ function BlockCard({ block, index, total, group, onMove, onRemove, onPhotos, onC
                         [ids[at], ids[to]] = [ids[to], ids[at]];
                         onPhotos(ids);
                       }}
-                    >←</button>
+                    ><Icon name="back" size={18} /></button>
                     <button
+                      aria-label="Mover después"
                       disabled={!included || block.photoIds.length < 2}
                       onClick={() => {
                         const ids = [...block.photoIds];
@@ -445,27 +443,24 @@ function BlockCard({ block, index, total, group, onMove, onRemove, onPhotos, onC
                         [ids[at], ids[to]] = [ids[to], ids[at]];
                         onPhotos(ids);
                       }}
-                    >→</button>
+                    ><Icon name="chevron" size={18} /></button>
                   </div>
-                  {included && <span style={{ position: 'absolute', top: 4, left: 4, background: 'var(--blue-700)', color: 'white', fontSize: 10, borderRadius: 8, padding: '0 6px' }}>{block.photoIds.indexOf(p.id) + 1}</span>}
                 </div>
               );
             })}
           </div>
-          {!group && <p style={{ color: '#991b1b' }}>Este hallazgo aún no está descargado en este dispositivo.</p>}
+          {!group && <p className="finding-note error">Las fotos de este hallazgo aún no se descargan en este dispositivo. Usa «Traer de la nube» en el resumen de la visita.</p>}
         </>
       )}
 
       {block.type === 'text' && (
-        <textarea rows={3} value={block.content} onChange={e => onContent(e.target.value)} placeholder="Texto libre…" style={{ width: '100%' }} />
+        <textarea rows={3} value={block.content} onChange={e => onContent(e.target.value)} aria-label="Texto libre" placeholder="Escribe un párrafo para el informe" />
       )}
       {block.type === 'conclusions' && (
-        <textarea rows={4} value={block.content} onChange={e => onContent(e.target.value)} placeholder="Conclusiones globales de la visita…" style={{ width: '100%' }} />
+        <textarea rows={5} value={block.content} onChange={e => onContent(e.target.value)} aria-label="Conclusiones" placeholder="Conclusiones generales de la visita (opcional)" />
       )}
 
-      <div style={{ marginTop: 8 }}>
-        <button className="edit-link" onClick={onAddText}>＋ Añadir texto debajo</button>
-      </div>
+      <button className="link-button" onClick={onAddText}><Icon name="plus" size={18} />Añadir un párrafo debajo</button>
     </article>
   );
 }

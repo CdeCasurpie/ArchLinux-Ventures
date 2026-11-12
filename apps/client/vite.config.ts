@@ -4,8 +4,8 @@ import {VitePWA} from 'vite-plugin-pwa';
 export default defineConfig({
  plugins:[react(),VitePWA({
   registerType:'autoUpdate',
-  manifest:{name:'ArchForms',short_name:'ArchForms',theme_color:'#01437a',background_color:'#f5f7fb',display:'standalone',icons:[{src:'/archforms-mark.png',sizes:'512x512',type:'image/png'}]},
-  workbox:{navigateFallback:'/index.html',globPatterns:['**/*.{js,css,html,png,svg}'],maximumFileSizeToCacheInBytes:4*1024*1024}
+  manifest:{name:'ArchForms',short_name:'ArchForms',theme_color:'#01437a',background_color:'#f8f5f1',display:'standalone',icons:[{src:'/archforms-mark.png',sizes:'512x512',type:'image/png'}]},
+  workbox:{navigateFallback:'/index.html',globPatterns:['**/*.{js,css,html,png,svg}','**/geist-latin-*wght-normal*.woff2'],maximumFileSizeToCacheInBytes:4*1024*1024}
  })],
  server:{port:5173,strictPort:true}
 });

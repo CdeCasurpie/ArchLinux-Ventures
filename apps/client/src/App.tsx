@@ -4,15 +4,22 @@ import { VisitCapture } from "./features/Capture";
 import { VisitReport } from "./features/Report";
 import { MediaSyncManager, pullVisitaFromCloud } from "./features/media-sync";
 import { SupabaseCaptureReader } from "@archforms/data-supabase";
-import {useEffect,useLayoutEffect,useMemo,useRef,useState,type FormEvent} from 'react';
+import {lazy,Suspense,useCallback,useEffect,useLayoutEffect,useMemo,useRef,useState,type FormEvent,type ReactNode} from 'react';
+import {flushSync} from 'react-dom';
 import {Capacitor} from '@capacitor/core';
+import {App as NativeApp} from '@capacitor/app';
 import type {Session} from '@supabase/supabase-js';
 import {saveProfile,buildExpediente,buildVisita,workspaceOperation,WorkspaceSyncEngine,SyncEngine} from '@archforms/application';
 import {SupabaseProfileRepository,SupabaseWorkspaceRepository} from '@archforms/data-supabase';
-import type {ChecklistSchema,ChecklistTemplate,Expediente,LocalState,Visita,WorkspaceState} from '@archforms/domain';
+import type {ChecklistField,ChecklistSchema,ChecklistTemplate,Expediente,LocalState,Visita,WorkspaceState} from '@archforms/domain';
 import {supabase,local,workspaceLocal,mediaOutbox,configured} from './platform';
+import {Icon,type IconName} from './ui/Icon';
+
+const Landing=lazy(()=>import('./landing/Landing'));
 
 type View='dashboard'|'expedientes'|'crear'|'detalle'|'visita'|'informe'|'plantillas'|'perfil';
+type Route={view:View;selectedId:string|null;visitId:string|null};
+const tabViews:View[]=['dashboard','expedientes','plantillas','perfil'];
 const blankWorkspace:WorkspaceState={expedientes:[],visitas:[],plantillas:[],pending:[],last_sync:null};
 const fallbackTemplates:ChecklistTemplate[]=[
  {id:'local-g050',codigo:'G050',nombre:'Verificación técnica · G.050',version:1,profesional_id:null,esquema:{version:1,sections:[{id:'documentos',title:'Exigencias obligatorias en obra',fields:[{id:'licencia',label:'Licencia de edificación disponible',description:'Documento vigente en obra',type:'boolean',required:true},{id:'planos',label:'Planos aprobados y resellados',type:'boolean'},{id:'cuaderno',label:'Cuaderno de obra actualizado',type:'boolean'},{id:'epi',label:'Personal con EPP completo',type:'boolean'},{id:'orden',label:'Orden y limpieza en zona de trabajo',type:'boolean'},{id:'observacion',label:'Observaciones del checklist',type:'text'}]}]}},
@@ -20,45 +27,164 @@ const fallbackTemplates:ChecklistTemplate[]=[
  {id:'local-vacio',codigo:'VACIO',nombre:'Checklist básico',version:1,profesional_id:null,esquema:{version:1,sections:[{id:'general',title:'Verificación general',fields:[{id:'observaciones',label:'Observaciones de la visita',type:'text'}]}]}}
 ];
 const msg=(error:unknown)=>error instanceof Error?error.message:String(error);
+const sleep=(ms:number)=>new Promise(resolve=>setTimeout(resolve,ms));
 const initials=(name?:string)=>name?.split(/\s+/).slice(0,2).map(word=>word[0]).join('').toUpperCase()||'AF';
-const dateLabel=(value:string)=>new Intl.DateTimeFormat('es-PE',{day:'2-digit',month:'short',year:'numeric'}).format(new Date(`${value}T12:00:00`));
-
-export function App(){
- const [session,setSession]=useState<Session|null>(null),[loading,setLoading]=useState(true);
- useEffect(()=>{supabase.auth.getSession().then(({data})=>{setSession(data.session);setLoading(false)});const {data}=supabase.auth.onAuthStateChange((_event,next)=>{setSession(next);setLoading(false)});return()=>data.subscription.unsubscribe()},[]);
- if(!configured)return <main className="auth simple"><h1>Configura ArchForms</h1><p>Falta la conexión Supabase de este entorno.</p></main>;
- if(loading)return <main className="auth simple"><p>Abriendo tu espacio…</p></main>;
- return session?<Workspace key={session.user.id} session={session}/>:<Auth/>;
+const dateLabel=(value:string)=>new Intl.DateTimeFormat('es-PE',{day:'numeric',month:'long',year:'numeric'}).format(new Date(`${value}T12:00:00`));
+const shortDate=(value:string)=>new Intl.DateTimeFormat('es-PE',{day:'numeric',month:'short'}).format(new Date(`${value}T12:00:00`)).replace('.','');
+const pad2=(n:number)=>String(n).padStart(2,'0');
+const isAnswered=(value:unknown)=>value!==undefined&&value!==null&&value!=='';
+const obraTitle=(e:Expediente)=>{const first=(e.detalle_obra??'').split('\n')[0].trim();return (first.length>90?`${first.slice(0,88)}…`:first)||e.propietario||`Expediente ${e.nro_expediente}`};
+const visitState:Record<Visita['estado'],{label:string;tone:string}>={BORRADOR:{label:'En curso',tone:'badge-draft'},EN_CAMPO:{label:'En campo',tone:'badge-draft'},EN_REVISION:{label:'En revisión',tone:'badge-info'},FINALIZADA:{label:'Concluida',tone:'badge-done'},ARCHIVADA:{label:'Archivada',tone:''}};
+const fieldTypeLabel:Record<ChecklistField['type'],string>={boolean:'Sí / No / N.A.',text:'Texto',number:'Número',date:'Fecha'};
+const fieldCount=(schema:ChecklistSchema)=>schema.sections.reduce((sum,s)=>sum+s.fields.length,0);
+const pointsLabel=(n:number)=>`${n} ${n===1?'punto':'puntos'}`;
+const checklistDone=(v:Visita)=>{const fields=v.checklist_esquema_json.sections.flatMap(s=>s.fields);return {done:fields.filter(f=>isAnswered(v.checklist_respuestas_json[f.id])).length,total:fields.length}};
+// Los mensajes de Supabase llegan en inglés; se traducen los que un usuario puede provocar.
+function authErrorText(text:string){
+ if(/invalid login credentials/i.test(text))return 'El correo o la contraseña no coinciden.';
+ if(/email not confirmed/i.test(text))return 'Aún no confirmas tu correo. Abre el enlace que te enviamos.';
+ if(/already registered/i.test(text))return 'Ya existe una cuenta con ese correo.';
+ if(/fetch|network/i.test(text))return 'Sin conexión. Para ingresar la primera vez necesitas internet.';
+ return text;
+}
+const OFFLINE_SYNC='Sin conexión con la nube. Tu trabajo está guardado en este dispositivo y se subirá solo.';
+function syncErrorText(text:string){
+ if(/fetch|network|timeout/i.test(text))return OFFLINE_SYNC;
+ return `No se pudo sincronizar (${text}). Tu trabajo sigue guardado en este dispositivo.`;
+}
+// Transición entre pantallas con View Transitions (si el navegador la soporta).
+function transition(update:()=>void,direction:'forward'|'back'='forward'){
+ const doc=document as Document&{startViewTransition?:(cb:()=>void)=>unknown};
+ const reduce=window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+ if(!doc.startViewTransition||reduce||document.body.classList.contains('camera-active')){update();return}
+ const root=document.documentElement;
+ root.dataset.nav=direction;
+ // El nombre de transición solo existe mientras dura la animación (no altera capas fijas como la cámara).
+ const vt=doc.startViewTransition(()=>flushSync(update)) as {finished?:Promise<unknown>};
+ void vt.finished?.finally(()=>{delete root.dataset.nav});
 }
 
-function Brand({mobile=false}:{mobile?:boolean}){return <span className={mobile?'mobile-brand':'brand'}><img src="/archforms-mark.png" alt=""/><span><strong>ARCH</strong>FORMS</span></span>}
-function Auth(){
- const [register,setRegister]=useState(false),[busy,setBusy]=useState(false),[error,setError]=useState(''),[notice,setNotice]=useState('');
- async function submit(event:FormEvent<HTMLFormElement>){event.preventDefault();setBusy(true);setError('');setNotice('');const data=new FormData(event.currentTarget),email=String(data.get('email')),password=String(data.get('password'));const result=register?await supabase.auth.signUp({email,password,options:{data:{nombre_completo:String(data.get('name'))}}}):await supabase.auth.signInWithPassword({email,password});if(result.error)setError(result.error.message);else if(register&&!result.data.session)setNotice('Revisa tu correo para confirmar la cuenta.');setBusy(false)}
- return <div className="auth-layout"><section className="auth-story"><Brand/><span className="eyebrow">DE LA OBRA AL INFORME</span><h1>Tu visita de obra,<br/><em>lista antes de llegar a casa.</em></h1><p>Captura evidencias, completa checklists y conserva todo tu trabajo en un mismo lugar.</p></section><main className="auth"><span className="eyebrow">BIENVENIDO A ARCHFORMS</span><h2>{register?'Crea tu espacio':'Qué bueno verte.'}</h2><p>Ingresa para continuar con tu trabajo.</p><form onSubmit={submit}>{register&&<label>Nombre completo<input className="field" name="name" required minLength={2} autoComplete="name" placeholder="Nombre y apellido"/></label>}<label>Correo electrónico<input className="field" name="email" type="email" required autoComplete="email" placeholder="tucorreo@ejemplo.com"/></label><label>Contraseña<input className="field" name="password" type="password" minLength={8} required autoComplete="current-password" placeholder="Mínimo 8 caracteres"/></label>{error&&<div className="alert error">{error}</div>}{notice&&<div className="alert notice">{notice}</div>}<button className="btn btn-primary btn-lg" disabled={busy}>{busy?'Un momento…':register?'Crear cuenta':'Entrar a mi espacio'} →</button></form><button className="text-button" onClick={()=>setRegister(!register)}>{register?'Ya tengo cuenta':'Crear una cuenta'}</button></main></div>;
+export function App(){
+ const native=Capacitor.isNativePlatform();
+ const [session,setSession]=useState<Session|null>(null),[boot,setBoot]=useState<'loading'|'ready'|'error'>('loading');
+ const authHash=()=>location.hash==='#ingresar'||location.hash==='#crear-cuenta';
+ const [wantsLogin,setWantsLogin]=useState(()=>native||authHash());
+ const load=useCallback(()=>{
+  setBoot('loading');
+  // getSession puede quedarse colgado si falla la renovación del token: se corta a los 12 s.
+  const timeout=new Promise<never>((_,reject)=>setTimeout(()=>reject(new Error('timeout')),12000));
+  Promise.race([supabase.auth.getSession(),timeout]).then(({data})=>{setSession(data.session);setBoot('ready')}).catch(()=>setBoot('error'));
+ },[]);
+ useEffect(()=>{load();const {data}=supabase.auth.onAuthStateChange((_event,next)=>{setSession(next);setBoot('ready')});return()=>data.subscription.unsubscribe()},[load]);
+ useEffect(()=>{if(native)return;const onHash=()=>setWantsLogin(location.hash==='#ingresar'||location.hash==='#crear-cuenta');window.addEventListener('hashchange',onHash);return()=>window.removeEventListener('hashchange',onHash)},[native]);
+ if(!configured)return <main className="center-screen"><h1>Falta configurar ArchForms</h1><p>Este entorno no tiene la conexión a Supabase.</p></main>;
+ if(boot==='loading')return <main className="center-screen" aria-busy="true"><span className="spinner lg"/><p>Abriendo tu espacio…</p></main>;
+ if(boot==='error')return <main className="center-screen"><h1>No pudimos abrir tu sesión</h1><p>Lo guardado en este dispositivo no se ha perdido. Revisa la conexión e inténtalo otra vez.</p><button className="btn btn-primary btn-lg" onClick={load}><Icon name="refresh"/>Reintentar</button><button className="link-button" onClick={()=>{void supabase.auth.signOut({scope:'local'}).finally(()=>{setSession(null);setBoot('ready')})}}>Ingresar de nuevo</button></main>;
+ if(session)return <Workspace key={session.user.id} session={session}/>;
+ if(!wantsLogin)return <Suspense fallback={null}><Landing onEnter={mode=>{location.hash=mode==='register'?'crear-cuenta':'ingresar';window.scrollTo({top:0})}}/></Suspense>;
+ return <Auth key={location.hash} startRegister={location.hash==='#crear-cuenta'} onBack={native?undefined:()=>{history.replaceState(null,'',location.pathname);setWantsLogin(false)}}/>;
+}
+
+function Brand({compact=false}:{compact?:boolean}){return <span className="brand"><img src="/archforms-mark.png" alt=""/>{!compact&&<span>ArchForms</span>}</span>}
+function Auth({onBack,startRegister=false}:{onBack?:()=>void;startRegister?:boolean}){
+ const [register,setRegister]=useState(startRegister),[busy,setBusy]=useState(false),[error,setError]=useState(''),[notice,setNotice]=useState(''),[showPassword,setShowPassword]=useState(false);
+ async function submit(event:FormEvent<HTMLFormElement>){
+  event.preventDefault();setBusy(true);setError('');setNotice('');
+  const data=new FormData(event.currentTarget),email=String(data.get('email')).trim(),password=String(data.get('password'));
+  try{
+   const result=register?await supabase.auth.signUp({email,password,options:{data:{nombre_completo:String(data.get('name'))}}}):await supabase.auth.signInWithPassword({email,password});
+   if(result.error)setError(authErrorText(result.error.message));else if(register&&!result.data.session)setNotice('Te enviamos un correo. Ábrelo para confirmar tu cuenta.');
+  }catch(e){setError(authErrorText(msg(e)))}finally{setBusy(false)}
+ }
+ return <div className="auth-screen">
+  {onBack&&<button className="link-button auth-back" onClick={onBack}><Icon name="back" size={18}/>ArchForms</button>}
+  <main className="auth">
+   <Brand compact/>
+   <h1>{register?'Crea tu cuenta':'Bienvenido de nuevo'}</h1>
+   <p>{register?'Empieza a registrar tus visitas de obra.':'Ingresa para continuar con tus visitas.'}</p>
+   <form onSubmit={submit}>
+    {register&&<label className="form-group">Nombre completo<input className="field" name="name" required minLength={2} autoComplete="name"/></label>}
+    <label className="form-group">Correo<input className="field" name="email" type="email" inputMode="email" required autoComplete="email" autoCapitalize="none"/></label>
+    <label className="form-group">Contraseña
+     <span className="password-field"><input className="field" name="password" type={showPassword?'text':'password'} minLength={8} required autoComplete={register?'new-password':'current-password'}/><button type="button" onClick={()=>setShowPassword(!showPassword)} aria-label={showPassword?'Ocultar contraseña':'Mostrar contraseña'} aria-pressed={showPassword}><Icon name={showPassword?'eyeOff':'eye'}/></button></span>
+     {register&&<span className="input-hint">Mínimo 8 caracteres.</span>}
+    </label>
+    {error&&<div className="alert error" role="alert"><Icon name="alert" size={20}/><span>{error}</span></div>}
+    {notice&&<div className="alert notice" role="status"><span>{notice}</span></div>}
+    <button className="btn btn-primary btn-lg btn-block" disabled={busy}>{busy?'Un momento…':register?'Crear cuenta':'Ingresar'}</button>
+   </form>
+   <p className="auth-switch">{register?'¿Ya tienes cuenta?':'¿Aún no tienes cuenta?'} <button className="link-button" onClick={()=>{setRegister(!register);setError('');setNotice('')}}>{register?'Ingresar':'Crear una'}</button></p>
+  </main>
+ </div>;
 }
 
 function Workspace({session}:{session:Session}){
  const owner=session.user.id;
- const [view,setView]=useState<View>('dashboard'),[profile,setProfile]=useState<LocalState>({profile:null,pending:null}),[data,setData]=useState<WorkspaceState>(blankWorkspace);
- const [selectedId,setSelectedId]=useState<string|null>(null),[visitId,setVisitId]=useState<string|null>(null),[online,setOnline]=useState(navigator.onLine),[syncing,setSyncing]=useState(false),[error,setError]=useState(''),[toast,setToast]=useState('');
- const [creatingVisit,setCreatingVisit]=useState(false);
+ const [route,setRoute]=useState<Route>({view:'dashboard',selectedId:null,visitId:null});
+ const {view,selectedId,visitId}=route;
+ const [profile,setProfile]=useState<LocalState>({profile:null,pending:null}),[data,setData]=useState<WorkspaceState>(blankWorkspace);
+ const [online,setOnline]=useState(navigator.onLine),[syncing,setSyncing]=useState(false),[error,setError]=useState(''),[toast,setToast]=useState('');
+ const [creatingVisit,setCreatingVisit]=useState(false),[picker,setPicker]=useState(false);
+ const syncLock=useRef(false),syncAgain=useRef(false);
+ const routeRef=useRef(route),stack=useRef<Route[]>([]);
+ useEffect(()=>{routeRef.current=route});
  const remote=useMemo(()=>new SupabaseWorkspaceRepository(supabase),[]),engine=useMemo(()=>new WorkspaceSyncEngine(workspaceLocal,remote,owner),[remote,owner]);
  const profileRemote=useMemo(()=>new SupabaseProfileRepository(supabase),[]),profileEngine=useMemo(()=>new SyncEngine(local,profileRemote,owner),[profileRemote,owner]);
  const mediaSyncManager=useMemo(()=>new MediaSyncManager(mediaOutbox,owner),[owner]);
  const selected=data.expedientes.find(item=>item.id===selectedId)??null,visit=data.visitas.find(item=>item.id===visitId)??null;
  async function refresh(){setData(await workspaceLocal.read(owner));setProfile(await local.read(owner))}
- async function sync(retryJwt=true){if(!navigator.onLine)return;setSyncing(true);setError('');try{await Promise.all([engine.run(),profileEngine.run()]);setToast('Todo sincronizado')}catch(e){const text=msg(e);
-  // Tolerancia a desface de reloj (5s): un token recién emitido puede parecer
-  // "del futuro" por segundos; se reintenta una vez en silencio antes de avisar.
-  if(retryJwt&&/jwt.*future|future.*jwt|issued at future|\biat\b/i.test(text)){await new Promise(r=>setTimeout(r,5000));return sync(false)}
-  setError(text)}finally{await refresh();setSyncing(false)}}
- useEffect(()=>{let active=true;Promise.all([workspaceLocal.read(owner),local.read(owner)]).then(([workspace,user])=>{if(active){setData(workspace);setProfile(user)}});if(navigator.onLine)void sync();if(navigator.onLine){const reader=new SupabaseCaptureReader(supabase);void (async()=>{try{const ws=await workspaceLocal.read(owner);for(const v of ws.visitas){try{await pullVisitaFromCloud(mediaOutbox,reader,v.id)}catch(e){console.error(e)}}}catch(e){console.error(e)}})()}const network=()=>{setOnline(navigator.onLine);if(navigator.onLine)void sync()};window.addEventListener('online',network);window.addEventListener('offline',network);return()=>{active=false;window.removeEventListener('online',network);window.removeEventListener('offline',network)}},[engine,owner]);
+ async function runSync(retryJwt=true):Promise<void>{
+  try{await Promise.all([engine.run(),profileEngine.run()])}
+  catch(e){
+   // Tolerancia a desface de reloj (5s): un token recién emitido puede parecer
+   // "del futuro" por segundos; se reintenta una vez en silencio antes de avisar.
+   if(retryJwt&&/jwt.*future|future.*jwt|issued at future|\biat\b/i.test(msg(e))){await sleep(5000);return runSync(false)}
+   throw e;
+  }
+ }
+ // Una sola sincronización a la vez; si llegan cambios mientras corre, se repite al terminar.
+ async function sync(announce=false){
+  if(!navigator.onLine)return;
+  if(syncLock.current){syncAgain.current=true;return}
+  syncLock.current=true;setSyncing(true);setError('');
+  try{await runSync();if(announce)setToast('Todo al día en la nube')}
+  catch(e){setError(syncErrorText(msg(e)))}
+  finally{await refresh();syncLock.current=false;setSyncing(false);if(syncAgain.current){syncAgain.current=false;void sync()}}
+ }
+ useEffect(()=>{let active=true;Promise.all([workspaceLocal.read(owner),local.read(owner)]).then(([workspace,user])=>{if(active){setData(workspace);setProfile(user)}});if(navigator.onLine)void sync();if(navigator.onLine){const reader=new SupabaseCaptureReader(supabase);void (async()=>{try{const ws=await workspaceLocal.read(owner);for(const v of ws.visitas){try{await pullVisitaFromCloud(mediaOutbox,reader,v.id)}catch(e){console.error(e)}}}catch(e){console.error(e)}})()}const network=()=>{setOnline(navigator.onLine);if(navigator.onLine)void sync()};window.addEventListener('online',network);window.addEventListener('offline',network);return()=>{active=false;window.removeEventListener('online',network);window.removeEventListener('offline',network)}
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+ },[engine,owner]);
  // Start MediaSyncManager lifecycle on native; runs GC + sync on mount and on network/foreground events
  useEffect(()=>{mediaSyncManager.start();transcriptionService.start();return()=>mediaSyncManager.stop()},[mediaSyncManager]);
- useEffect(()=>{if(!toast)return;const timer=setTimeout(()=>setToast(''),2600);return()=>clearTimeout(timer)},[toast]);
- function navigate(next:View,id?:string){if(id)setSelectedId(id);setView(next);window.scrollTo({top:0,behavior:'smooth'})}
- async function queue(entity:'expediente'|'visita',record:Expediente|Visita){await workspaceLocal.save(owner,workspaceOperation(entity,record));await refresh();setToast('Guardado en este dispositivo');if(navigator.onLine)void sync()}
+ useEffect(()=>{if(!toast)return;const timer=setTimeout(()=>setToast(''),3000);return()=>clearTimeout(timer)},[toast]);
+
+ // Navegación con historial: atrás (navegador, gesto o botón de Android) vuelve a la pantalla anterior.
+ function navigate(next:View,target:{id?:string;visit?:string}={}){
+  const current=routeRef.current;
+  const nextRoute={view:next,selectedId:target.id??current.selectedId,visitId:target.visit??current.visitId};
+  transition(()=>{
+   if(tabViews.includes(next)){stack.current=[];history.replaceState({af:0},'')}
+   else{stack.current.push(current);history.pushState({af:stack.current.length},'')}
+   setRoute(nextRoute);
+  });
+  window.scrollTo({top:0});
+ }
+ function goBack(fallback:View){if(stack.current.length)history.back();else navigate(fallback)}
+ useEffect(()=>{
+  const onPop=()=>{const previous=stack.current.pop();if(previous){transition(()=>setRoute(previous),'back');window.scrollTo({top:0})}};
+  window.addEventListener('popstate',onPop);
+  let remove:(()=>void)|undefined;
+  if(Capacitor.isNativePlatform()){
+   void NativeApp.addListener('backButton',()=>{
+    if(stack.current.length)history.back();
+    else if(routeRef.current.view!=='dashboard')transition(()=>setRoute({...routeRef.current,view:'dashboard'}),'back');
+    else void NativeApp.exitApp();
+   }).then(handle=>{remove=()=>void handle.remove()});
+  }
+  return()=>{window.removeEventListener('popstate',onPop);remove?.()};
+ },[]);
+
+ async function queue(entity:'expediente'|'visita',record:Expediente|Visita,quiet=false){await workspaceLocal.save(owner,workspaceOperation(entity,record));await refresh();if(!quiet)setToast('Guardado');if(navigator.onLine)void sync()}
  async function newVisit(expediente:Expediente){
   // Guardia anti-doble-tap + lectura fresca del storage (el estado React puede
   // estar desactualizado ante toques rápidos y calcularía el mismo nro_visita).
@@ -67,59 +193,246 @@ function Workspace({session}:{session:Session}){
   try{
    const ws=await workspaceLocal.read(owner);
    const current=ws.visitas.filter(item=>item.expediente_id===expediente.id),next=Math.max(0,...current.map(item=>item.nro_visita))+1;
-   const created=buildVisita(expediente,next,new Date().toISOString().slice(0,10));
-   await queue('visita',created);setSelectedId(expediente.id);setVisitId(created.id);setView('visita');
-  }finally{setCreatingVisit(false)}
+   // Fecha local (no UTC): en Lima, después de las 19:00 la fecha UTC ya es el día siguiente.
+   const today=new Date(),fecha=`${today.getFullYear()}-${pad2(today.getMonth()+1)}-${pad2(today.getDate())}`;
+   const created=buildVisita(expediente,next,fecha);
+   await queue('visita',created,true);
+   setPicker(false);
+   navigate('visita',{id:expediente.id,visit:created.id});
+  }catch(e){setError(`No se pudo crear la visita: ${msg(e)}`)}finally{setCreatingVisit(false)}
  }
+ const activeCases=data.expedientes.filter(item=>item.activo);
+ function startVisit(){if(activeCases.length)setPicker(true);else navigate('crear',{id:''})}
+ function openVisit(v:Visita){navigate(v.estado==='FINALIZADA'?'informe':'visita',{id:v.expediente_id,visit:v.id})}
  const templates=data.plantillas.length?data.plantillas:fallbackTemplates;
- const title={dashboard:'Inicio',expedientes:'Expedientes',crear:'Nuevo expediente',detalle:selected?.nro_expediente??'Expediente',visita:visit?`Visita ${String(visit.nro_visita).padStart(2,'0')}`:'Visita',informe:visit?`Informe V${String(visit.nro_visita).padStart(2,'0')}`:'Informe',plantillas:'Plantillas de checklist',perfil:'Mi perfil'}[view];
- const counts={cases:data.expedientes.filter(item=>item.activo).length,drafts:data.visitas.filter(item=>item.estado==='BORRADOR').length};
- return <><div className="app-shell"><aside className="sidebar"><button className="brand-button" onClick={()=>navigate('dashboard')}><Brand/></button><nav className="sidebar-nav"><Nav active={view==='dashboard'} icon="⌂" onClick={()=>navigate('dashboard')}>Inicio</Nav><Nav active={['expedientes','crear','detalle'].includes(view)} icon="▤" count={counts.cases} onClick={()=>navigate('expedientes')}>Expedientes</Nav><Nav active={view==='plantillas'} icon="✓" onClick={()=>navigate('plantillas')}>Plantillas</Nav></nav><div className="sidebar-spacer"/><button className="sync-card" onClick={()=>void sync()} disabled={!online||syncing}><span className="sync-icon">{data.pending.length?'↻':'✓'}</span><span><strong>{syncing?'Sincronizando…':data.pending.length?`${data.pending.length} cambios pendientes`:'Todo sincronizado'}</strong><small>{online?'Datos protegidos en la nube':'Trabajo guardado localmente'}</small></span></button><button className="profile-card" onClick={()=>navigate('perfil')}><span className="avatar">{initials(profile.profile?.nombre_completo)}</span><span><strong>{profile.profile?.nombre_completo||'Profesional'}</strong><small>{profile.profile?.cargo||session.user.email}</small></span><b>•••</b></button></aside><section className="app-area">{view!=='visita'&&<header className="topbar"><button className="mobile-brand-button" onClick={()=>navigate('dashboard')}><Brand mobile/></button><div className="breadcrumbs">Mi espacio <i>›</i> <b>{title}</b></div><div className="topbar-actions"><span className={`connection ${online?'':'offline'}`}>● {online?'Con conexión':'Sin conexión'}</span><button className="top-avatar" onClick={()=>navigate('perfil')}>{initials(profile.profile?.nombre_completo)}</button></div></header>}<main className="main-content">{error&&<div className="alert error">{error}</div>}{view==='dashboard'&&<Dashboard data={data} profile={profile} onNavigate={navigate} onOpen={id=>navigate('detalle',id)}/>} {view==='expedientes'&&<Expedientes data={data} onNavigate={navigate}/>} {view==='crear'&&<ExpedienteForm owner={owner} templates={templates} existing={selected} onCancel={()=>navigate(selected?'detalle':'expedientes')} onSave={async record=>{await queue('expediente',record);navigate('detalle',record.id)}}/>} {view==='detalle'&&selected&&<ExpedienteDetail expediente={selected} visitas={data.visitas.filter(item=>item.expediente_id===selected.id)} onEdit={()=>navigate('crear')} onVisit={()=>void newVisit(selected)} creating={creatingVisit} onOpenVisit={id=>{setVisitId(id);navigate('visita')}} onEditReport={id=>{setVisitId(id);navigate('informe')}}/>} {view==='visita'&&visit&&selected&&<VisitChecklist visita={visit} expediente={selected} ownerId={owner} onBack={()=>navigate('detalle')} onSave={record=>queue('visita',record)} onEditReport={()=>navigate('informe')}/>} {view==='informe'&&visit&&selected&&<div className={Capacitor.isNativePlatform()?'visit-shell':'page-enter visit-shell'}><header className="visit-header"><div className="visit-title"><button className="back-button" onClick={()=>navigate('detalle')}>←</button><div><h1>Informe · Visita {String(visit.nro_visita).padStart(2,'0')}</h1><p>Exp. {selected.nro_expediente} · {dateLabel(visit.fecha)}</p></div></div><button className="btn btn-secondary" onClick={()=>navigate('visita')}>Abrir visita</button></header><section className="visit-body"><VisitReport visita={visit} expediente={selected} profile={profile.profile} ownerId={owner} onSave={record=>queue('visita',record)}/></section></div>} {view==='plantillas'&&<Templates templates={templates}/>} {view==='perfil'&&<ProfilePage owner={owner} session={session} state={profile} onRefresh={refresh} onToast={setToast}/>}</main></section></div><nav className="mobile-nav"><Nav active={view==='dashboard'} icon="⌂" onClick={()=>navigate('dashboard')}>Inicio</Nav><Nav active={['expedientes','detalle'].includes(view)} icon="▤" onClick={()=>navigate('expedientes')}>Expedientes</Nav><button className="mobile-create" onClick={()=>{setSelectedId(null);navigate('crear')}}><span>＋</span></button><Nav active={view==='plantillas'} icon="✓" onClick={()=>navigate('plantillas')}>Plantillas</Nav><Nav active={view==='perfil'} icon="◎" onClick={()=>navigate('perfil')}>Perfil</Nav></nav><div className={`toast ${toast?'show':''}`}><span>✓</span>{toast}</div></>;
+ // Registros distintos con cambios por subir (el guardado automático encola una operación por toque).
+ const pending=new Set(data.pending.map(item=>item.record.id)).size;
+ const syncTone=!online?'offline':pending?'pending':'';
+ const syncTitle=syncing?'Sincronizando…':!online?'Sin conexión':pending?`${pending} por subir`:'Al día';
+ const nav:{view:View;label:string;icon:IconName;match:View[]}[]=[
+  {view:'dashboard',label:'Inicio',icon:'home',match:['dashboard']},
+  {view:'expedientes',label:'Expedientes',icon:'folder',match:['expedientes','crear','detalle']},
+  {view:'plantillas',label:'Plantillas',icon:'clipboard',match:['plantillas']},
+  {view:'perfil',label:'Perfil',icon:'user',match:['perfil']},
+ ];
+ const navButton=(item:typeof nav[number])=><Nav key={item.view} active={item.match.includes(view)} icon={item.icon} onClick={()=>navigate(item.view)}>{item.label}</Nav>;
+ return <><div className="app-shell">
+  <aside className="sidebar">
+   <button className="brand-button" onClick={()=>navigate('dashboard')} aria-label="Ir al inicio"><Brand/></button>
+   <button className="btn btn-primary btn-block sidebar-cta" onClick={startVisit}><Icon name="plus"/>Nueva visita</button>
+   <nav className="sidebar-nav" aria-label="Secciones">{nav.slice(0,3).map(navButton)}</nav>
+   <div className="sidebar-spacer"/>
+   <button className={`sync-status ${syncTone}`} onClick={()=>void sync(true)} disabled={!online||syncing} title="Sincronizar ahora">
+    {syncing?<span className="spinner"/>:<span className="dot"/>}
+    <span><strong>{syncTitle}</strong><small>{!online?'Se guarda en este dispositivo':pending?'Guardado aquí, falta subir':'Respaldado en la nube'}</small></span>
+   </button>
+   <button className={`profile-card ${view==='perfil'?'active':''}`} onClick={()=>navigate('perfil')}><span className="avatar">{initials(profile.profile?.nombre_completo)}</span><span><strong>{profile.profile?.nombre_completo||'Tu perfil'}</strong><small>{profile.profile?.cargo||session.user.email}</small></span></button>
+  </aside>
+  <section className="app-area">
+   {view!=='visita'&&<header className="topbar">
+    <button className="brand-button" onClick={()=>navigate('dashboard')} aria-label="Ir al inicio"><Brand/></button>
+    <button className={`sync-pill ${syncTone}`} onClick={()=>void sync(true)} disabled={!online||syncing} aria-label={`Estado: ${syncTitle}`}>{syncing?<span className="spinner"/>:<span className="dot"/>}{syncTitle}</button>
+   </header>}
+   <main className="main-content">
+    {error&&<div className={`alert ${error===OFFLINE_SYNC?'warn':'error'}`} role="alert"><Icon name={error===OFFLINE_SYNC?'cloudOff':'alert'} size={20}/><span>{error}</span><button className="icon-btn ghost" onClick={()=>setError('')} aria-label="Cerrar aviso"><Icon name="close" size={18}/></button></div>}
+    <div className="screen" key={view}>
+     {view==='dashboard'&&<Dashboard data={data} profile={profile} onStart={startVisit} onNavigate={navigate} onOpen={id=>navigate('detalle',{id})} onOpenVisit={openVisit}/>}
+     {view==='expedientes'&&<Expedientes data={data} onNew={()=>navigate('crear',{id:''})} onOpen={id=>navigate('detalle',{id})}/>}
+     {view==='crear'&&<ExpedienteForm owner={owner} templates={templates} existing={selected} onCancel={()=>goBack(selected?'detalle':'expedientes')} onSave={async record=>{await queue('expediente',record);if(selected){goBack('detalle')}else{// El formulario se reemplaza por el detalle: atrás vuelve a donde estaba antes de crear.
+history.replaceState({af:stack.current.length},'');transition(()=>setRoute({view:'detalle',selectedId:record.id,visitId:null}))}}}/>}
+     {view==='detalle'&&selected&&<ExpedienteDetail expediente={selected} visitas={data.visitas.filter(item=>item.expediente_id===selected.id)} onBack={()=>goBack('expedientes')} onEdit={()=>navigate('crear')} onVisit={()=>void newVisit(selected)} creating={creatingVisit} onOpenVisit={openVisit}/>}
+     {view==='visita'&&visit&&selected&&<VisitChecklist key={visit.id} visita={visit} expediente={selected} ownerId={owner} onBack={()=>goBack('detalle')} onSave={record=>queue('visita',record,true)} onEditReport={()=>navigate('informe')}/>}
+     {view==='informe'&&visit&&selected&&<div className="visit-shell"><header className="screen-head"><button className="back-link" onClick={()=>goBack('detalle')}><Icon name="back" size={20}/>Volver</button><div className="title-block"><p className="overline">Informe · Visita {pad2(visit.nro_visita)} · {dateLabel(visit.fecha)}</p><h1>{obraTitle(selected)}</h1></div></header><VisitReport visita={visit} expediente={selected} profile={profile.profile} ownerId={owner} onSave={record=>queue('visita',record)}/><button className="link-button report-back" onClick={()=>navigate('visita')}><Icon name="edit" size={18}/>Corregir checklist o fotos de la visita</button></div>}
+     {view==='plantillas'&&<Templates templates={templates}/>}
+     {view==='perfil'&&<ProfilePage owner={owner} session={session} state={profile} onRefresh={refresh} onToast={setToast}/>}
+    </div>
+   </main>
+  </section>
+ </div>
+ <nav className="mobile-nav" aria-label="Secciones">
+  {nav.slice(0,2).map(navButton)}
+  <button className="nav-item nav-cta" onClick={startVisit}><span className="cta-circle"><Icon name="plus" size={26}/></span><span>Visita</span></button>
+  {nav.slice(2).map(navButton)}
+ </nav>
+ {picker&&<VisitPicker expedientes={activeCases} visitas={data.visitas} busy={creatingVisit} onPick={expediente=>void newVisit(expediente)} onCreate={()=>{setPicker(false);navigate('crear',{id:''})}} onClose={()=>setPicker(false)}/>}
+ <div className={`toast ${toast?'show':''}`} role="status" aria-live="polite">{toast&&<><Icon name="check" size={18}/>{toast}</>}</div></>;
 }
 
-function Nav({active,icon,count,children,onClick}:{active:boolean;icon:string;count?:number;children:React.ReactNode;onClick:()=>void}){return <button className={active?'nav-item active':'nav-item'} onClick={onClick}><span className="nav-icon">{icon}</span><span>{children}</span>{count!==undefined&&<span className="nav-count">{count}</span>}</button>}
-function Dashboard({data,profile,onNavigate,onOpen}:{data:WorkspaceState;profile:LocalState;onNavigate:(view:View)=>void;onOpen:(id:string)=>void}){const cases=data.expedientes.filter(item=>item.activo),visits=data.visitas;return <div className="page-enter"><section className="hero-grid"><article className="hero-card"><p className="eyebrow">TU TRABAJO, ORGANIZADO</p><h1>Tu visita de obra, lista antes de llegar a casa.</h1><p>Captura evidencias, completa checklists y deja preparado cada informe.</p><div className="hero-actions"><button className="btn btn-primary btn-lg" onClick={()=>onNavigate(cases.length?'expedientes':'crear')}>＋ Nueva visita</button><button className="btn btn-secondary btn-lg" onClick={()=>onNavigate('expedientes')}>Ver expedientes</button></div></article><article className="today-card"><div className="today-card-header"><h3>Tu espacio</h3><span className="date-chip">ARCHFORMS</span></div><div className="today-visit"><strong>{profile.profile?.nombre_completo||'Completa tu perfil'}</strong><span>{profile.profile?.cargo||'Profesional responsable'}</span><span>{data.pending.length?`${data.pending.length} cambios por sincronizar`:'Todo está al día'}</span></div><button className="btn btn-secondary" onClick={()=>onNavigate('perfil')}>Revisar perfil →</button></article></section><section className="metrics"><Metric label="Expedientes activos" value={cases.length}/><Metric label="Visitas creadas" value={visits.length}/><Metric label="Borradores" value={visits.filter(v=>v.estado==='BORRADOR').length}/><Metric label="Checklists" value={data.plantillas.length||fallbackTemplates.length}/></section><div className="section-heading"><h2>Expedientes recientes</h2><button className="section-link" onClick={()=>onNavigate('expedientes')}>Ver todos →</button></div>{cases.length?<div className="project-grid">{cases.slice(0,3).map(item=><ProjectCard key={item.id} item={item} visits={visits.filter(v=>v.expediente_id===item.id).length} onOpen={()=>onOpen(item.id)}/>)}</div>:<Empty title="Aún no tienes expedientes" text="Crea el primero y deja lista la cabecera y el checklist para todas sus visitas." action="Crear expediente" onClick={()=>onNavigate('crear')}/>}</div>}
-function Metric({label,value}:{label:string;value:number}){return <article className="card metric"><div className="metric-label"><span>{label}</span><i>▤</i></div><strong>{String(value).padStart(2,'0')}</strong><small>Datos de tu espacio</small></article>}
-function ProjectCard({item,visits,onOpen}:{item:Expediente;visits:number;onOpen:()=>void}){return <button className="card project-card" onClick={onOpen}><div className="project-top"><span className="project-icon">⌂</span><span className="status active">Activo</span></div><h3>{item.detalle_obra||item.propietario||`Expediente ${item.nro_expediente}`}</h3><p className="project-address">{item.ubicacion}</p><div className="project-meta"><span>Expediente<strong>{item.nro_expediente}</strong></span><span>Visitas<strong>{visits}</strong></span></div></button>}
-function Empty({title,text,action,onClick}:{title:string;text:string;action:string;onClick:()=>void}){return <section className="card empty-state"><div className="empty-icon">▤</div><h2>{title}</h2><p>{text}</p><button className="btn btn-primary" onClick={onClick}>{action} →</button></section>}
+function Nav({active,icon,children,onClick}:{active:boolean;icon:IconName;children:ReactNode;onClick:()=>void}){return <button className={active?'nav-item active':'nav-item'} aria-current={active?'page':undefined} onClick={onClick}><Icon name={icon} size={24}/><span>{children}</span></button>}
 
-function Expedientes({data,onNavigate}:{data:WorkspaceState;onNavigate:(view:View,id?:string)=>void}){const [search,setSearch]=useState('');const items=data.expedientes.filter(item=>item.activo&&`${item.nro_expediente} ${item.propietario} ${item.ubicacion}`.toLowerCase().includes(search.toLowerCase()));return <div className="page-enter"><header className="page-heading"><div><p className="eyebrow">TU CARTERA DE OBRAS</p><h1>Expedientes</h1><p>Cada expediente conserva su propia cabecera y checklist.</p></div><button className="btn btn-primary" onClick={()=>onNavigate('crear')}>＋ Nuevo expediente</button></header><div className="filterbar"><div className="search-field"><span>⌕</span><input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Buscar por número, propietario o ubicación…"/></div></div>{items.length?<div className="expedient-list">{items.map(item=><button className="expedient-row" key={item.id} onClick={()=>onNavigate('detalle',item.id)}><span className="exp-icon">▤</span><span className="exp-primary"><strong>{item.detalle_obra||item.propietario||'Obra sin título'}</strong><span>{item.ubicacion}</span></span><span className="exp-cell"><strong>{item.nro_expediente}</strong><span>N.º expediente</span></span><span className="exp-cell"><strong>{data.visitas.filter(v=>v.expediente_id===item.id).length}</strong><span>Visitas</span></span><span className="status active">Activo</span><span className="row-arrow">→</span></button>)}</div>:<Empty title="No encontramos expedientes" text="Cambia la búsqueda o crea un expediente nuevo." action="Crear expediente" onClick={()=>onNavigate('crear')}/>}</div>}
+// Selector rápido: dos toques desde cualquier pantalla para empezar una visita.
+function VisitPicker({expedientes,visitas,busy,onPick,onCreate,onClose}:{expedientes:Expediente[];visitas:Visita[];busy:boolean;onPick:(item:Expediente)=>void;onCreate:()=>void;onClose:()=>void}){
+ const [search,setSearch]=useState('');
+ const sheet=useRef<HTMLDivElement>(null);
+ useEffect(()=>{sheet.current?.focus();const onKey=(e:KeyboardEvent)=>{if(e.key==='Escape')onClose()};window.addEventListener('keydown',onKey);document.body.classList.add('sheet-open');return()=>{window.removeEventListener('keydown',onKey);document.body.classList.remove('sheet-open')}},[onClose]);
+ const lastVisit=(id:string)=>visitas.filter(v=>v.expediente_id===id).sort((a,b)=>b.fecha.localeCompare(a.fecha))[0];
+ const query=search.trim().toLowerCase();
+ const items=[...expedientes].sort((a,b)=>(lastVisit(b.id)?.updated_at??b.updated_at).localeCompare(lastVisit(a.id)?.updated_at??a.updated_at)).filter(item=>`${item.nro_expediente} ${item.ubicacion??''} ${item.detalle_obra??''} ${item.propietario??''}`.toLowerCase().includes(query));
+ return <>
+  <div className="sheet-backdrop" onClick={onClose}/>
+  <div className="sheet picker" role="dialog" aria-modal="true" aria-labelledby="picker-title" tabIndex={-1} ref={sheet}>
+   <div className="sheet-grip"/>
+   <div className="sheet-head"><div><strong id="picker-title">Nueva visita</strong><p>¿En qué obra?</p></div><button className="icon-btn ghost" onClick={onClose} aria-label="Cerrar"><Icon name="close"/></button></div>
+   {expedientes.length>5&&<label className="search-field"><span className="sr-only">Buscar obra</span><Icon name="search" size={20}/><input type="search" value={search} onChange={e=>setSearch(e.target.value)} placeholder="Buscar obra"/></label>}
+   <div className="list picker-list">
+    {items.map(item=>{const last=lastVisit(item.id);return <button key={item.id} className="row" disabled={busy} onClick={()=>onPick(item)}><span className="row-icon"><Icon name="folder" size={20}/></span><span className="row-main"><strong>{obraTitle(item)}</strong><span>{last?`Última visita ${shortDate(last.fecha)} · próxima es la ${pad2(last.nro_visita+1)}`:`Exp. ${item.nro_expediente} · primera visita`}</span></span>{busy?<span className="spinner"/>:<Icon name="chevron" size={20}/>}</button>})}
+    {!items.length&&<p className="list-empty">Ninguna obra coincide con «{search}».</p>}
+   </div>
+   <button className="btn btn-ghost btn-block" onClick={onCreate}><Icon name="plus" size={20}/>Es una obra nueva</button>
+  </div>
+ </>;
+}
+
+function greeting(){const h=new Date().getHours();return h<12?'Buenos días':h<19?'Buenas tardes':'Buenas noches'}
+function Dashboard({data,profile,onStart,onNavigate,onOpen,onOpenVisit}:{data:WorkspaceState;profile:LocalState;onStart:()=>void;onNavigate:(view:View)=>void;onOpen:(id:string)=>void;onOpenVisit:(v:Visita)=>void}){
+ const cases=data.expedientes.filter(item=>item.activo);
+ const byId=new Map(data.expedientes.map(item=>[item.id,item]));
+ const open=data.visitas.filter(v=>v.estado!=='FINALIZADA'&&v.estado!=='ARCHIVADA'&&byId.has(v.expediente_id)).sort((a,b)=>b.updated_at.localeCompare(a.updated_at)).slice(0,4);
+ const firstName=profile.profile?.nombre_completo?.trim().split(/\s+/)[0];
+ const today=new Intl.DateTimeFormat('es-PE',{weekday:'long',day:'numeric',month:'long'}).format(new Date());
+ const recent=[...cases].sort((a,b)=>b.updated_at.localeCompare(a.updated_at)).slice(0,4);
+ return <div className="page">
+  <header className="title-block"><p className="overline">{today}</p><h1>{greeting()}{firstName?`, ${firstName}`:''}</h1></header>
+  <button className="action-tile" onClick={onStart}>
+   <span className="action-icon"><Icon name="plus" size={26}/></span>
+   <span className="action-copy"><strong>{cases.length?'Nueva visita':'Crea tu primer expediente'}</strong><small>{cases.length?'Elige la obra y empieza. Funciona sin señal.':'Con el número de expediente y la dirección basta para empezar.'}</small></span>
+   <Icon name="chevron" size={22}/>
+  </button>
+  {open.length>0&&<section className="group"><h2 className="group-title">Para continuar</h2>
+   <div className="list">{open.map(v=>{const exp=byId.get(v.expediente_id)!;const {done,total}=checklistDone(v);return <button key={v.id} className="row" onClick={()=>onOpenVisit(v)}><span className="row-num">{pad2(v.nro_visita)}</span><span className="row-main"><strong>{obraTitle(exp)}</strong><span>{shortDate(v.fecha)} · checklist {done} de {total}</span></span><span className="progress-ring" style={{['--p' as string]:total?done/total:0}} aria-hidden="true"/><Icon name="chevron" size={20}/></button>})}</div>
+  </section>}
+  {recent.length>0&&<section className="group"><div className="group-head"><h2 className="group-title">Expedientes</h2><button className="link-button" onClick={()=>onNavigate('expedientes')}>Ver todos</button></div>
+   <div className="list">{recent.map(item=><ExpedienteRow key={item.id} item={item} visits={data.visitas.filter(v=>v.expediente_id===item.id).length} onClick={()=>onOpen(item.id)}/>)}</div>
+  </section>}
+ </div>;
+}
+function ExpedienteRow({item,visits,onClick}:{item:Expediente;visits:number;onClick:()=>void}){
+ return <button className="row" onClick={onClick}><span className="row-icon"><Icon name="folder" size={20}/></span><span className="row-main"><strong>{obraTitle(item)}</strong><span>{item.ubicacion||`Exp. ${item.nro_expediente}`}</span></span><span className="row-meta num">{visits}{item.total_visitas_programadas?`/${item.total_visitas_programadas}`:''}</span><Icon name="chevron" size={20}/></button>;
+}
+function Empty({icon,title,text,action,onClick}:{icon:IconName;title:string;text:string;action?:string;onClick?:()=>void}){return <section className="empty-state"><span className="empty-icon"><Icon name={icon} size={26}/></span><h2>{title}</h2><p>{text}</p>{action&&onClick&&<button className="btn btn-primary" onClick={onClick}><Icon name="plus" size={20}/>{action}</button>}</section>}
+
+function Expedientes({data,onNew,onOpen}:{data:WorkspaceState;onNew:()=>void;onOpen:(id:string)=>void}){
+ const [search,setSearch]=useState('');
+ const all=data.expedientes.filter(item=>item.activo);
+ const query=search.trim().toLowerCase();
+ const items=all.filter(item=>`${item.nro_expediente} ${item.propietario??''} ${item.ubicacion??''} ${item.detalle_obra??''}`.toLowerCase().includes(query));
+ return <div className="page">
+  <header className="title-block with-action"><h1>Expedientes</h1><button className="round-btn" onClick={onNew} aria-label="Nuevo expediente"><Icon name="plus"/></button></header>
+  {all.length>0&&<label className="search-field"><span className="sr-only">Buscar expediente</span><Icon name="search" size={20}/><input type="search" value={search} onChange={e=>setSearch(e.target.value)} placeholder="Buscar por obra, número o dirección"/></label>}
+  {items.length?<div className="list">{items.map(item=><ExpedienteRow key={item.id} item={item} visits={data.visitas.filter(v=>v.expediente_id===item.id).length} onClick={()=>onOpen(item.id)}/>)}</div>
+   :all.length?<p className="list-empty">Ninguna obra coincide con «{search}».</p>
+   :<Empty icon="folder" title="Sin expedientes" text="Cada obra es un expediente. Créalo una vez y todas sus visitas reutilizan los datos." action="Nuevo expediente" onClick={onNew}/>}
+ </div>;
+}
 
 function ExpedienteForm({owner,templates,existing,onCancel,onSave}:{owner:string;templates:ChecklistTemplate[];existing:Expediente|null;onCancel:()=>void;onSave:(item:Expediente)=>Promise<void>}){
  const preferred=templates.find(item=>item.codigo==='G050')??templates[0];
- const [templateId,setTemplateId]=useState(preferred?.id??''),[schema,setSchema]=useState<ChecklistSchema>(()=>structuredClone(existing?.checklist_esquema_json??preferred.esquema)),[checklistName,setChecklistName]=useState(existing?.checklist_nombre??preferred?.nombre??'Checklist'),[editing,setEditing]=useState(false),[busy,setBusy]=useState(false),[error,setError]=useState('');
+ const [templateId,setTemplateId]=useState(existing?'':preferred?.id??''),[schema,setSchema]=useState<ChecklistSchema>(()=>structuredClone(existing?.checklist_esquema_json??preferred.esquema)),[checklistName,setChecklistName]=useState(existing?.checklist_nombre??preferred?.nombre??'Checklist'),[editing,setEditing]=useState(false),[busy,setBusy]=useState(false),[error,setError]=useState('');
  function selectTemplate(id:string){const template=templates.find(item=>item.id===id);if(!template)return;setTemplateId(id);setSchema(structuredClone(template.esquema));setChecklistName(template.nombre)}
  function updateField(sectionId:string,fieldId:string,label:string){setSchema(current=>({...current,sections:current.sections.map(section=>section.id===sectionId?{...section,fields:section.fields.map(field=>field.id===fieldId?{...field,label}:field)}:section)}))}
  function addField(sectionId:string){
-  setSchema(current => {
-    const sections = current.sections.map(section => {
-      if (section.id !== sectionId) return section;
-      const fields = [...section.fields];
-      let at = fields.length;
-      while (at > 0 && fields[at - 1].type === 'text') at--;
-      fields.splice(at, 0, { id: `campo_${crypto.randomUUID().slice(0, 8)}`, label: 'Nuevo campo', type: 'boolean' });
-      return { ...section, fields };
-    });
-    return { ...current, sections };
+  setSchema(current=>{
+   const sections=current.sections.map(section=>{
+    if(section.id!==sectionId)return section;
+    const fields=[...section.fields];
+    let at=fields.length;
+    while(at>0&&fields[at-1].type==='text')at--;
+    fields.splice(at,0,{id:`campo_${crypto.randomUUID().slice(0,8)}`,label:'Nuevo punto a verificar',type:'boolean'});
+    return {...section,fields};
+   });
+   return {...current,sections};
   });
-}
+ }
  function removeField(sectionId:string,fieldId:string){setSchema(current=>({...current,sections:current.sections.map(section=>section.id===sectionId?{...section,fields:section.fields.filter(field=>field.id!==fieldId)}:section)}))}
  async function submit(event:FormEvent<HTMLFormElement>){event.preventDefault();setBusy(true);setError('');try{const form=new FormData(event.currentTarget);form.set('checklist_nombre',checklistName);await onSave(buildExpediente(owner,form,schema,existing??undefined))}catch(e){setError(msg(e));setBusy(false)}}
- return <div className="page-enter"><header className="page-heading"><div><p className="eyebrow">{existing?'ACTUALIZAR CABECERA':'CONFIGURACIÓN INICIAL'}</p><h1>{existing?'Editar expediente':'Nuevo expediente'}</h1><p>Estos datos se reutilizarán en todos los informes de visita.</p></div></header>{error&&<div className="alert error">{error}</div>}<div className="form-layout"><form className="card form-card" onSubmit={submit}><FormSection number="1" title="Licencia y expediente" text="Identificación principal de la obra."><Fields existing={existing}/></FormSection><FormSection number="2" title="Obra y responsables" text="Datos fijos de la cabecera."><div className="form-grid"><Field name="propietario" label="Propietario / razón social" defaultValue={existing?.propietario}/><Field name="ubicacion" label="Ubicación de la obra" required defaultValue={existing?.ubicacion}/><Field name="distrito" label="Distrito" defaultValue={existing?.distrito}/><Field name="provincia" label="Provincia" defaultValue={existing?.provincia}/><Field name="departamento" label="Departamento" defaultValue={existing?.departamento}/><Field name="tipo_obra" label="Tipo de obra" defaultValue={existing?.tipo_obra}/><Field name="uso_predio" label="Uso del predio" defaultValue={existing?.uso_predio}/><Field name="valor_obra" label="Valor de obra" type="number" defaultValue={existing?.valor_obra}/><Field name="responsable_obra_nombre" label="Responsable de obra" defaultValue={existing?.responsable_obra_nombre}/><Field name="responsable_obra_colegiatura" label="CIP / colegiatura" defaultValue={existing?.responsable_obra_colegiatura}/><label className="form-group full">Detalle de obra<textarea name="detalle_obra" rows={3} defaultValue={existing?.detalle_obra??''}/></label></div></FormSection><FormSection number="3" title="Póliza y planificación" text="Vigencias y número previsto de visitas."><div className="form-grid"><Field name="poliza_compania" label="Compañía de póliza CAR" defaultValue={(existing?.poliza_car_json?.compania as string)??''}/><Field name="total_visitas_programadas" label="Visitas programadas" type="number" defaultValue={existing?.total_visitas_programadas}/><Field name="poliza_desde" label="Inicio de póliza" type="date" defaultValue={(existing?.poliza_car_json?.desde as string)??''}/><Field name="poliza_hasta" label="Fin de póliza" type="date" defaultValue={(existing?.poliza_car_json?.hasta as string)??''}/></div></FormSection><div className="form-actions"><button type="button" className="btn btn-secondary" onClick={onCancel}>Cancelar</button><button className="btn btn-primary btn-lg" disabled={busy}>{busy?'Guardando…':existing?'Guardar cambios →':'Crear expediente →'}</button></div></form><aside className="card template-panel"><p className="eyebrow">CHECKLIST DEL EXPEDIENTE</p><h2>Elige un punto de partida</h2><p>Se copiará y podrás personalizarlo. Nunca quedará enlazado a la plantilla original.</p>{templates.map(template=><button key={template.id} className={`template-option ${templateId===template.id?'selected':''}`} onClick={()=>selectTemplate(template.id)}><span className="template-radio"/><span className="template-copy"><strong>{template.nombre}</strong><span>{template.esquema.sections.reduce((sum,s)=>sum+s.fields.length,0)} campos · Versión {template.version}</span></span></button>)}<div className="checklist-preview"><div className="checklist-preview-head"><span>Vista previa editable</span><button className="edit-link" onClick={()=>setEditing(!editing)}>{editing?'Terminar':'Personalizar'}</button></div><input className="field compact" value={checklistName} onChange={e=>setChecklistName(e.target.value)} aria-label="Nombre del checklist"/>{schema.sections.map(section=><div key={section.id} className="schema-section"><strong>{section.title}</strong>{section.fields.map(field=><div className="schema-field" key={field.id}>{editing?<input value={field.label} onChange={e=>updateField(section.id,field.id,e.target.value)}/>:<span>{field.label}</span>}{editing&&<button type="button" onClick={()=>removeField(section.id,field.id)}>×</button>}</div>)}{editing&&<button className="edit-link add-field" type="button" onClick={()=>addField(section.id)}>＋ Añadir campo</button>}</div>)}</div></aside></div></div>}
-function Fields({existing}:{existing:Expediente|null}){return <div className="form-grid"><Field name="nro_expediente" label="Número de expediente" required defaultValue={existing?.nro_expediente}/><Field name="nro_licencia" label="Número de licencia" defaultValue={existing?.nro_licencia}/><Field name="modalidad" label="Modalidad" defaultValue={existing?.modalidad}/><Field name="entidad_destinataria" label="Municipalidad / entidad" defaultValue={existing?.entidad_destinataria}/><Field name="fecha_emision_licencia" label="Fecha de emisión" type="date" defaultValue={existing?.fecha_emision_licencia}/><Field name="vigencia_desde" label="Vigencia desde" type="date" defaultValue={existing?.vigencia_desde}/><Field name="vigencia_hasta" label="Vigencia hasta" type="date" defaultValue={existing?.vigencia_hasta}/></div>}
-function Field({name,label,type='text',required=false,defaultValue}:{name:string;label:string;type?:string;required?:boolean;defaultValue?:string|number|null}){return <label className="form-group">{label}{required&&<span className="required"> *</span>}<input className="field" name={name} type={type} required={required} defaultValue={defaultValue??''}/></label>}
-function FormSection({number,title,text,children}:{number:string;title:string;text:string;children:React.ReactNode}){return <section className="form-section"><div className="form-section-title"><span className="step-number">{number}</span><div><h3>{title}</h3><p>{text}</p></div></div>{children}</section>}
+ const e=existing;
+ return <div className="page narrow">
+  <header className="screen-head"><button className="back-link" onClick={onCancel}><Icon name="back" size={20}/>{e?'Expediente':'Volver'}</button><div className="title-block"><h1>{e?'Editar expediente':'Nuevo expediente'}</h1>{!e&&<p>Solo lo esencial. El resto puedes completarlo después.</p>}</div></header>
+  {error&&<div className="alert error" role="alert"><Icon name="alert" size={20}/><span>{error}</span></div>}
+  <form className="form-stack" onSubmit={submit}>
+   <section className="panel form-panel">
+    <Field name="nro_expediente" label="Número de expediente" required defaultValue={e?.nro_expediente}/>
+    <label className="form-group">Nombre de la obra<textarea className="field" name="detalle_obra" rows={2} defaultValue={e?.detalle_obra??''} placeholder="Ej. Vivienda multifamiliar de 5 pisos"/><span className="input-hint">La primera línea es el nombre que verás en tus listas.</span></label>
+    <div className="form-grid"><Field name="ubicacion" label="Dirección" required defaultValue={e?.ubicacion}/><Field name="distrito" label="Distrito" defaultValue={e?.distrito}/></div>
+   </section>
+   <section className="group">
+    <h2 className="group-title">Checklist de las visitas</h2>
+    <div className="chips" role="radiogroup" aria-label="Plantilla de checklist">{templates.map(template=><button key={template.id} type="button" role="radio" className="chip" aria-checked={templateId===template.id} onClick={()=>selectTemplate(template.id)}>{template.nombre}</button>)}</div>
+    <details className="panel disclosure" open={editing||undefined}>
+     <summary><span><strong>{checklistName}</strong><small>{pointsLabel(fieldCount(schema))} · copia propia del expediente</small></span><Icon name="down" size={20}/></summary>
+     <div className="disclosure-body">
+      <div className="disclosure-tools"><button type="button" className="link-button" onClick={()=>setEditing(!editing)}>{editing?'Listo':'Editar puntos'}</button></div>
+      {editing&&<label className="form-group">Nombre del checklist<input className="field" value={checklistName} onChange={ev=>setChecklistName(ev.target.value)}/></label>}
+      {schema.sections.map(section=><div key={section.id} className="schema-section"><strong>{section.title}</strong>{section.fields.map(field=><div className="schema-field" key={field.id}>{editing?<input className="field" value={field.label} onChange={ev=>updateField(section.id,field.id,ev.target.value)} aria-label="Texto del punto"/>:<span>{field.label}</span>}{!editing&&<span className="field-type">{fieldTypeLabel[field.type]}</span>}{editing&&<button type="button" className="icon-btn ghost danger" onClick={()=>removeField(section.id,field.id)} aria-label={`Quitar «${field.label}»`}><Icon name="close" size={18}/></button>}</div>)}{editing&&<button className="link-button" type="button" onClick={()=>addField(section.id)}><Icon name="plus" size={18}/>Añadir punto</button>}</div>)}
+     </div>
+    </details>
+   </section>
+   <section className="group">
+    <h2 className="group-title">Más datos <span className="muted">· opcional</span></h2>
+    <div className="list">
+     <Optional title="Licencia" hint="Número, modalidad y vigencia"><div className="form-grid"><Field name="nro_licencia" label="Número de licencia" defaultValue={e?.nro_licencia}/><Field name="modalidad" label="Modalidad" defaultValue={e?.modalidad}/><Field name="entidad_destinataria" label="Municipalidad o entidad" defaultValue={e?.entidad_destinataria}/><Field name="fecha_emision_licencia" label="Fecha de emisión" type="date" defaultValue={e?.fecha_emision_licencia}/><Field name="vigencia_desde" label="Vigente desde" type="date" defaultValue={e?.vigencia_desde}/><Field name="vigencia_hasta" label="Vigente hasta" type="date" defaultValue={e?.vigencia_hasta}/></div></Optional>
+     <Optional title="Propietario y responsable" hint="Aparecen en la cabecera del informe"><div className="form-grid"><Field name="propietario" label="Propietario o razón social" defaultValue={e?.propietario}/><Field name="responsable_obra_nombre" label="Responsable de obra" defaultValue={e?.responsable_obra_nombre}/><Field name="responsable_obra_colegiatura" label="CIP o CAP del responsable" defaultValue={e?.responsable_obra_colegiatura}/><Field name="provincia" label="Provincia" defaultValue={e?.provincia}/><Field name="departamento" label="Departamento" defaultValue={e?.departamento}/></div></Optional>
+     <Optional title="Obra" hint="Tipo, uso y valor"><div className="form-grid"><Field name="tipo_obra" label="Tipo de obra" defaultValue={e?.tipo_obra}/><Field name="uso_predio" label="Uso del predio" defaultValue={e?.uso_predio}/><Field name="valor_obra" label="Valor de obra (S/)" type="number" defaultValue={e?.valor_obra}/></div></Optional>
+     <Optional title="Póliza y visitas programadas" hint="Para mostrar «Visita 3 de 8»"><div className="form-grid"><Field name="total_visitas_programadas" label="Visitas programadas" type="number" defaultValue={e?.total_visitas_programadas}/><Field name="poliza_compania" label="Aseguradora (póliza CAR)" defaultValue={(e?.poliza_car_json?.compania as string)??''}/><Field name="poliza_desde" label="Póliza desde" type="date" defaultValue={(e?.poliza_car_json?.desde as string)??''}/><Field name="poliza_hasta" label="Póliza hasta" type="date" defaultValue={(e?.poliza_car_json?.hasta as string)??''}/></div></Optional>
+    </div>
+   </section>
+   <div className="form-actions"><button type="button" className="btn btn-ghost" onClick={onCancel}>Cancelar</button><button className="btn btn-primary btn-lg" disabled={busy}>{busy?'Guardando…':e?'Guardar cambios':'Crear expediente'}</button></div>
+  </form>
+ </div>;
+}
+function Optional({title,hint,children}:{title:string;hint:string;children:ReactNode}){return <details className="disclosure-row"><summary><span><strong>{title}</strong><small>{hint}</small></span><Icon name="down" size={20}/></summary><div className="disclosure-body">{children}</div></details>}
+function Field({name,label,type='text',required=false,defaultValue}:{name:string;label:string;type?:string;required?:boolean;defaultValue?:string|number|null}){return <label className="form-group"><span>{label}{required&&<span className="required" aria-hidden="true"> *</span>}</span><input className="field" name={name} type={type} inputMode={type==='number'?'decimal':undefined} required={required} defaultValue={defaultValue??''}/></label>}
 
-function ExpedienteDetail({expediente,visitas,onEdit,onVisit,onOpenVisit,onEditReport,creating}:{expediente:Expediente;visitas:Visita[];onEdit:()=>void;onVisit:()=>void;onOpenVisit:(id:string)=>void;onEditReport:(id:string)=>void;creating:boolean}){return <div className="page-enter"><section className="detail-banner"><p className="eyebrow">EXPEDIENTE {expediente.nro_expediente}</p><h1>{expediente.detalle_obra||expediente.propietario||'Obra'}</h1><p>{expediente.ubicacion}</p><div className="detail-meta"><div><span>Propietario</span><strong>{expediente.propietario||'Por completar'}</strong></div><div><span>Licencia</span><strong>{expediente.nro_licencia||'Por completar'}{expediente.modalidad?` · ${expediente.modalidad}`:''}</strong></div><div><span>Vigencia</span><strong>{expediente.vigencia_desde||'—'} — {expediente.vigencia_hasta||'—'}</strong></div><div><span>Checklist</span><strong>{expediente.checklist_nombre}</strong></div></div><div className="detail-actions"><button className="btn btn-primary btn-lg" disabled={creating} onClick={onVisit}>＋ Nueva visita</button><button className="btn btn-secondary" onClick={onEdit}>Editar expediente</button></div></section><section className="card timeline-card"><div className="section-heading"><div><p className="eyebrow">HISTORIAL</p><h2>Visitas de inspección</h2></div><span className="date-chip">{visitas.length}{expediente.total_visitas_programadas?` de ${expediente.total_visitas_programadas}`:''} creadas</span></div>{visitas.length?[...visitas].sort((a,b)=>b.nro_visita-a.nro_visita).map(item=><article className="visit-row" key={item.id}><span className="visit-number">{String(item.nro_visita).padStart(2,'0')}</span><div><h3>Visita {String(item.nro_visita).padStart(2,'0')} · {dateLabel(item.fecha)}</h3><p>{item.checklist_nombre} · {item.checklist_completado?'Checklist completo':'Borrador editable'}</p></div><div className="visit-actions"><button className="btn btn-secondary" onClick={()=>onOpenVisit(item.id)}>Abrir</button>{item.estado==='FINALIZADA'&&<button className="btn btn-secondary" onClick={()=>onEditReport(item.id)}>Editar informe</button>}</div></article>):<Empty title="Aún no hay visitas" text="Crea la primera visita. El checklist y la cabecera se copiarán como snapshots independientes." action="Nueva visita" onClick={onVisit}/>}</section></div>}
+function ExpedienteDetail({expediente,visitas,onBack,onEdit,onVisit,onOpenVisit,creating}:{expediente:Expediente;visitas:Visita[];onBack:()=>void;onEdit:()=>void;onVisit:()=>void;onOpenVisit:(v:Visita)=>void;creating:boolean}){
+ const vigencia=expediente.vigencia_desde||expediente.vigencia_hasta?`${expediente.vigencia_desde?shortDate(expediente.vigencia_desde):'…'} – ${expediente.vigencia_hasta?dateLabel(expediente.vigencia_hasta):'…'}`:'';
+ const facts:[string,string|null|undefined][]=[['Propietario',expediente.propietario],['Licencia',[expediente.nro_licencia,expediente.modalidad].filter(Boolean).join(' · ')],['Vigencia',vigencia],['Responsable de obra',expediente.responsable_obra_nombre],['Checklist',expediente.checklist_nombre]];
+ const sorted=[...visitas].sort((a,b)=>b.nro_visita-a.nro_visita);
+ return <div className="page">
+  <header className="screen-head"><button className="back-link" onClick={onBack}><Icon name="back" size={20}/>Expedientes</button>
+   <div className="title-block"><p className="overline">Exp. {expediente.nro_expediente}</p><h1>{obraTitle(expediente)}</h1>{expediente.ubicacion&&<p>{[expediente.ubicacion,expediente.distrito].filter(Boolean).join(', ')}</p>}</div></header>
+  <div className="actions-row"><button className="btn btn-primary btn-lg" disabled={creating} onClick={onVisit}><Icon name="plus"/>{creating?'Creando…':'Nueva visita'}</button><button className="btn btn-secondary btn-lg" onClick={onEdit}><Icon name="edit" size={20}/>Editar</button></div>
+  <section className="group"><div className="group-head"><h2 className="group-title">Visitas</h2><span className="muted num">{visitas.length}{expediente.total_visitas_programadas?` de ${expediente.total_visitas_programadas}`:''}</span></div>
+   {sorted.length?<div className="list">{sorted.map(item=>{const state=visitState[item.estado];const {done,total}=checklistDone(item);return <button className="row" key={item.id} onClick={()=>onOpenVisit(item)}><span className="row-num">{pad2(item.nro_visita)}</span><span className="row-main"><strong>{dateLabel(item.fecha)}</strong><span>{item.estado==='FINALIZADA'?'Abrir informe':`Checklist ${done} de ${total}`}</span></span><span className={`badge ${state.tone}`}>{state.label}</span><Icon name="chevron" size={20}/></button>})}</div>
+    :<p className="list-empty">Aún no hay visitas. La primera copia la cabecera y el checklist del expediente.</p>}
+  </section>
+  <section className="group"><div className="group-head"><h2 className="group-title">Datos</h2><button className="link-button" onClick={onEdit}>Completar</button></div>
+   <dl className="list facts">{facts.map(([label,value])=><div className="fact" key={label}><dt>{label}</dt><dd className={value?'':'missing'}>{value||'—'}</dd></div>)}</dl>
+  </section>
+ </div>;
+}
 
+type SaveState='idle'|'pending'|'saving'|'saved'|'error';
+function SaveIndicator({state}:{state:SaveState}){
+ if(state==='error')return <span className="save-state error" role="alert"><Icon name="alert" size={16}/>No se pudo guardar</span>;
+ if(state==='pending'||state==='saving')return <span className="save-state saving" role="status"><span className="spinner"/>Guardando</span>;
+ return <span className="save-state" role="status"><Icon name="check" size={16}/>{state==='saved'?'Guardado':'Se guarda solo'}</span>;
+}
 function VisitChecklist({visita,expediente,ownerId,onBack,onSave,onEditReport}:{visita:Visita;expediente:Expediente;ownerId:string;onBack:()=>void;onSave:(record:Visita)=>Promise<void>;onEditReport:()=>void}){
- const [answers,setAnswers]=useState(visita.checklist_respuestas_json),[busy,setBusy]=useState(false);
+ const [answers,setAnswers]=useState(visita.checklist_respuestas_json),[saveState,setSaveState]=useState<SaveState>('idle');
  const [tab, setTab] = useState<'checklist'|'captura'|'resumen'>('checklist');
- const fields=visita.checklist_esquema_json.sections.flatMap(section=>section.fields),answered=fields.filter(field=>answers[field.id]!==undefined&&answers[field.id]!=='').length,progress=fields.length?Math.round(answered/fields.length*100):0;
+ const fields=visita.checklist_esquema_json.sections.flatMap(section=>section.fields),answered=fields.filter(field=>isAnswered(answers[field.id])).length,progress=fields.length?Math.round(answered/fields.length*100):0;
  const native=Capacitor.isNativePlatform();
  const cam=native&&tab==='captura';
  const tabOrder=['checklist','captura','resumen'] as const;
  const touch=useRef<{x:number;y:number}|null>(null);
+ // Guardado automático: cada respuesta se guarda en el dispositivo ~0,6 s después del último cambio,
+ // y lo pendiente se guarda al salir de la visita (volver, ir al informe, cerrar la vista).
+ const dirty=useRef(false),timer=useRef<ReturnType<typeof setTimeout>|undefined>(undefined);
+ const latest=useRef({visita,answers,onSave});
+ useEffect(()=>{latest.current={visita,answers,onSave}});
+ const flush=useCallback(async(extra?:Partial<Visita>)=>{
+  clearTimeout(timer.current);
+  if(!dirty.current&&!extra)return true;
+  dirty.current=false;
+  const {visita:v,answers:a,onSave:save}=latest.current;
+  const all=v.checklist_esquema_json.sections.flatMap(s=>s.fields);
+  setSaveState('saving');
+  try{await save({...v,...extra,checklist_respuestas_json:a,checklist_completado:all.every(f=>isAnswered(a[f.id])),updated_at:new Date().toISOString()});setSaveState('saved');return true}
+  catch(e){console.error(e);dirty.current=true;setSaveState('error');return false}
+ },[]);
+ useEffect(()=>{if(!dirty.current)return;clearTimeout(timer.current);timer.current=setTimeout(()=>void flush(),600);return()=>clearTimeout(timer.current)},[answers,flush]);
+ useEffect(()=>()=>{if(dirty.current)void flush()},[flush]);
+ function answer(id:string,value:unknown){dirty.current=true;setSaveState('pending');setAnswers(current=>({...current,[id]:value}))}
  // Captura no scrollea: el scroll vive en el documento, se resetea antes del paint.
  useLayoutEffect(()=>{if(!cam)return;const sc=document.scrollingElement;if(sc)sc.scrollTop=0;window.scrollTo(0,0);},[cam]);
  function swipeEnd(e:React.TouchEvent){
@@ -130,13 +443,43 @@ function VisitChecklist({visita,expediente,ownerId,onBack,onSave,onEditReport}:{
    setTab(dx<0?tabOrder[Math.min(2,i+1)]:tabOrder[Math.max(0,i-1)]);
   }
  }
- async function save(){setBusy(true);await onSave({...visita,checklist_respuestas_json:answers,checklist_completado:answered===fields.length,updated_at:new Date().toISOString()});setBusy(false)}
- return <div className={native?(cam?'visit-shell visit-native cam':'visit-shell visit-native'):'page-enter visit-shell'}><div className="visit-top"><header className="visit-header"><div className="visit-title"><button className="back-button" onClick={onBack}>←</button><div><h1>Visita {String(visita.nro_visita).padStart(2,'0')} · {expediente.distrito||expediente.nro_expediente}</h1><p>Exp. {expediente.nro_expediente} · {dateLabel(visita.fecha)}</p></div></div><span className="offline-pill">● Disponible sin conexión</span>{visita.estado==='FINALIZADA'&&<button className="btn btn-secondary" onClick={onEditReport}>Editar informe</button>}</header><nav className="visit-tabs"><button className={`visit-tab ${tab==='checklist'?'active':''}`} onClick={()=>setTab('checklist')}><span className="tab-num">1</span><span>Checklist <small>· {progress}%</small></span></button><button className={`visit-tab ${tab==='captura'?'active':''}`} onClick={()=>setTab('captura')}><span className="tab-num">2</span><span>Captura <small>· Offline</small></span></button><button className={`visit-tab ${tab==='resumen'?'active':''}`} onClick={()=>setTab('resumen')}><span className="tab-num">3</span><span>Resumen</span></button></nav></div><section className={cam?'visit-body checklist-layout capture-active':'visit-body checklist-layout'} onTouchStart={native?(e=>{const t=e.touches[0];touch.current={x:t.clientX,y:t.clientY}}):undefined} onTouchEnd={native?swipeEnd:undefined}>
- <article className="card checklist-card" style={{display:tab==='checklist'?'':'none'}}><p className="eyebrow">{visita.checklist_nombre}</p><h2>Checklist de visita</h2><p>El formulario es una copia propia de esta visita. Puedes completarlo incluso sin conexión.</p><div className="progress-line"><i style={{width:`${progress}%`}}/></div>{visita.checklist_esquema_json.sections.map(section=><section className="check-group" key={section.id}><div className="check-group-title"><h3>{section.title}</h3><span>{answered} de {fields.length} respondidas</span></div>{section.fields.map(field=><div className="check-item" key={field.id}><div><strong>{field.label}</strong>{field.description&&<small>{field.description}</small>}</div>{field.type==='boolean'?<div className="segmented">{[['si','Sí'],['no','No'],['na','N/A']].map(([value,label])=><button key={value} className={answers[field.id]===value?'active':''} onClick={()=>setAnswers({...answers,[field.id]:value})}>{label}</button>)}</div>:field.type==='text'?<textarea rows={2} value={String(answers[field.id]??'')} onChange={e=>setAnswers({...answers,[field.id]:e.target.value})}/>:<input className="field inline-field" type={field.type} value={String(answers[field.id]??'')} onChange={e=>setAnswers({...answers,[field.id]:e.target.value})}/>}</div>)}</section>)}<div className="form-actions"><button className="btn btn-primary" onClick={()=>void save()} disabled={busy}>{busy?'Guardando…':'Guardar checklist'}</button></div></article>
- <div style={{display:tab==='captura'?'':'none'}}><VisitCapture visita={visita} ownerId={ownerId} onGroupSaved={() => {}} active={tab==='captura'} /></div>
- <div style={{display:tab==='resumen'?'':'none'}}><VisitSummary visita={visita} onEditReport={onEditReport} onConclude={async()=>{await onSave({...visita,estado:'FINALIZADA',updated_at:new Date().toISOString()});onEditReport()}} onGoChecklist={() => setTab('checklist')} /></div>
- <aside className="card visit-aside"><p className="eyebrow">PROGRESO</p><h3>Datos de la visita</h3><div className="aside-stat"><span>Checklist</span><strong>{progress}% completado</strong></div><div className="aside-stat"><span>Estado</span><strong>{visita.estado}</strong></div><div className="aside-stat"><span>Persistencia</span><strong>Disponible offline</strong></div><button className="btn btn-primary" onClick={()=>void save()}>Guardar checklist</button></aside></section></div>
+ return <div className={native?(cam?'visit-shell visit-native cam':'visit-shell visit-native'):'visit-shell'}>
+  <div className="visit-top">
+   <header className="visit-header">
+    <button className="back-button" onClick={onBack} aria-label="Volver al expediente"><Icon name="back"/></button>
+    <div className="visit-title"><h1>{obraTitle(expediente)}</h1><p>Visita {pad2(visita.nro_visita)} · {shortDate(visita.fecha)}</p></div>
+    {visita.estado==='FINALIZADA'?<button className="btn btn-secondary btn-sm" onClick={onEditReport}><Icon name="file" size={18}/>Informe</button>:<SaveIndicator state={saveState}/>}
+   </header>
+   <nav className="visit-tabs" aria-label="Pasos de la visita">
+    <button className={`visit-tab ${tab==='checklist'?'active':''}`} aria-current={tab==='checklist'?'step':undefined} onClick={()=>setTab('checklist')}><span>Checklist</span><small className="num">{answered}/{fields.length}</small></button>
+    <button className={`visit-tab ${tab==='captura'?'active':''}`} aria-current={tab==='captura'?'step':undefined} onClick={()=>setTab('captura')}><span>Fotos y voz</span></button>
+    <button className={`visit-tab ${tab==='resumen'?'active':''}`} aria-current={tab==='resumen'?'step':undefined} onClick={()=>setTab('resumen')}><span>Cerrar</span></button>
+   </nav>
+  </div>
+  <section className={cam?'visit-body capture-active':'visit-body'} onTouchStart={native?(e=>{const t=e.touches[0];touch.current={x:t.clientX,y:t.clientY}}):undefined} onTouchEnd={native?swipeEnd:undefined}>
+   <div className="checklist" style={{display:tab==='checklist'?'':'none'}}>
+    <div className="progress-head"><div className="progress" role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={progress} aria-label="Avance del checklist"><i style={{width:`${progress}%`}}/></div><span className="num">{answered} de {fields.length}</span></div>
+    {visita.checklist_esquema_json.sections.map(section=>{const done=section.fields.filter(f=>isAnswered(answers[f.id])).length;return <section className="group" key={section.id}><div className="group-head"><h2 className="group-title">{section.title}</h2><span className="muted num">{done}/{section.fields.length}</span></div><div className="list">{section.fields.map(field=><div className={`check-item ${field.type==='text'?'wide':''}`} key={field.id}><div className="check-label"><strong id={`q-${field.id}`}>{field.label}{field.required&&<span className="required" aria-label="obligatorio"> *</span>}</strong>{field.description&&<small>{field.description}</small>}</div>{field.type==='boolean'?<div className="segmented" role="group" aria-labelledby={`q-${field.id}`}>{[['si','Sí',''],['no','No','no'],['na','N.A.','na']].map(([value,label,tone])=><button key={value} className={tone} aria-pressed={answers[field.id]===value} onClick={()=>answer(field.id,answers[field.id]===value?'':value)}>{label}</button>)}</div>:field.type==='text'?<textarea className="field" rows={3} aria-labelledby={`q-${field.id}`} placeholder="Escribe aquí" value={String(answers[field.id]??'')} onChange={e=>answer(field.id,e.target.value)}/>:<input className="field inline-field" aria-labelledby={`q-${field.id}`} type={field.type} inputMode={field.type==='number'?'decimal':undefined} value={String(answers[field.id]??'')} onChange={e=>answer(field.id,e.target.value)}/>}</div>)}</div></section>})}
+    <button className="btn btn-secondary btn-block next-step" onClick={()=>{setTab('captura');window.scrollTo({top:0})}}>Siguiente: fotos y voz<Icon name="chevron" size={20}/></button>
+   </div>
+   <div style={{display:tab==='captura'?'':'none'}}><VisitCapture visita={visita} ownerId={ownerId} onGroupSaved={() => {}} active={tab==='captura'} /></div>
+   <div style={{display:tab==='resumen'?'':'none'}}><VisitSummary visita={{...visita,checklist_respuestas_json:answers}} onEditReport={onEditReport} onConclude={async()=>{if(await flush({estado:'FINALIZADA'}))onEditReport()}} onGoChecklist={() => {setTab('checklist');window.scrollTo({top:0})}} /></div>
+  </section>
+ </div>;
 }
 
-function Templates({templates}:{templates:ChecklistTemplate[]}){return <div className="page-enter"><header className="page-heading"><div><p className="eyebrow">PUNTOS DE PARTIDA</p><h1>Plantillas de checklist</h1><p>Al elegir una plantilla se crea una copia independiente dentro del expediente.</p></div></header><div className="project-grid">{templates.map(template=><article className="card template-card" key={template.id}><span className="project-icon">✓</span><h3>{template.nombre}</h3><p>{template.esquema.sections.length} secciones · {template.esquema.sections.reduce((sum,s)=>sum+s.fields.length,0)} campos</p><span className="pill">Versión {template.version}</span></article>)}</div></div>}
-function ProfilePage({owner,session,state,onRefresh,onToast}:{owner:string;session:Session;state:LocalState;onRefresh:()=>Promise<void>;onToast:(text:string)=>void}){async function submit(event:FormEvent<HTMLFormElement>){event.preventDefault();const data=new FormData(event.currentTarget);await saveProfile(local,owner,{nombre_completo:String(data.get('name')),cargo:String(data.get('role')),nro_colegiatura:String(data.get('license'))},crypto.randomUUID());await onRefresh();onToast('Perfil guardado localmente')}return <div className="page-enter"><header className="page-heading"><div><p className="eyebrow">IDENTIDAD PROFESIONAL</p><h1>Mi perfil</h1><p>Datos que identifican tu trabajo y tus informes.</p></div></header><section className="card profile-form"><div className="profile-title"><span className="avatar large">{initials(state.profile?.nombre_completo)}</span><div><h2>Datos del profesional</h2><p>{session.user.email}</p></div></div>{state.profile&&<form onSubmit={submit}><Field name="name" label="Nombre completo" required defaultValue={state.profile.nombre_completo}/><div className="form-grid"><Field name="role" label="Cargo" defaultValue={state.profile.cargo}/><Field name="license" label="Número de colegiatura" defaultValue={state.profile.nro_colegiatura}/></div><div className="form-actions"><button className="btn btn-primary">Guardar perfil</button><button type="button" className="btn btn-ghost" onClick={()=>void supabase.auth.signOut({scope:'local'})}>Cerrar sesión</button></div></form>}</section></div>}
+function Templates({templates}:{templates:ChecklistTemplate[]}){return <div className="page">
+ <header className="title-block"><h1>Plantillas</h1><p>Puntos de partida para el checklist de cada expediente. Se copian; ajustarlas no cambia el original.</p></header>
+ <div className="list">{templates.map(template=><details className="disclosure-row" key={template.id}><summary><span className="row-icon"><Icon name="clipboard" size={20}/></span><span><strong>{template.nombre}</strong><small>{pointsLabel(fieldCount(template.esquema))}</small></span><Icon name="down" size={20}/></summary><div className="disclosure-body">{template.esquema.sections.map(section=><div key={section.id} className="tpl-section"><h3>{section.title}</h3><ol>{section.fields.map(field=><li key={field.id}><span>{field.label}</span><span className="field-type">{fieldTypeLabel[field.type]}</span></li>)}</ol></div>)}</div></details>)}</div>
+</div>}
+
+function ProfilePage({owner,session,state,onRefresh,onToast}:{owner:string;session:Session;state:LocalState;onRefresh:()=>Promise<void>;onToast:(text:string)=>void}){
+ async function submit(event:FormEvent<HTMLFormElement>){event.preventDefault();const data=new FormData(event.currentTarget);await saveProfile(local,owner,{nombre_completo:String(data.get('name')),cargo:String(data.get('role')),nro_colegiatura:String(data.get('license'))},crypto.randomUUID());await onRefresh();onToast('Perfil guardado')}
+ return <div className="page narrow">
+  <header className="title-block profile-head"><span className="avatar large">{initials(state.profile?.nombre_completo)}</span><div><h1>{state.profile?.nombre_completo||'Tu perfil'}</h1><p>{session.user.email}</p></div></header>
+  {state.profile?<form className="form-stack" onSubmit={submit}>
+   <section className="panel form-panel"><p className="panel-note">Así apareces como profesional responsable en los informes.</p><Field name="name" label="Nombre completo" required defaultValue={state.profile.nombre_completo}/><div className="form-grid"><Field name="role" label="Cargo" defaultValue={state.profile.cargo}/><Field name="license" label="Colegiatura (CAP)" defaultValue={state.profile.nro_colegiatura}/></div></section>
+   <div className="form-actions"><button type="button" className="btn btn-ghost" onClick={()=>void supabase.auth.signOut({scope:'local'})}><Icon name="logout" size={20}/>Cerrar sesión</button><button className="btn btn-primary btn-lg">Guardar</button></div>
+  </form>:<p className="muted">Cargando tus datos…</p>}
+ </div>;
+}

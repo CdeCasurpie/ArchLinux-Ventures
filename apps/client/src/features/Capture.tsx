@@ -49,10 +49,10 @@ function CaptureActions({ cameraOn, recorderState, justSaved, elapsed, photoCoun
   return (
     <>
       <div className="actions" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: compact ? 12 : 25 }}>
-        <button className="btn btn-secondary" style={{ padding: '16px 0', fontSize: 13, background: 'white' }} onClick={onToggleCamera}>
+        <button className="btn btn-secondary" style={{ padding: '16px 0' }} onClick={onToggleCamera}>
           {cameraOn ? 'Apagar cámara' : 'Encender cámara'}
         </button>
-        <button className="btn btn-primary" style={{ padding: '16px 0', fontSize: 13 }} onClick={onTakePhoto} disabled={!cameraOn}>
+        <button className="btn btn-primary" style={{ padding: '16px 0' }} onClick={onTakePhoto} disabled={!cameraOn}>
           Tomar foto
         </button>
       </div>
@@ -60,7 +60,7 @@ function CaptureActions({ cameraOn, recorderState, justSaved, elapsed, photoCoun
       <div className="audio-section" style={compact ? undefined : { marginBottom: 25 }}>
         <button
           className={`btn ${recorderState === 'recording' ? 'btn-danger' : 'btn-secondary'}`}
-          style={{ width: '100%', minHeight: 65, fontSize: 16, display: 'flex', alignItems: 'center', justifyItems: 'center', gap: 12, justifyContent: 'center', borderRadius: 16, background: recorderState === 'recording' ? '' : 'white' }}
+          style={{ width: '100%', minHeight: 64, fontSize: 18, display: 'flex', alignItems: 'center', justifyItems: 'center', gap: 12, justifyContent: 'center', borderRadius: 16, }}
           onClick={onRecord}
           disabled={recorderState === 'saving' || (!cameraOn && photoCount === 0 && recorderState === 'idle')}
         >
@@ -68,10 +68,10 @@ function CaptureActions({ cameraOn, recorderState, justSaved, elapsed, photoCoun
             {recorderState === 'recording' ? <StopIcon /> : <MicIcon />}
           </span>
           {recorderState === 'recording'
-            ? `Detener y agrupar (${formatDuration(elapsed)})`
-            : recorderState === 'saving' ? 'Guardando...'
-            : justSaved  ? '¡Hallazgo guardado!'
-            : 'Grabar audio y agrupar'}
+            ? `Terminar y guardar hallazgo (${formatDuration(elapsed)})`
+            : recorderState === 'saving' ? 'Guardando…'
+            : justSaved  ? 'Hallazgo guardado'
+            : 'Dictar hallazgo'}
         </button>
       </div>
     </>
@@ -362,13 +362,13 @@ export function VisitCapture({
     return (
       <article className="capture-layout" style={{ paddingBottom: '40px', display: 'flex', flexDirection: 'column' }}>
         <div style={{ position: 'sticky', top: '70px', zIndex: 10, padding: '15px' }}>
-          <div ref={viewportRef} className={`camera-viewport ${cameraOn ? 'live' : ''}`} style={{ width: '100%', height: '48vh', background: cameraOn ? 'transparent' : '#e7eef4', display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative', borderRadius: '16px' }}>
-            {!cameraOn && <span style={{color: '#81909d', fontWeight: 800, textTransform: 'uppercase', fontSize: 11, letterSpacing: 1}}>Visor apagado</span>}
+          <div ref={viewportRef} className={`camera-viewport ${cameraOn ? 'live' : ''}`} style={{ width: '100%', height: '48vh', background: cameraOn ? 'transparent' : 'var(--sunken)', display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative', borderRadius: '16px' }}>
+            {!cameraOn && <span style={{ color: 'var(--ink-2)', fontWeight: 700, fontSize: 17 }}>Cámara apagada</span>}
             {flash && <div style={{ position: 'absolute', inset: 0, border: '6px solid white', background: 'rgba(255,255,255,0.6)', borderRadius: 16, zIndex: 100, transition: '0.1s' }}></div>}
           </div>
         </div>
 
-        <div style={{ padding: '20px 15px', background: '#f2f5f9', flex: 1, zIndex: 11, position: 'relative' }}>
+        <div style={{ padding: '20px 15px', background: 'var(--paper)', flex: 1, zIndex: 11, position: 'relative' }}>
           {actions}
 
           {photos.length > 0 && (
@@ -393,8 +393,8 @@ export function VisitCapture({
       <div ref={viewportRef} className={`capture-native-layer camera-viewport ${cameraOn ? 'live' : ''}`} style={{ bottom: navH > 0 ? `${navH}px` : undefined, background: cameraOn ? 'transparent' : undefined }}>
         {!cameraOn && (
           <div className="capture-native-empty">
-            <span>Visor apagado</span>
-            <small>Enciende la cámara para iniciar la inspección</small>
+            <span>Cámara apagada</span>
+            <small>Enciéndela, toma las fotos y luego dicta lo que observas.</small>
           </div>
         )}
         {flash && <div className="capture-flash" />}

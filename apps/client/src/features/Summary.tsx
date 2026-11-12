@@ -8,6 +8,7 @@ import {
 } from './media-sync';
 import { mediaOutbox, supabase } from '../platform';
 import { SupabaseCaptureReader } from '@archforms/data-supabase';
+import { Icon } from '../ui/Icon';
 
 // Pasa a true para mostrar el panel de diagnóstico de sync en el Resumen.
 const SHOW_SYNC_DEBUG = false;
@@ -22,8 +23,7 @@ function PhotoImg({ photo }: { photo: LabPhoto }) {
   useEffect(() => { setSrc(photo.thumbUrl ?? photo.displayUrl); setFellBack(false); }, [photo]);
   return (
     <img
-      src={src} alt="Evidencia" loading="lazy" decoding="async"
-      style={{ width: '100%', aspectRatio: '1', objectFit: 'cover', borderRadius: 8, border: '1px solid #e2e8f0' }}
+      src={src} alt="Foto del hallazgo" loading="lazy" decoding="async"
       onError={() => {
         if (fellBack) return;
         console.warn(`[photo-debug] img falló: ${src} (path ${photo.path})`);
@@ -63,8 +63,8 @@ export function VisitSummary({ visita, onConclude, onEditReport, onGoChecklist }
   const [confirming, setConfirming] = useState(false);
 
   const checklistFields = visita.checklist_esquema_json.sections.flatMap(s => s.fields);
-  const checklistAnswered = checklistFields.filter(f => { const v = visita.checklist_respuestas_json[f.id]; return v !== undefined && v !== ''; }).length;
-  const checklistComplete = checklistFields.length > 0 && checklistAnswered === checklistFields.length;
+  const checklistAnswered = checklistFields.filter(f => isAnswered(visita.checklist_respuestas_json[f.id])).length;
+  const checklistComplete = checklistAnswered === checklistFields.length;
 
   const doConclude = () => { setConfirming(false); setFinishing(true); onConclude().finally(() => setFinishing(false)); };
   const requestConclude = () => { if (checklistComplete) doConclude(); else setConfirming(true); };
@@ -139,38 +139,31 @@ export function VisitSummary({ visita, onConclude, onEditReport, onGoChecklist }
     {} as Record<string, number>,
   );
   const pendingSync = groups.filter(g => (g.syncStatus ?? 'pending') !== 'synced').length;
+  const sections = visita.checklist_esquema_json.sections;
+  const missing = checklistFields.length - checklistAnswered;
+  const missingRequired = checklistFields.filter(f => f.required && !isAnswered(visita.checklist_respuestas_json[f.id])).length;
 
   return (
     <article className="summary-layout">
-      <p className="eyebrow" style={{ marginBottom: 16 }}>HISTORIAL DE HALLAZGOS</p>
-
-      {groups.length > 0 && (
-        <div style={{
-          display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12,
-          padding: '10px 14px', borderRadius: 12, fontSize: 12, fontWeight: 700,
-          background: !online ? '#f1f5f9' : pendingSync > 0 ? '#e8f3fe' : '#e9f7f2',
-          color: !online ? '#475569' : pendingSync > 0 ? '#0b4a8f' : '#065f46',
-        }}>
-          <span>●</span>
-          {!online
-            ? `Sin conexión · ${pendingSync} pendiente${pendingSync === 1 ? '' : 's'} de subida`
-            : pendingSync > 0
-              ? `En línea · subiendo ${pendingSync}…`
-              : 'En línea · todo sincronizado'}
-        </div>
-      )}
-
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12, fontSize: 12, color: '#475569' }}>
-        <span>Nube: {lastPull ? `actualizado ${timeAgo(lastPull)}` : 'nunca descargado en este dispositivo'}</span>
-        <span style={{ flex: 1 }} />
-        <button
-          onClick={e => { e.preventDefault(); doPull(); }}
-          disabled={pulling || !online}
-          style={{ padding: '6px 12px', borderRadius: 8, border: '1px solid #cbd5e1', background: 'white', fontWeight: 700, fontSize: 12, color: '#0c4a6e' }}
-        >
+      <div className="sync-line" role="status">
+        <Icon name={!online ? 'cloudOff' : pendingSync > 0 ? 'refresh' : 'cloud'} size={20} />
+        <span>
+          <strong>
+            {!online
+              ? 'Sin conexión'
+              : pendingSync > 0
+                ? `Subiendo ${pendingSync} ${pendingSync === 1 ? 'hallazgo' : 'hallazgos'}…`
+                : groups.length ? 'Hallazgos respaldados en la nube' : 'En línea'}
+          </strong>
+          {' · '}
+          {!online && pendingSync > 0
+            ? `${pendingSync} ${pendingSync === 1 ? 'queda guardado' : 'quedan guardados'} en este dispositivo hasta tener señal`
+            : lastPull ? `Revisado en la nube ${timeAgo(lastPull)}` : 'Aún no se ha revisado la nube en este dispositivo'}
+        </span>
+        <button className="btn btn-secondary" onClick={e => { e.preventDefault(); doPull(); }} disabled={pulling || !online}>
           {pulling
-            ? (pullProgress?.phase === 'binaries' ? `Descargando ${pullProgress.done}/${pullProgress.total}…` : 'Leyendo nube…')
-            : '↓ Actualizar desde la nube'}
+            ? (pullProgress?.phase === 'binaries' ? `Descargando ${pullProgress.done} de ${pullProgress.total} archivos…` : 'Consultando la nube…')
+            : <><Icon name="download" size={18} />Traer de la nube</>}
         </button>
       </div>
 
@@ -186,157 +179,161 @@ export function VisitSummary({ visita, onConclude, onEditReport, onGoChecklist }
       />
       )}
 
-      {groups.length === 0 ? (
-        <div style={{ textAlign: 'center', padding: '40px 20px', color: '#81909d', background: 'white', borderRadius: 16, border: '1px dashed #cbd9e7' }}>
-          <p>Aún no has registrado ningún hallazgo en esta visita.</p>
-        </div>
-      ) : (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
-          {groups.map((group, i) => {
-            const noText = !group.transcripcion;
-            const failed = group.transcripcionStatus === 'error';
-            const remoteNoText = group.transcripcionStatus === 'remote' && noText;
-            const transcribing = noText && !failed && !remoteNoText;
-            return (
-            <div key={group.id} className="card" style={{ background: 'white', borderRadius: 16, padding: 16, border: transcribing ? '2px solid #7fb5f5' : '1px solid var(--line)', boxShadow: 'var(--shadow-sm)' }}>
-              {/* Header row */}
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-                <h3 style={{ margin: 0, fontSize: 16, color: 'var(--navy)' }}>Hallazgo {groups.length - i}</h3>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                  {transcribing && (
-                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 11, fontWeight: 700, padding: '4px 12px', borderRadius: 100, background: '#d7e9fd', color: '#0b4a8f', whiteSpace: 'nowrap' }}>
-                      <span className="spinner" />Procesando
-                    </span>
-                  )}
-                  <span style={{ fontSize: 11, color: '#81909d' }}>
-                    {new Date(group.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                  </span>
-                </div>
-              </div>
-
-              {/* Texto: skeleton hasta que la transcripción esté lista */}
-              {transcribing ? (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 12 }}>
-                  <div className="skeleton" style={{ height: 12, borderRadius: 6 }} />
-                  <div className="skeleton" style={{ height: 12, borderRadius: 6, width: '65%' }} />
-                </div>
-              ) : (
-                group.transcripcion && (
-                  <p style={{ margin: '0 0 12px 0', fontSize: 14, color: 'var(--navy)', lineHeight: 1.5 }}>
-                    <span>{group.transcripcion}</span>
-                  </p>
-                )
-              )}
-
-              {/* Audio: real desde el primer momento */}
-              {group.audio && (
-                <div style={{ padding: '8px 12px', background: '#f8fafc', borderRadius: 10, border: '1px solid #e2e8f0', marginBottom: group.photos.length ? 16 : 0 }}>
-                  <span style={{ display: 'block', fontSize: 12, fontWeight: 700, color: 'var(--blue-700)', marginBottom: 6 }}>Nota de voz original</span>
-                  <audio controls src={group.audio.displayUrl} style={{ width: '100%', height: 32 }} />
-                </div>
-              )}
-
-              {/* Fotos: reales desde el primer momento */}
-              {group.photos.length > 0 && (
-                <div>
-                  <span style={{ display: 'block', fontSize: 11, fontWeight: 700, color: '#81909d', textTransform: 'uppercase', marginBottom: 8, letterSpacing: 0.5 }}>
-                    Evidencia Fotográfica ({group.photos.length})
-                  </span>
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(80px, 1fr))', gap: 8 }}>
-                    {group.photos.map(photo => (
-                      <PhotoImg key={photo.id} photo={photo} />
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {/* Discreet status line below photos */}
-              {transcribing && (
-                <p style={{ margin: '12px 0 0 0', fontSize: 12, color: '#65758b' }}>
-                  {group.transcripcionStatus === 'checking_model' && 'Preparando modelo de IA…'}
-                  {group.transcripcionStatus === 'downloading_model' && 'Descargando modelo de IA…'}
-                  {group.transcripcionStatus === 'waiting_model' && 'Esperando modelo (sin conexión)…'}
-                  {group.transcripcionStatus === 'transcribing' && 'Transcribiendo nota de voz…'}
-                  {(group.transcripcionStatus === 'pending' || !group.transcripcionStatus) && 'Procesando hallazgo…'}
-                </p>
-              )}
-              {failed && (
-                <p style={{ margin: '12px 0 0 0', fontSize: 12, color: '#c9415d' }}>
-                  No se pudo transcribir{group.transcripcionError ? `: ${group.transcripcionError}` : '.'}
-                </p>
-              )}
-              {remoteNoText && (
-                <p style={{ margin: '12px 0 0 0', fontSize: 12, color: '#81909d' }}>
-                  Traída de la nube (este dispositivo no la transcribe).
-                </p>
-              )}
-
-              {SHOW_SYNC_DEBUG && (
-              <DebugGroup
-                debug={debug[group.id]}
-                retrying={retrying === group.id}
-                onRetry={() => retryOne(group)}
-              />
-              )}
+      <section className="summary-section">
+        <h2>Checklist</h2>
+        <p>{missing === 0 ? 'Todas las preguntas tienen respuesta.' : `${checklistAnswered} de ${checklistFields.length} respondidas. Las vacías quedan en blanco en el informe.`}</p>
+        <div className="list">
+          {sections.map(section => (
+            <div key={section.id} className="answer-group">
+              <h3>{section.title}</h3>
+              <dl>
+                {section.fields.map(field => {
+                  const value = visita.checklist_respuestas_json[field.id];
+                  return (
+                    <div key={field.id} className="answer-row">
+                      <dt>{field.label}</dt>
+                      <dd className={isAnswered(value) ? `answer ${answerTone(value)}` : 'answer empty'}>{formatAnswer(value)}</dd>
+                    </div>
+                  );
+                })}
+              </dl>
             </div>
-            );
-          })}
+          ))}
         </div>
-      )}
+        {missing > 0 && onGoChecklist && <button className="link-button" onClick={onGoChecklist}><Icon name="edit" size={18} />Completar el checklist</button>}
+      </section>
 
-      {/* Cierre de campo → edición de informe */}
-      <div className="card" style={{ padding: 20, marginTop: groups.length ? 20 : 0, marginBottom: 20 }}>
-        {visita.estado === 'FINALIZADA' ? (
-          <>
-            <h3 style={{ margin: '0 0 8px 0', fontSize: 15, color: 'var(--navy)' }}>Visita concluida ✓</h3>
-            <p style={{ margin: '0 0 12px 0', fontSize: 13, color: '#475569' }}>El trabajo de campo está cerrado. Puedes armar y regenerar el informe cuando quieras.</p>
-            <button className="btn btn-primary" onClick={onEditReport}>Editar informe →</button>
-          </>
+      <section className="summary-section">
+        <h2>Hallazgos</h2>
+        <p>{groups.length ? 'Del más reciente al más antiguo. El texto lo puedes corregir en el informe.' : 'Cada grupo de fotos con su nota de voz aparece aquí como un hallazgo.'}</p>
+        {groups.length === 0 ? (
+          <div className="empty-state"><h3>Sin hallazgos todavía</h3><p>Ve a «Fotos y voz», toma las fotos de lo que observas y dicta qué ves.</p></div>
         ) : (
-          <>
-            <h3 style={{ margin: '0 0 8px 0', fontSize: 15, color: 'var(--navy)' }}>¿Terminaste en campo?</h3>
-            <p style={{ margin: '0 0 12px 0', fontSize: 13, color: '#475569' }}>Al concluir se habilita la edición del informe. El checklist y la captura siguen disponibles.</p>
-            {confirming ? (
-              <div style={{ padding: 16, borderRadius: 12, background: 'white', border: '1px solid var(--line)' }}>
-                <p style={{ margin: '0 0 4px 0', fontSize: 14, fontWeight: 800, color: 'var(--navy)' }}>Checklist sin terminar</p>
-                <p style={{ margin: '0 0 14px 0', fontSize: 13, color: 'var(--danger)' }}>Te falta concluir el checklist antes de cerrar la visita.</p>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                  <button className="btn btn-primary" onClick={() => { setConfirming(false); onGoChecklist?.(); }}>
-                    Terminar checklist
-                  </button>
-                  <button className="btn btn-secondary" disabled={finishing} onClick={doConclude}>
-                    {finishing ? 'Concluyendo…' : 'Concluir de todos modos'}
-                  </button>
-                </div>
-              </div>
-            ) : (
-              <button
-                className="btn btn-primary btn-lg"
-                disabled={finishing}
-                onClick={requestConclude}
-              >
-                {finishing ? 'Concluyendo…' : 'Concluir visita →'}
-              </button>
-            )}
-          </>
-        )}
-      </div>
+          <div className="findings">
+            {groups.map((group, i) => {
+              const noText = !group.transcripcion;
+              const failed = group.transcripcionStatus === 'error';
+              const remoteNoText = group.transcripcionStatus === 'remote' && noText;
+              const transcribing = noText && !failed && !remoteNoText;
+              return (
+                <div key={group.id} className={`card finding ${transcribing ? 'processing' : ''}`}>
+                  <div className="finding-head">
+                    <h3>Hallazgo {groups.length - i}</h3>
+                    <span style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                      {transcribing && <span className="badge badge-info"><span className="spinner" />Escribiendo la nota</span>}
+                      <time>{new Date(group.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</time>
+                    </span>
+                  </div>
 
-      {/* Placeholders */}
-      <div style={{ marginTop: 32 }}>
-        <p className="eyebrow" style={{ marginBottom: 16 }}>CONCLUSIONES Y CIERRE</p>
-        <div style={{ background: 'white', borderRadius: 16, padding: 20, border: '1px solid var(--line)', marginBottom: 20 }}>
-          <h3 style={{ margin: '0 0 12px 0', fontSize: 15, color: 'var(--navy)' }}>Conclusiones</h3>
-          <p style={{ margin: 0, fontSize: 14, color: '#81909d' }}>Las conclusiones globales se redactarán en la próxima fase del MVP.</p>
+                  {transcribing ? (
+                    <div style={{ display: 'grid', gap: 8, marginBottom: 12 }} aria-hidden="true">
+                      <div className="skeleton" style={{ height: 14 }} />
+                      <div className="skeleton" style={{ height: 14, width: '65%' }} />
+                    </div>
+                  ) : (
+                    group.transcripcion && <p className="finding-text">{group.transcripcion}</p>
+                  )}
+
+                  {group.audio && (
+                    <div className="finding-audio">
+                      <span>Nota de voz original</span>
+                      <audio controls src={group.audio.displayUrl} />
+                    </div>
+                  )}
+
+                  {group.photos.length > 0 && (
+                    <div>
+                      <span className="photo-label">{group.photos.length === 1 ? '1 foto' : `${group.photos.length} fotos`}</span>
+                      <div className="photo-grid">
+                        {group.photos.map(photo => <PhotoImg key={photo.id} photo={photo} />)}
+                      </div>
+                    </div>
+                  )}
+
+                  {transcribing && (
+                    <p className="finding-note">
+                      {group.transcripcionStatus === 'checking_model' && 'Preparando el dictado en este teléfono…'}
+                      {group.transcripcionStatus === 'downloading_model' && 'Descargando el dictado (solo la primera vez)…'}
+                      {group.transcripcionStatus === 'waiting_model' && 'El dictado espera señal para descargarse. La nota de voz ya está guardada.'}
+                      {group.transcripcionStatus === 'transcribing' && 'Pasando la nota de voz a texto…'}
+                      {(group.transcripcionStatus === 'pending' || !group.transcripcionStatus) && 'En cola para pasar a texto…'}
+                    </p>
+                  )}
+                  {failed && (
+                    <p className="finding-note error">
+                      No se pudo pasar la nota a texto{group.transcripcionError ? ` (${group.transcripcionError})` : ''}. El audio está guardado; puedes escribir el texto en el informe.
+                    </p>
+                  )}
+                  {remoteNoText && (
+                    <p className="finding-note">Traído de otro dispositivo, sin texto. Escúchalo y escribe la nota en el informe.</p>
+                  )}
+
+                  {SHOW_SYNC_DEBUG && (
+                  <DebugGroup
+                    debug={debug[group.id]}
+                    retrying={retrying === group.id}
+                    onRetry={() => retryOne(group)}
+                  />
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </section>
+
+      <section className="summary-section">
+        <h2>Conclusiones y firmas</h2>
+        <div style={{ display: 'grid', gap: 10 }}>
+          <div className="placeholder-note"><h3>Conclusiones</h3><p>Se escriben en el editor del informe, después de cerrar la visita. Son opcionales.</p></div>
+          <div className="placeholder-note"><h3>Firmas</h3><p>El PDF incluye los espacios del responsable de obra y del profesional para firmar a mano. La firma digital todavía no está disponible.</p></div>
         </div>
-        <div style={{ background: 'white', borderRadius: 16, padding: 20, border: '1px solid var(--line)' }}>
-          <h3 style={{ margin: '0 0 12px 0', fontSize: 15, color: 'var(--navy)' }}>Firmantes y Adjuntos</h3>
-          <p style={{ margin: 0, fontSize: 14, color: '#81909d' }}>El panel para firmas y adjuntos estará disponible en futuras actualizaciones.</p>
-        </div>
-      </div>
+      </section>
+
+      {visita.estado === 'FINALIZADA' ? (
+        <section className="conclude-panel done">
+          <h2>Visita cerrada</h2>
+          <p>El trabajo de campo terminó. Puedes ordenar el informe y generar el PDF cuantas veces necesites.</p>
+          <button className="btn btn-primary btn-lg" onClick={onEditReport}><Icon name="file" />Abrir el informe</button>
+        </section>
+      ) : (
+        <section className="conclude-panel">
+          <h2>¿Terminaste en la obra?</h2>
+          <p>Cerrar la visita no genera el PDF todavía:</p>
+          <ol className="conclude-steps">
+            <li>Se marca la visita como concluida.</li>
+            <li>Se abre el informe para ordenar hallazgos y escribir conclusiones.</li>
+            <li>Generas el PDF cuando lo hayas revisado. El checklist y las fotos se pueden seguir corrigiendo.</li>
+          </ol>
+          {confirming ? (
+            <div className="confirm-box" role="alertdialog" aria-labelledby="confirm-title">
+              <strong id="confirm-title">{missing === 1 ? 'Queda 1 pregunta sin responder' : `Quedan ${missing} preguntas sin responder`}</strong>
+              <p>{missingRequired > 0 ? `${missingRequired === 1 ? 'Una es obligatoria' : `${missingRequired} son obligatorias`}. ` : ''}Puedes completarlas ahora o cerrar igual y corregirlas después.</p>
+              <div className="actions-row">
+                <button className="btn btn-primary" onClick={() => { setConfirming(false); onGoChecklist?.(); }}>Completar checklist</button>
+                <button className="btn btn-secondary" disabled={finishing} onClick={doConclude}>{finishing ? 'Cerrando…' : 'Cerrar la visita igual'}</button>
+              </div>
+            </div>
+          ) : (
+            <button className="btn btn-primary btn-lg" disabled={finishing} onClick={requestConclude}>
+              {finishing ? 'Cerrando…' : <><Icon name="check" />Cerrar visita y pasar al informe</>}
+            </button>
+          )}
+        </section>
+      )}
     </article>
   );
 }
+
+function isAnswered(value: unknown) { return value !== undefined && value !== null && value !== ''; }
+function formatAnswer(value: unknown) {
+  if (!isAnswered(value)) return 'Sin respuesta';
+  if (value === 'si') return 'Sí';
+  if (value === 'no') return 'No';
+  if (value === 'na') return 'N.A.';
+  return String(value);
+}
+function answerTone(value: unknown) { return value === 'si' ? 'yes' : value === 'no' ? 'no' : ''; }
 
 // ── Debug UI ──────────────────────────────────────────────────────────────────
 const debugBox: React.CSSProperties = {
