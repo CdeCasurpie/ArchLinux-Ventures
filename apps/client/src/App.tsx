@@ -93,6 +93,7 @@ function Workspace({session}:{session:Session}){
  const [view,setView]=useState<View>(initialFrame.view),[profile,setProfile]=useState<LocalState>({profile:null,pending:null}),[data,setData]=useState<WorkspaceState>(blankWorkspace);
  const [selectedId,setSelectedId]=useState<string|null>(initialFrame.selectedId),[visitId,setVisitId]=useState<string|null>(initialFrame.visitId),[online,setOnline]=useState(navigator.onLine),[syncing,setSyncing]=useState(false),[error,setError]=useState(''),[toast,setToast]=useState('');
  const [creatingVisit,setCreatingVisit]=useState(false),[publishing,setPublishing]=useState(false);
+ const [syncError,setSyncError]=useState('');
  // Hilo C: borrador del expediente mientras se crea una plantilla en la
  // biblioteca. El retorno automático solo existe si se vino desde el expediente.
  const [templateReturn,setTemplateReturn]=useState<TemplateReturnDraft|null>(null);
@@ -130,7 +131,7 @@ function Workspace({session}:{session:Session}){
  useEffect(()=>{
   let disposed=false;
   void refresh().catch(error=>setError(msg(error)));
-  const unsubscribe=coordinator.subscribe(state=>{setSyncing(state.running);setError(state.error??'')});
+  const unsubscribe=coordinator.subscribe(state=>{setSyncing(state.running);setSyncError(state.error??'')});
   const network=()=>{setOnline(navigator.onLine);if(navigator.onLine)void coordinator.request()};
   const foreground=()=>{if(document.visibilityState==='visible')void coordinator.request()};
   window.addEventListener('online',network);
@@ -282,7 +283,8 @@ function Workspace({session}:{session:Session}){
   <main className="main-content">
    {view!=='dashboard'&&<button className="btn btn-secondary navigation-back" onClick={()=>void goBack()}>← Volver</button>}
    {visit&&['visita','informe'].includes(view)&&<VisitDownload key={`download-${visit.id}`} visitaId={visit.id} queue={downloadService}/>}
-   <SyncStatus online={online} running={syncing} pending={data.pending.length+(profile.pending?1:0)} error={error} onRetry={()=>void retrySync()}/>
+    <SyncStatus online={online} running={syncing} pending={data.pending.length+(profile.pending?1:0)} error={syncError} onRetry={()=>void retrySync()}/>
+    <div hidden className="sync-error-details">{syncError}</div>
    {error&&<div className="alert error">{error}</div>}
    {view==='dashboard'&&<Dashboard data={data} profile={profile} onNavigate={navigate} onOpen={id=>navigate('detalle',id)}/>}
    {view==='expedientes'&&<Expedientes owner={owner} data={data} onNavigate={navigate}/>}

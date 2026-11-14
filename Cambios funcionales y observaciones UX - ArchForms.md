@@ -38,6 +38,38 @@ gestor completos, manteniendo el nombre visible «Checklist». Ver detalles y li
 
 ## Estado actual de las funcionalidades agregadas
 
+### Ajustes de revisión 2026-11-13 — orden, resumen, firmas y Android
+
+- **Supabase remoto:** se volvió a ejecutar `supabase db push --linked`; respondió
+  «Remote database is up to date». El historial local/remoto coincide hasta `013`.
+  Estos ajustes de interfaz no requieren nuevas migraciones.
+- **Sincronización:** el mensaje técnico extenso se conserva en el DOM con `hidden`,
+  sin renderizarse. El estado breve y la acción de reintento siguen disponibles.
+  Los errores de operaciones locales se presentan por separado.
+- **Observaciones:** orden cronológico ascendente por defecto. Si existe un documento
+  guardado, se respeta su orden de bloques tanto al reabrir el editor como al mostrar
+  los hallazgos del resumen y al generar el PDF; las capturas sin posición guardada se
+  muestran después, en orden cronológico. No se reordena un informe existente.
+- **Resumen:** cabecera, checklist, hallazgos, conclusiones y firmantes comparten el
+  mismo ancho exterior; se elimina la sangría adicional de conclusiones y firmantes.
+- **Firmas:** imagen por encima de la línea, tanto en pantalla como en PDF. Cada
+  firmante permite adjuntar una imagen, tomar una foto con la cámara del dispositivo
+  o dejar el espacio en blanco para firmar en papel; esta última acción retira la
+  imagen y conserva nombre, cargo e identificación. El PDF reserva espacio también
+  cuando no hay imagen. En web, la apertura de cámara depende del navegador.
+- **Android:** se retira `viewport-fit=cover` y se configura `SystemBars` con gestión
+  nativa de insets y barras visibles. Capacitor reserva el espacio de las barras y
+  recortes de pantalla para todo el viewport, incluidos los controles fijos de cámara,
+  sin sumar márgenes CSS duplicados.
+
+**Validación:** `npm run check` correcto (148 pruebas, TypeScript y build; tres
+advertencias anteriores de lint y aviso de tamaño de bundles). E2E del informe
+correcto, incluida firma vacía, carga desde la entrada de cámara, imagen sobre la
+línea y anchos iguales a 390 px, además del flujo offline/reconexión y PDF existente.
+APK debug compilada correctamente. Sin dispositivo conectado por ADB: quedan
+pendientes la comprobación física de barras/teclado/rotación/captura y la toma real
+de una foto de firma. La APK se generó, pero no se instaló en un teléfono.
+
 La aplicación implementa actualmente el flujo completo de plantillas, instancias de
 expediente y snapshots de visita:
 
@@ -303,7 +335,8 @@ firmas mediante imágenes se implementaron el 13-11-2026.
 **Situación actual (2026-11-13):** la sección «Firmantes y firmas» está disponible en
 el resumen y en el informe, con edición de identidad e imágenes opcionales y
 autoguardado offline-first. El PDF incorpora esas imágenes o conserva el espacio
-sin imagen. El tratamiento futuro de adjuntos generales queda por precisar; no se
+sin imagen, siempre por encima de la línea. Hay acciones para adjuntar imagen,
+tomar foto y dejar en blanco para firmar en papel. El tratamiento futuro de adjuntos generales queda por precisar; no se
 solicita eliminarlos del modelo.
 
 ## 7. Editor integral del informe
@@ -352,6 +385,13 @@ de la visita, con la misma representación de controles que el checklist princip
 - Comprobar el comportamiento tanto en pantallas habituales como en captura de cámara y con diferentes tamaños de pantalla.
 
 Este punto proviene del comportamiento observado en el celular; no se da por diagnosticada aquí su causa nativa exacta.
+
+**Ajuste implementado (2026-11-13):** el viewport ya no solicita extenderse bajo las
+barras (`viewport-fit=cover` retirado) y `SystemBars` mantiene las barras visibles con
+insets nativos. Esto evita que las WebViews recientes entreguen el área de las barras
+al CSS mientras el encabezado permanece en `top: 0`. El espacio se reserva para toda
+la interfaz, incluida la cámara. APK compilada; comprobación física pendiente de
+conectar el dispositivo.
 
 ## 9. Observaciones adicionales de diseño y funcionamiento
 
@@ -422,9 +462,13 @@ respuesta exige regenerar el PDF aunque no cambie la revisión de los bloques.
 
 ### 9.7 Orden inicial de observaciones
 
-El editor ordena inicialmente los grupos capturados del más reciente al más antiguo.
-
-**Decisión pendiente:** confirmar si los arquitectos esperan orden cronológico, orden inverso u otro criterio. El resumen, editor y PDF deben explicar y conservar el mismo orden elegido.
+**Decisión implementada (2026-11-13):** el orden inicial es cronológico, del más
+antiguo al más reciente. Si el usuario ya organizó un informe, se respeta el orden
+persistido de sus bloques, sin volver a ordenar al abrir ni al generar el PDF. El
+resumen también respeta esa secuencia para los hallazgos presentes en el documento;
+las capturas sin posición guardada se muestran al final en orden cronológico. La
+numeración visible sigue la secuencia mostrada. Los documentos existentes mantienen
+su orden, aunque procedan del criterio inverso anterior.
 
 ### 9.8 Estados de error y recuperación
 
@@ -432,6 +476,13 @@ El editor ordena inicialmente los grupos capturados del más reciente al más an
 botón manual. Checklist, informe, conclusiones y firmantes distinguen estado de
 guardado local y error, con reintento. Las acciones de acceso, cierre de campo y
 transferencia liberan el estado ocupado aunque fallen y muestran el error al usuario.
+
+**Ajuste de presentación (2026-11-13):** el error técnico extenso de sincronización
+ya no aparece como un bloque rojo gigante: su texto permanece en un nodo `hidden`
+del DOM para diagnóstico. Se mantiene el indicador breve «Sincronización requiere
+atención» y «Reintentar», sin confundirlo con un fallo de guardado local. El estado
+de sincronización se separó del estado de errores locales, de modo que un nuevo ciclo
+de sync no borre ni oculte un error de navegación, creación o publicación local.
 
 ## 10. Referencias de la revisión
 

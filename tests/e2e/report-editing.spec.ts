@@ -29,9 +29,24 @@ test('informe: respuestas, campos, firma y conclusiones offline; retorno conserv
   await page.getByLabel('Nombre completo',{exact:true}).fill('Ana Arquitecta');await page.getByLabel('Cargo',{exact:true}).fill('Supervisora');
   await page.getByLabel('Adjuntar imagen de firma').setInputFiles({name:'firma.png',mimeType:'image/png',buffer:Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jRZkAAAAASUVORK5CYII=','base64')});
   await expect(page.getByAltText('Firma de Ana Arquitecta')).toBeVisible();
+  await expect(page.getByLabel('Tomar foto de la firma')).toHaveAttribute('capture','environment');
+  await page.getByRole('button',{name:'Dejar en blanco para firmar en papel'}).click();
+  await expect(page.getByAltText('Firma de Ana Arquitecta')).not.toBeVisible();
+  await page.getByLabel('Tomar foto de la firma').setInputFiles({name:'foto.jpg',mimeType:'image/png',buffer:Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jRZkAAAAASUVORK5CYII=','base64')});
+  await expect(page.getByAltText('Firma de Ana Arquitecta')).toBeVisible();
+  const signature=await page.getByAltText('Firma de Ana Arquitecta').boundingBox();
+  const line=await page.locator('.signature-line').boundingBox();
+  expect(signature!.y+signature!.height).toBeLessThanOrEqual(line!.y);
   await expect(page.getByText('Informe guardado en este dispositivo · se sincroniza al tener conexión',{exact:true})).toBeVisible();
   await page.getByRole('button',{name:'← Volver',exact:true}).click();
   await expect(page.getByRole('heading',{name:'Revisión de la visita'})).toBeVisible();
+  await page.setViewportSize({width:390,height:844});
+  const widths=await page.locator('.summary-layout').evaluate(root=>{
+   const cards=[...root.querySelectorAll(':scope > .summary-section, :scope > .summary-conclusions > div, :scope > .summary-conclusions > section')];
+   return cards.map(card=>card.getBoundingClientRect().width);
+  });
+  expect(widths.length).toBeGreaterThanOrEqual(4);
+  expect(Math.max(...widths)-Math.min(...widths)).toBeLessThanOrEqual(1);
   await expect(page.getByAltText('Firma de Ana Arquitecta')).toBeVisible();
   await expect(page.locator('textarea').filter({visible:true}).first()).toHaveValue('Conclusión guardada offline');
   await page.goForward();

@@ -5,13 +5,19 @@ button,input,select,textarea{font-family:var(--font)}
 button:disabled{cursor:not-allowed;opacity:.55}
 .navigation-back{margin-bottom:16px}
 .summary-section{padding:20px;margin-bottom:20px}
+.summary-layout{width:100%;min-width:0}
+.summary-layout>*,.summary-layout .card{min-width:0;max-width:100%;box-sizing:border-box}
+.summary-layout>.summary-section,.summary-conclusions{width:100%}
 .visit-header-details{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:14px;margin:12px 0}
 .visit-header-details dt{font-size:11px;color:var(--muted);font-weight:700}
 .visit-header-details dd{margin:4px 0 0;overflow-wrap:anywhere;font-size:14px}
 .signer-card{min-width:0;border:1px solid var(--line);border-radius:12px;padding:16px;margin:16px 0}
 .signer-card legend{font-weight:700;padding:0 8px}
 .signature-preview{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin:12px 0}
-.signature-preview img{max-width:100%;width:280px;height:100px;object-fit:contain;border:1px dashed var(--line);background:white}
+.signature-paper{width:280px;max-width:100%}
+.signature-space{height:100px;display:flex;align-items:flex-end;justify-content:center;background:white}
+.signature-space img{max-width:100%;width:280px;height:100px;object-fit:contain}
+.signature-line{border-top:1px solid var(--navy);padding-top:6px;font-size:12px;text-align:center}
 .signature-upload{display:block;margin:12px 0;font-weight:700;font-size:12px}.signature-upload input{display:block;max-width:100%;margin-top:8px}
 .transfer-status{padding:12px 16px;border-radius:12px;background:var(--soft-blue);font-size:12px}.transfer-status progress{display:block;width:100%;margin-top:8px;accent-color:var(--blue-600)}
 @media(max-width:600px){.summary-section{padding:14px}.signer-card{padding:12px}.signers-editor .form-grid{grid-template-columns:1fr}.visit-header-details{grid-template-columns:1fr 1fr}}

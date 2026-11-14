@@ -21,15 +21,23 @@ async function signatureImage(file:File):Promise<string>{
 export function SignersEditor({signers,onChange}:{signers:ReportSigner[];onChange:(signers:ReportSigner[])=>void}){
  const [error,setError]=useState(''),[busy,setBusy]=useState(false);
  const update=(id:string,patch:Partial<ReportSigner>)=>onChange(signers.map(s=>s.id===id?{...s,...patch}:s));
+ const upload=async(id:string,input:HTMLInputElement)=>{
+  const file=input.files?.[0];input.value='';if(!file)return;
+  setBusy(true);setError('');
+  try{update(id,{image:await signatureImage(file)})}catch(error){setError(error instanceof Error?error.message:String(error))}finally{setBusy(false)}
+ };
  return <section className="signers-editor"><p>Firma manuscrita opcional: adjunta una fotografía o imagen escaneada, o deja el espacio vacío para firmar en papel. No constituye una firma digital certificada.</p>
   {error&&<p role="alert" className="alert error">{error}</p>}
   {signers.map(s=><fieldset key={s.id} disabled={busy} className="signer-card"><legend>{s.nombre||'Nuevo firmante'}</legend><div className="form-grid">
    <label>Nombre completo<input className="field" value={s.nombre} onChange={e=>update(s.id,{nombre:e.target.value})}/></label>
    <label>Cargo<input className="field" value={s.cargo} onChange={e=>update(s.id,{cargo:e.target.value})}/></label>
    <label>Colegiatura / identificación<input className="field" value={s.colegiatura} onChange={e=>update(s.id,{colegiatura:e.target.value})}/></label>
-  </div>{s.image?<div className="signature-preview"><img src={s.image} alt={`Firma de ${s.nombre||'firmante'}`}/><button className="btn btn-secondary" onClick={()=>update(s.id,{image:undefined})}>Quitar imagen</button></div>:<p>Sin imagen de firma.</p>}
-  <label className="signature-upload">Adjuntar imagen de firma<input type="file" accept="image/png,image/jpeg,image/webp" onChange={async e=>{const file=e.target.files?.[0];e.target.value='';if(!file)return;setBusy(true);setError('');try{update(s.id,{image:await signatureImage(file)})}catch(error){setError(error instanceof Error?error.message:String(error))}finally{setBusy(false)}}}/></label>
-  <button className="btn btn-danger" onClick={()=>onChange(signers.filter(item=>item.id!==s.id))}>Quitar firmante</button></fieldset>)}
+   </div><div className="signature-preview"><div className="signature-paper"><div className="signature-space">{s.image?<img src={s.image} alt={`Firma de ${s.nombre||'firmante'}`}/>:null}</div><div className="signature-line">{s.nombre||'Firma'}</div></div></div>
+   {!s.image&&<p>Espacio en blanco para firmar en papel.</p>}
+   <label className="signature-upload">Adjuntar imagen de firma<input type="file" accept="image/png,image/jpeg,image/webp" onChange={e=>void upload(s.id,e.currentTarget)}/></label>
+   <label className="signature-upload">Tomar foto de la firma<input type="file" accept="image/*" capture="environment" onChange={e=>void upload(s.id,e.currentTarget)}/></label>
+   <button type="button" className="btn btn-secondary" disabled={!s.image} onClick={()=>update(s.id,{image:undefined})}>Dejar en blanco para firmar en papel</button>
+   <button type="button" className="btn btn-danger" onClick={()=>onChange(signers.filter(item=>item.id!==s.id))}>Quitar firmante</button></fieldset>)}
   <button className="btn btn-secondary" disabled={busy||signers.length>=6} onClick={()=>onChange([...signers,{id:crypto.randomUUID(),nombre:'',cargo:'',colegiatura:''}])}>{busy?'Preparando imagen…':'＋ Añadir firmante'}</button>
  </section>;
 }

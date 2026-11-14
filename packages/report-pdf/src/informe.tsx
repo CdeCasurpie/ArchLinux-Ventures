@@ -74,7 +74,9 @@ const s = StyleSheet.create({
 
   // Firmas
   signBox: { marginTop: 24, flexDirection: 'row', flexWrap:'wrap', gap: 24 },
-  signCell: { width:'46%', borderTopWidth: 1, borderTopColor: C.navy, paddingTop: 4 },
+  signCell: { width:'46%' },
+  signSpace: { height:64, justifyContent:'flex-end', alignItems:'center' },
+  signIdentity: { borderTopWidth:1, borderTopColor:C.navy, paddingTop:4 },
 });
 
 // ── Utilidades ──────────────────────────────────────────────────────────────
@@ -247,16 +249,19 @@ function PhotoUnit({ unit, n, comment, missing, ids, photos, lead }: {
 function SignaturesBlock({ visita, profesional,doc }: { visita: Visita; profesional: Profile | null;doc:ReportDocumentV1 }) {
   const signer = (nombre: string | null | undefined, cargo: string | null | undefined, extra?: string | null) => (
     <View style={s.signCell}>
+      <View style={s.signSpace}/>
+      <View style={s.signIdentity}>
       <Text style={[s.value, { fontWeight: 'bold' }]}>{nombre || '—'}</Text>
       <Text style={s.label}>{cargo || 'Firma'}</Text>
       {extra ? <Text style={s.label}>{extra}</Text> : null}
+      </View>
     </View>
   );
   return (
     <View wrap={false}>
       <Text style={s.h2}>Firmas</Text>
       <View style={s.signBox}>
-        {doc.signers?.length?doc.signers.map(person=><View key={person.id} style={s.signCell}>{person.image?<Image src={person.image} style={{width:150,height:60,objectFit:'contain'}}/>:null}<Text style={s.value}>{person.nombre||'—'}</Text><Text style={s.label}>{person.cargo||'Firmante'}</Text><Text style={s.label}>{person.colegiatura}</Text></View>):<>
+        {doc.signers?.length?doc.signers.map(person=><View key={person.id} style={s.signCell}><View style={s.signSpace}>{person.image?<Image src={person.image} style={{width:150,height:60,objectFit:'contain'}}/>:null}</View><View style={s.signIdentity}><Text style={s.value}>{person.nombre||'—'}</Text><Text style={s.label}>{person.cargo||'Firmante'}</Text><Text style={s.label}>{person.colegiatura}</Text></View></View>):<>
         {signer(visita.responsable_obra_nombre, 'Responsable de obra', visita.responsable_obra_colegiatura)}
         {signer(profesional?.nombre_completo, profesional?.cargo ?? 'Profesional', profesional?.nro_colegiatura)}
         </>}

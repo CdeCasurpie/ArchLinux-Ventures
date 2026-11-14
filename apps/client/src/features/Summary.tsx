@@ -15,6 +15,7 @@ import {VisitHeaderDetails} from './VisitHeader';
 import {ChecklistForm} from './checklist';
 import type {Expediente} from '@archforms/domain';
 import {visitDocument} from './visit-document';
+import {orderObservations} from './observation-order';
 
 // Pasa a true para mostrar el panel de diagnóstico de sync en el Resumen.
 const SHOW_SYNC_DEBUG = false;
@@ -60,7 +61,8 @@ export function VisitSummary({ visita,expediente, onConclude, onEditReport, onGo
   onSave: (record: Visita) => Promise<void>;
   saveBarrier?: SaveBarrier;
 }) {
-  const [groups, setGroups] = useState<CaptureGroup[]>([]);
+  const [capturedGroups, setGroups] = useState<CaptureGroup[]>([]);
+  const groups=useMemo(()=>orderObservations(capturedGroups,parseReportDocument(visita.documento_json)),[capturedGroups,visita.documento_json]);
   const [debug, setDebug] = useState<Record<string, GroupSyncDebug>>({});
   const [engine, setEngine] = useState<SyncDebugState>({ running: false, lastRun: null });
   const [migrated, setMigrated] = useState<boolean | null>(null);
@@ -101,7 +103,7 @@ export function VisitSummary({ visita,expediente, onConclude, onEditReport, onGo
     const fetchAll = () => {
       loadCaptureGroups(visita.id).then(async g => {
         if (cancelled) return;
-        const sorted = g.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+        const sorted = orderObservations(g);
         setGroups(sorted);
         setEngine(getMediaSyncDebugState());
         setMigrated(await isMigrated(visita.id).catch(() => null));
@@ -117,7 +119,7 @@ export function VisitSummary({ visita,expediente, onConclude, onEditReport, onGo
     fetchAll();
     // Event-driven refresh: the sync manager emits after every outbox change.
     const unsub = subscribeMediaSync(fetchAll);
-    // Grupo recién creado en memoria: se antepone al instante, sin esperar al disco.
+    // Grupo recién creado en memoria: aparece al instante, sin esperar al disco.
     const unsubGroup = subscribeGroupCreated(g => {
       if (g.visitaId !== visita.id) return;
       setGroups(prev => (prev.some(p => p.id === g.id) ? prev : [g, ...prev]));
@@ -218,7 +220,7 @@ export function VisitSummary({ visita,expediente, onConclude, onEditReport, onGo
             <div key={group.id} className="card" style={{ background: 'white', borderRadius: 16, padding: 16, border: transcribing ? '2px solid #7fb5f5' : '1px solid var(--line)', boxShadow: 'var(--shadow-sm)' }}>
               {/* Header row */}
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-                <h3 style={{ margin: 0, fontSize: 16, color: 'var(--navy)' }}>Hallazgo {groups.length - i}</h3>
+                 <h3 style={{ margin: 0, fontSize: 16, color: 'var(--navy)' }}>Hallazgo {i + 1}</h3>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                   {transcribing && (
                     <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 11, fontWeight: 700, padding: '4px 12px', borderRadius: 100, background: '#d7e9fd', color: '#0b4a8f', whiteSpace: 'nowrap' }}>
@@ -302,7 +304,7 @@ export function VisitSummary({ visita,expediente, onConclude, onEditReport, onGo
         </div>
       )}
 
-      <section className="summary-section"><h3>Conclusiones y firmantes</h3><ConclusionsCard visita={visita} onSave={onSave} saveBarrier={saveBarrier}/><VisitSigners visita={visita} onSave={onSave} saveBarrier={saveBarrier}/></section>
+      <section className="summary-conclusions"><h3>Conclusiones y firmantes</h3><ConclusionsCard visita={visita} onSave={onSave} saveBarrier={saveBarrier}/><VisitSigners visita={visita} onSave={onSave} saveBarrier={saveBarrier}/></section>
       {/* Cierre de campo → edición de informe */}
       <div className="card" style={{ padding: 20, marginTop: groups.length ? 20 : 0, marginBottom: 20 }}>
         {visita.estado === 'FINALIZADA' ? (

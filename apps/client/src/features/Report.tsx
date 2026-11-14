@@ -18,6 +18,7 @@ import {ReportChecklist} from './ReportChecklist';
 import {SerialAutosave,type SaveStatus} from './serial-autosave';
 import type {SaveBarrier} from './save-barrier';
 import {reportSource} from './report-source';
+import {orderObservations} from './observation-order';
 
 function bytesToBase64(bytes: Uint8Array): string {
   let binary = '';
@@ -90,7 +91,7 @@ export function VisitReport({ visita, expediente, profile, onSave,onSaveAnswers,
     loadCaptureGroups(visita.id).then(g => {
       if (cancelled || initedFor.current === visita.id) return;
       initedFor.current = visita.id;
-      const sorted = g.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+      const sorted = orderObservations(g);
       setGroups(sorted);
       const parsed = parseReportDocument(visita.documento_json);
       if (parsed) {
