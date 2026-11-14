@@ -3,7 +3,7 @@
 Este documento reúne y reorganiza las necesidades identificadas durante la revisión con arquitectos y la revisión del código actual. Es un inventario de cambios de comportamiento y experiencia de uso: no define una secuencia de implementación, estimaciones ni una arquitectura técnica.
 
 **Última revisión documental: 2026-11-14.** Estado contrastado con el código hasta el
-commit `3e12e03`. Las secciones temáticas describen el comportamiento vigente; las
+commit `8704d0d`, subido a `origin/feat/offline-sync-foundation`. Las secciones temáticas describen el comportamiento vigente; las
 revisiones fechadas conservan el historial y sus resultados de validación originales.
 
 **Despliegue remoto 2026-11-13:** se aplicaron las migraciones `006` a `013` en el
@@ -44,16 +44,29 @@ adopta el editor y gestor completos, manteniendo el nombre visible «Checklist»
 
 ### Estado consolidado al 2026-11-14
 
-- **Base de datos:** el último push remoto confirmó «Remote database is up to date»;
-  el historial local/remoto coincide hasta `013`. Los ajustes posteriores de interfaz
-  y transcripción no añadieron migraciones.
+- **Base de datos:** el historial local/remoto coincide hasta `20261114000300`. Se
+  aplicaron en remoto las migraciones `20261114000100_profile_signature.sql`,
+  `20261114000200_cascade_deletion.sql` y `20261114000300_cascade_integrity.sql`.
 - **Navegación:** un único control de regreso, representado solo por una flecha en el
   encabezado. Cierra primero vistas previas y editores internos. En móvil, la pantalla
   de visita oculta el encabezado global completo, incluida la flecha; el informe y
   las demás pantallas mantienen el encabezado. Atrás del navegador/Android conserva
   su integración con el historial.
-- **Plantillas:** pulsar una tarjeta abre el checklist real en vista previa de solo
-  lectura. Crear una versión modificada requiere duplicar; la original es inmutable.
+- **Plantillas:** «Biblioteca de plantillas», con tarjetas compactas de unos 99 px de
+  alto, vista previa al pulsar y título obligatorio. Las de plataforma se duplican;
+  las propias se pueden editar sin modificar las copias de expedientes y visitas
+  existentes. Se retiraron «Ver plantilla», «Desactivar» y el botón de publicación
+  del expediente; el soporte interno de publicación se conserva.
+- **Expedientes y visitas:** eliminación con confirmación explícita, cola offline
+  persistente y limpieza en cascada de datos y archivos. La selección múltiple se
+  inicia manteniendo pulsada una visita, sin botón «Seleccionar visitas». Se conservan
+  «Abrir» y «Editar informe» cuando corresponde, con un tacho discreto para eliminar.
+  «Eliminar expediente» queda abajo a la izquierda de su tarjeta; las confirmaciones
+  son compactas y sobrias. Crear/guardar expediente queda fuera de ambas tarjetas,
+  al final y después de la plantilla.
+- **Hallazgos posteriores al informe:** se añaden automáticamente al documento
+  guardado sin alterar el orden ni reinsertar los retirados intencionalmente. Un PDF
+  ya exportado requiere generarse de nuevo para incluir los cambios.
 - **Resumen:** cabecera y checklist cerrados por defecto y desplegables. Todas las
   secciones comparten ancho exterior. «Hallazgos» muestra su cantidad, acciones de
   archivos compactas y las observaciones en orden cronológico inicial o en el orden
@@ -63,10 +76,14 @@ adopta el editor y gestor completos, manteniendo el nombre visible «Checklist»
   encabezado móvil, excepto dentro de la visita, donde se oculta esa barra. Sin panel
   global rojo ni aviso verde de hallazgos enviados. El detalle técnico de sync queda
   oculto en el DOM; se conservan reintentos y progreso de transferencias en curso.
-  El mensaje permanente de fotografías/audio comprobados también se retiró.
+  El mensaje permanente de fotografías/audio comprobados también se retiró, junto
+  con los avisos automáticos de guardado de `queue()`. Se conservan estado y errores.
 - **Firmantes:** hasta seis, con datos de identidad, selector «En papel / Con imagen»,
   adjuntar imagen y tomar foto. Sin borde exterior por firmante. La imagen, o el
   espacio reservado para firmar en papel, queda sobre la línea en pantalla y PDF.
+  El perfil guarda identidad e imagen reutilizable en `profesional.firma_imagen`;
+  «Añadirme como firmante» copia esos datos a la visita. La cámara permanece dentro
+  de la app, con encuadre horizontal 3:1, revisión y repetición de la toma.
 - **Android:** insets nativos y barras del sistema visibles; el encabezado global
   oculto dentro de la visita móvil es una decisión de interfaz independiente de las
   barras del sistema.
@@ -76,12 +93,16 @@ adopta el editor y gestor completos, manteniendo el nombre visible «Checklist»
   Se recuperan al arrancar los hallazgos con ese error y hay reintento manual en Android.
   Esto no habilita el dictado nativo de conclusiones, que sigue pendiente.
 
-**Última validación disponible:** `npm run check` correcto (151 pruebas, TypeScript y
-build); 4 pruebas JVM del resolver de pesos correctas; aplicación del parche mediante
-`postinstall` verificada y APK debug compilada. Los 3 E2E de Chromium pasaron durante
-las revisiones de interfaz; el del informe volvió a pasar tras ocultar la barra móvil
-y limpiar el resumen. Se mantienen tres advertencias previas de lint y el aviso de
-tamaño de bundles. Esta revisión documental no vuelve a ejecutar esas pruebas.
+**Última validación disponible:** 156 pruebas unitarias y 7 de integración local
+correctas; TypeScript y build correctos. Los cuatro flujos E2E de Chromium pasaron
+en ejecuciones sucesivas, incluidos cámara simulada, perfil, eliminación múltiple y
+plantillas. Tras el ajuste visual volvieron a pasar los flujos de perfil/eliminación
+y plantillas; el primero se repitió tras corregir la cancelación individual. La
+revisión visual a 390 px y en escritorio comprobó tarjetas de 99 px, ausencia de
+desbordamiento y validación y envío del botón externo del expediente. Se conservan
+las cuatro pruebas JVM y la APK compilada de la revisión previa. Persisten tres
+advertencias previas de lint y el aviso de tamaño de bundles. Esta revisión
+documental no vuelve a ejecutar esas pruebas.
 
 **Despliegue y comprobaciones pendientes:** la APK generada está en
 `apps/client/android/app/build/outputs/apk/debug/app-debug.apk`; el arreglo de Whisper
@@ -91,7 +112,31 @@ las barras/teclado/rotación/cámara y atrás de Android en dispositivo físico.
 siguen abiertas la validación del contenido de las tres plantillas base, el dictado
 nativo de conclusiones y la decisión sobre mover los bloques actualmente fijos.
 
-### Registro de ajustes 2026-11-13 a 2026-11-14 — orden, resumen, firmas y Android
+### Actualización 2026-11-14 — perfil, cámara, borrado y refinamiento visual
+
+- **Perfil:** identidad e imagen de firma normalizada pequeña reutilizables mediante
+  «Añadirme como firmante». Antes solo incluía avatar/iniciales, correo, nombre,
+  cargo, colegiatura y las acciones de guardar perfil y cerrar sesión, sin imagen.
+- **Cámara integrada:** `CameraPreview` en nativo y `getUserMedia` en web, recorte 3:1,
+  revisión, repetir toma, manejo de permisos y liberación de recursos. Validada con
+  cámara simulada; la captura física Android sigue pendiente.
+- **Eliminación:** RPC idempotente `sync_delete_workspace_v1`, control de propiedad,
+  cascadas en Supabase e IndexedDB/SQLite, limpieza de operaciones y archivos locales,
+  cancelación de descargas y retirada de PDFs generados en nativo. Los objetos de
+  Storage se eliminan por su API después del borrado de la base de datos.
+- **Informe:** reconciliación de capturas nuevas al guardar y abrir el documento.
+  `knownCaptureGroups` distingue capturas nuevas de las retiradas por el usuario y
+  se conserva al fusionar autoguardados. No se reescribe un PDF previamente exportado.
+- **Interfaz:** tarjetas de plantilla horizontales compactas, edición de plantillas
+  propias, título obligatorio y terminología «plantillas». Botón de firma integrado,
+  tachos discretos, eliminación de expediente abajo a la izquierda y confirmaciones
+  blancas con rojo suave. Crear/guardar expediente queda al final, tras la plantilla.
+- **Despliegue:** las tres migraciones `20261114000100` a `20261114000300` se aplicaron
+  en Supabase remoto; se verificó el historial coincidente. Commit `8704d0d` subido a
+  `feat/offline-sync-foundation` junto con los siete commits anteriores pendientes.
+  No se desplegó el cliente web ni se instaló una APK en esta operación.
+
+### Registro histórico de ajustes 2026-11-13 a 2026-11-14 — orden, resumen, firmas y Android
 
 **Corrección nativa de transcripción:** el fallo «`…ggml-tiny-q5_1.bin.bin is not in
 the app assets`» provenía de `capacitor-whisper` 0.2.1, que interpretaba la ruta de los
@@ -184,17 +229,16 @@ de una foto de firma. La APK se generó, pero no se instaló en un teléfono.
 La aplicación implementa actualmente el flujo completo de plantillas, instancias de
 expediente y snapshots de visita:
 
-- Las plantillas reutilizables son **inmutables**. Desde la biblioteca no se editan en
-  el mismo registro; la acción disponible es «Duplicar», que crea una plantilla nueva
-  con `id`, `codigo` y `version: 1` propios.
+- Las plantillas de plataforma son **inmutables para el usuario** y se duplican para
+  crear versiones propias con `id`, `codigo` y `version: 1` nuevos. Las propias sí se
+  editan en la biblioteca sin modificar copias existentes de expedientes y visitas.
 - Cada expediente conserva una copia propia del checklist (`checklist_nombre` y
   `checklist_esquema_json`). Editar el checklist desde el expediente solo modifica esa
   copia, nunca la plantilla de origen.
 - Al crear una visita se copia el checklist actual del expediente. La visita conserva
   ese snapshot aunque posteriormente cambien la plantilla o el expediente.
-- Una instancia de expediente puede publicarse como una plantilla reutilizable nueva.
-  La publicación no modifica las visitas existentes ni cambia el enlace del expediente
-  a su plantilla original.
+- El soporte interno de publicación crea una plantilla nueva sin modificar visitas
+  ni el enlace original, pero su botón se retiró de la interfaz del expediente.
 - Si se crea una plantilla desde un expediente, el borrador de la cabecera, el esquema,
   el nombre y la selección se conservan al volver desde la biblioteca. La nueva plantilla
   queda seleccionada y el usuario debe pulsar «Guardar cambios» para persistir el
@@ -205,15 +249,16 @@ expediente y snapshots de visita:
 - Todas las operaciones de plantillas siguen el flujo **offline-first**: se guardan
   primero en el almacenamiento local, quedan en la cola pendiente y se envían a
   Supabase al recuperar la conexión mediante `sync_workspace_v1`. Esto incluye crear,
-  duplicar, publicar y activar/desactivar plantillas.
+  duplicar y editar plantillas propias. El soporte interno de publicación y cambios
+  de estado se conserva, aunque los botones de publicar/desactivar se retiraron.
 - Las plantillas se almacenan en la tabla `plantilla_checklist`. Las plantillas de
   plataforma tienen `profesional_id = NULL` y son visibles para todos los usuarios
   autenticados. Las plantillas creadas por usuarios tienen el `profesional_id` del
   creador y solo se devuelven a ese usuario mediante las políticas RLS; actualmente no
   existe un mecanismo para compartirlas con otros usuarios.
 - La biblioteca muestra plantillas propias activas y desactivadas, además de las
-  plantillas de plataforma. Desactivar es una operación lógica para conservar la
-  integridad de las referencias desde expedientes y visitas.
+  plantillas de plataforma. La desactivación interna es lógica para conservar las
+  referencias; el botón «Desactivar» ya no aparece en las tarjetas.
 - Se añadieron pruebas unitarias, de almacenamiento/sincronización, de integración y
   E2E para verificar la copia independiente, la publicación, la protección de visitas
   existentes y la sincronización offline.
@@ -359,14 +404,39 @@ bloquea nuevas visitas.
 plantilla recién creada desde el expediente se ancla primero al regresar. Sin
 historial se utilizan tres plantillas de plataforma.
 
-**Situación actual (implementado el 12-11-2026, ajustado el 13-11-2026):** el expediente ya trae `checklist_template_id` (FK a la plantilla de origen, en `expediente` y `visita`) y el panel de selección muestra primero las tres opciones de «Uso reciente» —checklists de las visitas más recientes ordenadas por `fecha` descendente; sin historial, tres plantillas de plataforma—, seguidas del resto del catálogo, con vista previa fiel renderizada por tipo de campo. La acción «Crear nuevo formulario» redirige a la sección Plantillas conservando el borrador del expediente íntegro; al terminar, el retorno automático deja la plantilla recién creada seleccionada y anclada en la primera posición. La acción «Editar checklist de este expediente» edita **solo la copia del expediente** (no la plantilla) y exige pulsar «Guardar cambios»; si se intenta salir con cambios pendientes se ofrece guardar o descartar explícitamente. Publicar la copia como plantilla crea una fila nueva e inmutable y mantiene el enlace original. El retorno desde la biblioteca solo existe si se vino del expediente.
+**Situación actual (ajustada el 2026-11-14):** expediente y visita conservan
+`checklist_template_id`, enlace a la plantilla de origen. La selección muestra tres
+opciones de «Uso reciente» por fecha de visita descendente; sin historial, tres de
+plataforma, seguidas del resto del catálogo y una vista previa real por tipo de campo.
+«Crear nueva plantilla» abre la biblioteca conservando íntegro el borrador; al volver,
+la nueva plantilla queda seleccionada y anclada primero. «Editar plantilla de este
+expediente» modifica **solo su copia** y requiere guardar; salir con cambios ofrece
+guardar o descartar. El soporte de publicación se conserva sin botón visible. El
+retorno desde la biblioteca solo existe si se vino del expediente. Crear/guardar
+queda fuera de ambas tarjetas, al final y después de la plantilla, también en móvil.
+
+### Eliminación de expedientes y visitas (2026-11-14)
+
+Se puede eliminar un expediente con todas sus visitas o una visita individual con
+sus datos relacionados. Mantener pulsada una visita inicia selección múltiple; no
+hay botón «Seleccionar visitas». Las visitas conservan «Abrir» y, cuando corresponde,
+«Editar informe», junto a un tacho discreto. «Eliminar expediente» aparece abajo a
+la izquierda de su tarjeta, en rojo suave y fondo transparente.
+
+Ambas operaciones muestran confirmaciones compactas con alcance del borrado y
+advertencia de que no puede deshacerse; la del expediente incluye sus visitas y todo
+su contenido. Cancelar una eliminación individual devuelve los controles normales.
+Las operaciones se persisten sin conexión y se aplican al sincronizar, con control
+de propiedad y limpieza en cascada de datos, archivos y operaciones pendientes.
 
 ## 4. Checklist de visita: evolución a formulario dinámico
 
 ### Concepto y terminología
 
 - Tratar el checklist como un formulario dinámico, no únicamente como una lista de verificaciones de sí/no.
-- Unificar el nombre visible en la aplicación. Decisión adoptada: el nombre visible se mantiene como **«Checklist»** (no se renombra a «Formularios»).
+- Unificar el nombre visible en la aplicación. Decisión vigente al 2026-11-14:
+  **«Plantillas»** y **«Biblioteca de plantillas»**. Los nombres técnicos de esquema,
+  tablas y componentes conservan `checklist` por compatibilidad.
 - Permitir distintos tipos de campos y bloques. Catálogo aprobado (7 tipos): `boolean` (Sí/No/N.A.), `text` (texto corto), `textarea` (párrafo), `number` (con unidad opcional, p. ej. m, m², S/), `percent` (0–100), `date` y `select` (opción única de una lista configurable). El esquema está versionado (`version: 2`, compatible con esquemas `version: 1` existentes).
 - Incluir un campo de porcentaje de avance de obra, diferenciándolo del porcentaje de llenado del formulario.
 
@@ -396,7 +466,7 @@ editor del informe permite corregir respuestas y añadir o editar campos de la c
 de esa visita. Las respuestas se autoguardan mediante el protocolo de patches; el
 esquema se guarda al pulsar «Usar esta versión». Las otras visitas no cambian.
 
-## 5. Biblioteca de formularios y plantillas
+## 5. Biblioteca de plantillas
 
 ### Creación y reutilización
 
@@ -409,7 +479,8 @@ esquema se guarda al pulsar «Usar esta versión». Las otras visitas no cambian
 **Consulta de plantillas (2026-11-14):** pulsar el contenido de una tarjeta abre una
 vista previa de solo lectura con `ChecklistForm`, tanto en plantillas de plataforma
 como propias o desactivadas. «Duplicar y editar» abre una copia nueva; ver la
-plantilla no cambia el original. La flecha de regreso cierra primero la vista previa
+plantilla no cambia el original. Las propias ofrecen además «Editar», sin alterar
+las copias de expedientes y visitas existentes. La flecha cierra primero la vista previa
 o el editor antes de salir de la biblioteca.
 
 ### Tres plantillas base
@@ -424,7 +495,17 @@ Los dos tipos de obra específicos y el contenido de las tres plantillas quedan 
 
 **Situación histórica:** antes de la implementación de la biblioteca, la sección `Templates` solo mostraba tarjetas con nombre, cantidad de secciones, cantidad de campos y versión. La situación actual se describe en la actualización siguiente.
 
-**Actualización (implementado el 12-11-2026):** la sección Plantillas es ahora la **Biblioteca de formularios**: gestor completo con búsqueda, agrupación «De la plataforma» / «Mis formularios» / «Desactivados», y un **editor visual** comparable al constructor de Google Forms —secciones reordenables, campos configurables por tipo (etiqueta, descripción, obligatoriedad, opciones, min/max, unidad), reordenar y eliminar, con vista previa fiel a la vez real de llenado—. Las plantillas creadas sin conexión siguen el mismo flujo offline-first del resto del workspace: guardado local primero (outbox) y subida al reconectar, con distintivo «Pendiente de subir» en la tarjeta. El borrado es **lógico** (desactivar/reactivar), nunca físico, para preservar la integridad de la FK `checklist_template_id`. Las tres plantillas base de plataforma (G050, SUPERVISION, VACIO) permanecen intactas y no editables; el fallback offline las mantiene siempre disponibles. **Todas las plantillas son inmutables:** la acción «Editar» se sustituye por «Duplicar», que crea una plantilla nueva con id y código propios. La copia del expediente es la instancia editable y solo cambia ese expediente; cada visita conserva su propia copia congelada. Publicar una instancia como plantilla crea una plantilla nueva sin modificar el expediente de origen ni sus visitas. Desactivar/reactivar sigue siendo una mutación de ciclo de vida permitida.
+**Situación vigente (2026-11-14):** la **Biblioteca de plantillas** ofrece búsqueda,
+grupos «De la plataforma» / «Mis plantillas» y plantillas desactivadas, y editor visual
+con secciones y campos reordenables, configuración por tipo y vista previa real.
+Crear y editar requiere título y sigue el flujo offline-first: guardado local y
+subida al reconectar. Las tarjetas son horizontales y compactas (unos 99 px de alto),
+con vista previa al pulsar, sin botones «Ver plantilla» ni «Desactivar».
+Las tres plantillas base (G050, SUPERVISION, VACIO) no se editan directamente y tienen
+fallback offline; su contenido sigue pendiente de validación con arquitectos. Las
+propias sí se editan en su registro. «Duplicar» crea otra plantilla con id y código
+propios. Cada expediente y visita conserva su copia independiente. Publicar desde
+el expediente y desactivar conservan soporte interno, pero sus botones se retiraron.
 
 ## 6. Resumen de visita — paso 3
 
@@ -481,8 +562,11 @@ solicita eliminarlos del modelo.
 **Presentación vigente (2026-11-14):** identidad con iniciales, datos agrupados y
 selector «En papel / Con imagen». Cada firmante se separa con espacio, sin borde ni
 caja exterior. En modo imagen se ofrecen «Adjuntar imagen» y «Tomar foto»; al volver
-a papel se retira la imagen conservando los datos personales. La apertura real de
-la cámara depende del navegador/dispositivo y está pendiente de validación física.
+a papel se retira la imagen conservando los datos personales. El perfil permite
+guardar identidad e imagen reutilizables; «Añadirme como firmante» copia esos datos
+a la visita. «Tomar foto» abre una cámara integrada, con recorte horizontal 3:1,
+revisión y repetición, mediante `CameraPreview` nativo o `getUserMedia` en web.
+La captura se verificó con cámara simulada; la validación física sigue pendiente.
 
 ## 7. Editor integral del informe
 
@@ -618,6 +702,11 @@ generada con documento, cabecera, respuestas y datos profesionales; si cambian s
 indica «PDF anterior desactualizado». Una prueba E2E verifica que corregir una
 respuesta exige regenerar el PDF aunque no cambie la revisión de los bloques.
 
+**Actualización (2026-11-14):** los hallazgos capturados después de existir un informe
+se incorporan automáticamente al documento guardado, preservando su orden y las
+exclusiones intencionales mediante `knownCaptureGroups`. Se reconcilian al capturar
+y al abrir/actualizar el informe. El PDF exportado se actualiza generándolo de nuevo.
+
 ### 9.7 Orden inicial de observaciones
 
 **Decisión implementada (2026-11-13):** el orden inicial es cronológico, del más
@@ -682,6 +771,11 @@ real en un teléfono actualizado. Este cambio no habilita el dictado de conclusi
 - `apps/client/capacitor.config.ts` y `apps/client/index.html`: configuración de insets y viewport Android.
 - `apps/client/src/features/serial-autosave.ts`: autoguardado serializado del checklist y de las conclusiones.
 - `apps/client/src/features/Report.tsx`: edición, guardado y generación del informe.
+- `apps/client/src/features/ExpedienteDetail.tsx`: selección prolongada, eliminación y confirmaciones.
+- `apps/client/src/features/ProfilePage.tsx`, `profile-signer.ts` y `SignatureCamera.tsx`: perfil reutilizable y cámara integrada.
+- `apps/client/src/features/visit-document.ts` y `merge-visit-edit.ts`: reconciliación de hallazgos y preservación de metadatos.
+- `packages/data-local/src/index.ts` y `packages/data-supabase/src/index.ts`: cascadas locales, RPC de borrado y limpieza de Storage.
+- `supabase/migrations/20261114000100_profile_signature.sql`, `20261114000200_cascade_deletion.sql` y `20261114000300_cascade_integrity.sql`: migraciones aplicadas en local y remoto.
 - `apps/client/src/features/media-sync.ts`: sincronización de archivos y grupos de captura.
 - `packages/domain/src/index.ts`: esquema del formulario, visitas, bloques del informe y regla de completitud.
 - `packages/report-pdf/src/informe.tsx`: composición del PDF.
