@@ -281,7 +281,7 @@ function Workspace({session}:{session:Session}){
   <div className="sidebar-spacer"/><div className="sidebar-sync"><SyncStatus {...syncProps}/></div>
   <button className="profile-card" onClick={()=>navigate('perfil')}><span className="avatar">{initials(profile.profile?.nombre_completo)}</span><span><strong>{profile.profile?.nombre_completo||'Profesional'}</strong><small>{profile.profile?.cargo||session.user.email}</small></span><b>•••</b></button>
  </aside><section className="app-area">
-  <header className="topbar"><div className="topbar-location">
+  <header className={`topbar${view==='visita'?' topbar--visit':''}`}><div className="topbar-location">
    {view!=='dashboard'?<><BackButton onBack={goBack}/><span className="mobile-page-title">{title}</span></>:<button className="mobile-brand-button" onClick={()=>navigate('dashboard')}><Brand mobile/></button>}
    <div className="breadcrumbs">Mi espacio <i>›</i> <b>{title}</b></div>
   </div><div className="topbar-actions"><div className="mobile-sync"><SyncStatus {...syncProps}/></div><button className="top-avatar" onClick={()=>navigate('perfil')}>{initials(profile.profile?.nombre_completo)}</button></div></header>

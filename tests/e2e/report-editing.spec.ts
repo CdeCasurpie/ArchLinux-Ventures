@@ -69,7 +69,10 @@ test('informe: respuestas, campos, firma y conclusiones offline; retorno conserv
   }
   await page.setViewportSize({width:390,height:844});
   await expect(page.locator('.sidebar-sync .sync-indicator')).not.toBeVisible();
-  await expect(page.locator('.mobile-sync .sync-indicator')).toBeVisible();
+  await expect(page.locator('.topbar')).not.toBeVisible();
+  await expect(page.getByRole('button',{name:'Volver',exact:true})).not.toBeVisible();
+  await expect(page.getByText('Conclusiones y firmantes',{exact:true})).toHaveCount(0);
+  await expect(page.getByText(/Hallazgos locales (enviados|pendientes)/)).toHaveCount(0);
   expect(await page.locator('.signer-card').evaluate(el=>getComputedStyle(el).borderTopWidth)).toBe('0px');
   await page.screenshot({path:'/tmp/opencode/archforms-summary-mobile.png'});
   const widths=await page.locator('.summary-layout').evaluate(root=>{

@@ -40,6 +40,15 @@ gestor completos, manteniendo el nombre visible «Checklist». Ver detalles y li
 
 ### Ajustes de revisión 2026-11-13 — orden, resumen, firmas y Android
 
+**Limpieza del resumen móvil (2026-11-13):** dentro de la pantalla de visita se
+oculta en móvil la barra superior global completa (flecha, título, sincronización y
+avatar). Se retiró el aviso de hallazgos locales enviados/pendientes y el título
+intermedio «Conclusiones y firmantes». El resumen muestra «Hallazgos» con su cantidad,
+acciones de archivos compactas que se ajustan al ancho disponible, un estado vacío
+discreto y espacio entre los hallazgos y las conclusiones. Se mantiene el reintento de
+subida cuando hay archivos pendientes. Validación: `npm run check` correcto y E2E del
+informe correcto, incluida la barra oculta al entrar en la visita en móvil.
+
 **Tercera revisión de interfaz y transcripción (2026-11-13):**
 
 - Antes de cada intento de transcripción se consulta la existencia y el tamaño de

@@ -162,37 +162,20 @@ export function VisitSummary({ visita,expediente, onConclude, onEditReport, onGo
       <span hidden>{transferError}</span>
       <details className="card summary-section summary-disclosure"><summary><div><span className="eyebrow">CABECERA</span><h2>Revisión de la visita</h2></div><svg className="summary-chevron" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg></summary><div className="summary-disclosure-body"><VisitHeaderDetails expediente={expediente} visita={visita}/></div></details>
       <details className="card summary-section summary-disclosure"><summary><div><span className="eyebrow">CHECKLIST</span><h3>{visita.checklist_nombre}</h3></div><svg className="summary-chevron" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg></summary><div className="summary-disclosure-body"><ChecklistForm schema={visita.checklist_esquema_json} answers={visita.checklist_respuestas_json} readonly/><button className="btn btn-secondary" onClick={onGoChecklist}>Corregir respuestas</button></div></details>
-      <p className="eyebrow" style={{ marginBottom: 16 }}>HISTORIAL DE HALLAZGOS</p>
-
-      {groups.length > 0 && (
-        <div style={{
-          display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12,
-          padding: '10px 14px', borderRadius: 12, fontSize: 12, fontWeight: 700,
-          background: !online ? '#f1f5f9' : pendingSync > 0 ? '#e8f3fe' : '#e9f7f2',
-          color: !online ? '#475569' : pendingSync > 0 ? '#0b4a8f' : '#065f46',
-        }}>
-          <span>●</span>
-          {!online
-            ? `Sin conexión · ${pendingSync} pendiente${pendingSync === 1 ? '' : 's'} de subida`
-            : pendingSync > 0
-              ? `Hallazgos locales pendientes de envío: ${pendingSync}`
-              : 'Hallazgos locales enviados · descarga y datos se comprueban por separado'}
-        </div>
-      )}
-      {pendingSync>0&&<button className="btn btn-secondary" disabled={forcing||!online} onClick={forceSync}>{forcing?'Reintentando envíos…':'Reintentar subida de fotografías y audios'}</button>}
-
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12, fontSize: 12, color: '#475569' }}>
-        <span>Nube: {lastPull ? `actualizado ${timeAgo(lastPull)}` : 'nunca descargado en este dispositivo'}</span>
-        <span style={{ flex: 1 }} />
-        <button
+      <div className="summary-findings-heading"><h3>Hallazgos</h3><span>{groups.length}</span></div>
+      <div className="summary-file-actions">
+        <span>{lastPull ? `Archivos actualizados ${timeAgo(lastPull)}` : 'Archivos de esta visita'}</span>
+        <div>
+        {pendingSync>0&&<button type="button" disabled={forcing||!online} onClick={forceSync}>{forcing?'Reintentando…':'Reintentar subida'}</button>}
+        <button type="button"
           onClick={e => { e.preventDefault(); doPull(); }}
           disabled={pulling || !online}
-          style={{ padding: '6px 12px', borderRadius: 8, border: '1px solid #cbd5e1', background: 'white', fontWeight: 700, fontSize: 12, color: '#0c4a6e' }}
         >
           {pulling
             ? 'Actualizando archivos…'
-            : '↓ Actualizar desde la nube'}
+             : 'Actualizar archivos'}
         </button>
+        </div>
       </div>
 
       {SHOW_SYNC_DEBUG && (
@@ -208,7 +191,7 @@ export function VisitSummary({ visita,expediente, onConclude, onEditReport, onGo
       )}
 
       {groups.length === 0 ? (
-        <div style={{ textAlign: 'center', padding: '40px 20px', color: '#81909d', background: 'white', borderRadius: 16, border: '1px dashed #cbd9e7' }}>
+        <div className="summary-empty-findings">
           <p>Aún no has registrado ningún hallazgo en esta visita.</p>
         </div>
       ) : (
@@ -306,7 +289,7 @@ export function VisitSummary({ visita,expediente, onConclude, onEditReport, onGo
         </div>
       )}
 
-      <section className="summary-conclusions"><h3>Conclusiones y firmantes</h3><ConclusionsCard visita={visita} onSave={onSave} saveBarrier={saveBarrier}/><VisitSigners visita={visita} onSave={onSave} saveBarrier={saveBarrier}/></section>
+      <section className="summary-conclusions"><ConclusionsCard visita={visita} onSave={onSave} saveBarrier={saveBarrier}/><VisitSigners visita={visita} onSave={onSave} saveBarrier={saveBarrier}/></section>
       {/* Cierre de campo → edición de informe */}
       <div className="card" style={{ padding: 20, marginTop: groups.length ? 20 : 0, marginBottom: 20 }}>
         {visita.estado === 'FINALIZADA' ? (
