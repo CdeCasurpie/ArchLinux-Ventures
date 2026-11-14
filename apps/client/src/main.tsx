@@ -1,4 +1,5 @@
 import React from 'react';import {createRoot} from 'react-dom/client';import {App} from './App';import './styles.css';
+import './home-navigation.css';
 import {registerSW} from 'virtual:pwa-register';
 import {startLongTaskLog} from './features/perf';
 import './features/spike-capture';

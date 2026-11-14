@@ -27,6 +27,8 @@ import {deleteVisitCapture} from './features/lab-storage';
 import {visitDocument} from './features/visit-document';
 import {informeFileName} from '@archforms/domain';
 import {Directory,Filesystem} from '@capacitor/filesystem';
+import {HomeIcon,MobileHome,VisitLauncher,PendingVisits,MoreNavigation} from './features/HomeNavigation';
+import {recentWorks} from './features/home-data';
 
 /** Lupa del buscador: el glifo ⌕ no está en todas las fuentes. */
 function SearchIcon(){
@@ -38,13 +40,13 @@ function SearchIcon(){
  </span>;
 }
 
-type View='dashboard'|'expedientes'|'crear'|'detalle'|'visita'|'informe'|'plantillas'|'perfil';
+type View='dashboard'|'expedientes'|'crear'|'detalle'|'visita'|'informe'|'plantillas'|'perfil'|'nueva-visita'|'pendientes'|'mas';
 type NavigationFrame={view:View;selectedId:string|null;visitId:string|null;scroll:number};
 type NavigationOptions={allowDirty?:boolean;visitId?:string;restoreIndex?:number};
 function restoredNavigation(owner:string):{frames:NavigationFrame[];index:number}{
  try{
   const parsed=JSON.parse(sessionStorage.getItem(`archforms-navigation:${owner}`)??'null');
-  const views:View[]=['dashboard','expedientes','crear','detalle','visita','informe','plantillas','perfil'];
+   const views:View[]=['dashboard','expedientes','crear','detalle','visita','informe','plantillas','perfil','nueva-visita','pendientes','mas'];
   if(parsed&&Array.isArray(parsed.frames)&&Number.isInteger(parsed.index)&&parsed.index>=0&&parsed.index<parsed.frames.length&&parsed.frames.every((frame:NavigationFrame)=>frame&&views.includes(frame.view)&&(frame.selectedId===null||typeof frame.selectedId==='string')&&(frame.visitId===null||typeof frame.visitId==='string')&&Number.isFinite(frame.scroll)))return parsed;
  }catch{/* El historial es auxiliar: una entrada inválida no bloquea los datos locales. */}
  return {frames:[{view:'dashboard',selectedId:null,visitId:null,scroll:0}],index:0};
@@ -100,7 +102,8 @@ function Workspace({session}:{session:Session}){
  const saveBarrier=useMemo(()=>new SaveBarrier(),[owner]);
  const [view,setView]=useState<View>(initialFrame.view),[profile,setProfile]=useState<LocalState>({profile:null,pending:null}),[data,setData]=useState<WorkspaceState>(blankWorkspace);
  const [selectedId,setSelectedId]=useState<string|null>(initialFrame.selectedId),[visitId,setVisitId]=useState<string|null>(initialFrame.visitId),[online,setOnline]=useState(navigator.onLine),[syncing,setSyncing]=useState(false),[error,setError]=useState(''),[toast,setToast]=useState('');
- const [creatingVisit,setCreatingVisit]=useState(false),[publishing,setPublishing]=useState(false);
+  const [creatingVisit,setCreatingVisit]=useState(false),[publishing,setPublishing]=useState(false);
+  const creatingVisitRef=useRef(false);
  const [syncError,setSyncError]=useState('');
  // Hilo C: borrador del expediente mientras se crea una plantilla en la
  // biblioteca. El retorno automático solo existe si se vino desde el expediente.
@@ -249,15 +252,18 @@ function Workspace({session}:{session:Session}){
   async function newVisit(expediente:Expediente){
   // Guardia anti-doble-tap + lectura fresca del storage (el estado React puede
   // estar desactualizado ante toques rápidos y calcularía el mismo nro_visita).
-  if(creatingVisit)return;
+   if(creatingVisitRef.current)return;
+   creatingVisitRef.current=true;
   setCreatingVisit(true);
    try{
     await saveBarrier.flush();
    const ws=await workspaceLocal.read(owner);
    const current=ws.visitas.filter(item=>item.expediente_id===expediente.id),next=Math.max(0,...current.map(item=>item.nro_visita))+1;
-   const created=buildVisita(expediente,next,new Date().toISOString().slice(0,10));
+    const fresh=ws.expedientes.find(item=>item.id===expediente.id&&item.activo);
+    if(!fresh)throw new Error('Este expediente ya no está disponible. Vuelve a la lista de obras.');
+    const created=buildVisita(fresh,next,new Date().toISOString().slice(0,10));
    await queue('visita',created);await navigate('visita',expediente.id,{visitId:created.id});
-   }catch(error){setError(msg(error))}finally{setCreatingVisit(false)}
+    }catch(error){setError(msg(error))}finally{creatingVisitRef.current=false;setCreatingVisit(false)}
  }
   // Conservado para compatibilidad; la publicación ya no tiene acceso en la interfaz.
   // oxlint-disable-next-line no-unused-vars
@@ -303,25 +309,34 @@ function Workspace({session}:{session:Session}){
   setTemplateReturn(ctx=>ctx&&{...ctx,schema:structuredClone(template.esquema),checklistName:template.nombre,templateId:template.id,anchor:template.id,dirty:true});
   void navigate('crear',templateReturn?.existing?.id);
  }
-  const title={dashboard:'Inicio',expedientes:'Expedientes',crear:'Nuevo expediente',detalle:selected?.nro_expediente??'Expediente',visita:visit?`Visita ${String(visit.nro_visita).padStart(2,'0')}`:'Visita',informe:visit?`Informe V${String(visit.nro_visita).padStart(2,'0')}`:'Informe',plantillas:'Biblioteca de plantillas',perfil:'Mi perfil'}[view];
+   const title={dashboard:'Inicio',expedientes:'Expedientes',crear:'Nuevo expediente',detalle:selected?.nro_expediente??'Expediente',visita:visit?`Visita ${String(visit.nro_visita).padStart(2,'0')}`:'Visita',informe:visit?`Informe V${String(visit.nro_visita).padStart(2,'0')}`:'Informe',plantillas:'Biblioteca de plantillas',perfil:'Mi perfil','nueva-visita':'Nueva visita',pendientes:'Visitas pendientes',mas:'Más opciones'}[view];
   const counts={cases:data.expedientes.filter(item=>item.activo).length,drafts:data.visitas.filter(item=>item.estado==='BORRADOR').length};
   const syncProps={online,running:syncing,pending:data.pending.length+(profile.pending?1:0),error:syncError,onRetry:()=>void retrySync()};
   if(!hydrated)return <main className="auth simple">{error?<><p role="alert">No se pudieron abrir los datos locales: {error}</p><button className="btn btn-secondary" onClick={()=>void refresh().catch(error=>setError(msg(error)))}>Reintentar apertura</button></>:<p role="status">Abriendo datos del dispositivo…</p>}</main>;
-  return <ProfileSignerContext.Provider value={profile.profile?{id:owner,nombre:profile.profile.nombre_completo,cargo:profile.profile.cargo??'',colegiatura:profile.profile.nro_colegiatura??'',image:profile.profile.firma_imagen??undefined}:undefined}><BackNavigation><div className="app-shell"><aside className="sidebar">
+   return <ProfileSignerContext.Provider value={profile.profile?{id:owner,nombre:profile.profile.nombre_completo,cargo:profile.profile.cargo??'',colegiatura:profile.profile.nro_colegiatura??'',image:profile.profile.firma_imagen??undefined}:undefined}><BackNavigation><div className={`app-shell${view==='dashboard'?' app-shell--home':''}`}><aside className="sidebar">
   <button className="brand-button" onClick={()=>navigate('dashboard')}><Brand/></button>
-  <nav className="sidebar-nav"><Nav active={view==='dashboard'} icon="⌂" onClick={()=>navigate('dashboard')}>Inicio</Nav><Nav active={['expedientes','crear','detalle'].includes(view)} icon="▤" count={counts.cases} onClick={()=>navigate('expedientes')}>Expedientes</Nav><Nav active={view==='plantillas'} icon="✓" onClick={()=>navigate('plantillas')}>Plantillas</Nav></nav>
+   <nav className="sidebar-nav" aria-label="Navegación de escritorio">
+    <Nav active={view==='dashboard'} icon="⌂" onClick={()=>navigate('dashboard')}>Inicio</Nav>
+    <Nav active={['expedientes','crear','detalle'].includes(view)} icon={<HomeIcon kind="obra"/>} count={counts.cases} onClick={()=>navigate('expedientes')}>Expedientes</Nav>
+    <Nav active={view==='pendientes'} icon={<HomeIcon kind="pending"/>} onClick={()=>navigate('pendientes')}>Visitas pendientes</Nav>
+    <Nav active={view==='plantillas'} icon={<HomeIcon kind="template"/>} onClick={()=>navigate('plantillas')}>Plantillas</Nav>
+    <Nav active={view==='mas'} icon={<HomeIcon kind="more"/>} onClick={()=>navigate('mas')}>Ver más</Nav>
+   </nav>
   <div className="sidebar-spacer"/><div className="sidebar-sync"><SyncStatus {...syncProps}/></div>
   <button className="profile-card" onClick={()=>navigate('perfil')}><span className="avatar">{initials(profile.profile?.nombre_completo)}</span><span><strong>{profile.profile?.nombre_completo||'Profesional'}</strong><small>{profile.profile?.cargo||session.user.email}</small></span><b>•••</b></button>
  </aside><section className="app-area">
-  <header className={`topbar${view==='visita'?' topbar--visit':''}`}><div className="topbar-location">
+   <header className={`topbar${view==='visita'?' topbar--visit':''}${view==='dashboard'?' topbar--home':''}`}><div className="topbar-location">
    {view!=='dashboard'?<><BackButton onBack={goBack}/><span className="mobile-page-title">{title}</span></>:<button className="mobile-brand-button" onClick={()=>navigate('dashboard')}><Brand mobile/></button>}
    <div className="breadcrumbs">Mi espacio <i>›</i> <b>{title}</b></div>
-  </div><div className="topbar-actions"><div className="mobile-sync"><SyncStatus {...syncProps}/></div><button className="top-avatar" onClick={()=>navigate('perfil')}>{initials(profile.profile?.nombre_completo)}</button></div></header>
+   </div><div className="topbar-actions"><div className="mobile-sync"><SyncStatus {...syncProps}/></div><button className="top-avatar" aria-label="Mi perfil" onClick={()=>navigate('perfil')}><span className="profile-initials">{initials(profile.profile?.nombre_completo)}</span><span className="profile-person"><HomeIcon kind="person"/></span></button></div></header>
   <main className="main-content">
    {visit&&['visita','informe'].includes(view)&&<VisitDownload key={`download-${visit.id}`} visitaId={visit.id} queue={downloadService}/>}
     <div hidden className="sync-error-details">{syncError}</div>
    {error&&<div className="alert error">{error}</div>}
-   {view==='dashboard'&&<Dashboard data={data} profile={profile} onNavigate={navigate} onOpen={id=>navigate('detalle',id)}/>}
+     {view==='dashboard'&&<><div className="desktop-dashboard"><Dashboard data={data} profile={profile} onNavigate={navigate} onOpen={id=>navigate('detalle',id)}/></div><MobileHome obras={data.expedientes} visitas={data.visitas} name={profile.profile?.nombre_completo} onNavigate={navigate} onOpen={id=>navigate('detalle',id)}/></>}
+    {view==='nueva-visita'&&<VisitLauncher obras={data.expedientes} visitas={data.visitas} creating={creatingVisit} onCreate={newVisit} onContinue={v=>navigate('visita',v.expediente_id,{visitId:v.id})} onNewCase={()=>navigate('crear')}/>}
+    {view==='pendientes'&&<PendingVisits obras={data.expedientes} visitas={data.visitas} onOpen={v=>navigate(v.estado==='FINALIZADA'?'informe':'visita',v.expediente_id,{visitId:v.id})}/>}
+    {view==='mas'&&<MoreNavigation onNavigate={navigate}/>}
    {view==='expedientes'&&<Expedientes owner={owner} data={data} onNavigate={navigate}/>}
     {view==='crear'&&<ExpedienteForm key={`${selectedId??'new'}:${navigation.current.index}`} owner={owner} templates={templates} recientes={recientes} existing={selected} draft={templateReturn} onDirtyChange={setExpedienteDirty} onRegisterSave={registerExpedienteSave} onLeaveToLibrary={leaveToLibrary} onSave={async record=>{await queue('expediente',record);setTemplateReturn(null);setExpedienteDirty(false);await navigate('detalle',record.id,{allowDirty:true})}}/>}
     {view==='detalle'&&selected&&<ExpedienteDetail key={selected.id} expediente={selected} visitas={data.visitas.filter(item=>item.expediente_id===selected.id)} onEdit={()=>navigate('crear',selected.id)} onVisit={()=>void newVisit(selected)} onDelete={deleteRecords} creating={creatingVisit} onOpenVisit={id=>navigate('visita',selected.id,{visitId:id})} onEditReport={id=>navigate('informe',selected.id,{visitId:id})}/>}
@@ -330,14 +345,26 @@ function Workspace({session}:{session:Session}){
     {view==='plantillas'&&<TemplateLibrary owner={owner} templates={templates} pending={data.pending} returning={Boolean(templateReturn)} onSave={template=>queue('plantilla',template)} onReturn={finishTemplateReturn}/>}
     {view==='perfil'&&<SignatureProfilePage owner={owner} session={session} state={profile} onRefresh={async()=>{await refresh();if(navigator.onLine)void sync()}} onToast={setToast}/>}
   </main></section></div>
- <nav className="mobile-nav"><Nav active={view==='dashboard'} icon="⌂" onClick={()=>navigate('dashboard')}>Inicio</Nav><Nav active={['expedientes','detalle'].includes(view)} icon="▤" onClick={()=>navigate('expedientes')}>Expedientes</Nav><button className="mobile-create" onClick={()=>navigate('crear')}><span>＋</span></button><Nav active={view==='plantillas'} icon="✓" onClick={()=>navigate('plantillas')}>Plantillas</Nav><Nav active={view==='perfil'} icon="◎" onClick={()=>navigate('perfil')}>Perfil</Nav></nav>
+  {view==='dashboard'?<nav className="home-actionbar" aria-label="Acciones principales"><button className="btn btn-secondary" onClick={()=>navigate('crear')}>Nuevo expediente</button><button className="btn btn-primary" onClick={()=>navigate('nueva-visita')}>Nueva visita</button></nav>:view==='visita'?<nav className="mobile-nav"><Nav active={false} icon="⌂" onClick={()=>navigate('dashboard')}>Inicio</Nav><Nav active={false} icon="▤" onClick={()=>navigate('expedientes')}>Expedientes</Nav><button className="mobile-create" onClick={()=>navigate('crear')}><span>＋</span></button><Nav active={false} icon="✓" onClick={()=>navigate('plantillas')}>Plantillas</Nav><Nav active={false} icon="◎" onClick={()=>navigate('perfil')}>Perfil</Nav></nav>:<nav className="mobile-utility-nav" aria-label="Navegación principal"><button onClick={()=>navigate('dashboard')}><HomeIcon kind="obra"/>Inicio</button><button onClick={()=>navigate('mas')}><HomeIcon kind="more"/>Más opciones</button></nav>}
  {pendingNavigation&&<div className="modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="unsaved-title"><div className="card modal-card"><p className="eyebrow">CAMBIOS SIN GUARDAR</p><h2 id="unsaved-title">Hay cambios sin guardar en este expediente</h2><p>Guarda el expediente para conservar los cambios. Las visitas ya creadas no cambian.</p><div className="form-actions"><button className="btn btn-secondary" onClick={()=>setPendingNavigation(null)}>Seguir editando</button><button className="btn btn-danger" onClick={discardExpedienteDraft}>Descartar</button><button className="btn btn-primary" onClick={()=>{const save=saveExpedienteRef.current;setPendingNavigation(null);save?.()}}>Guardar cambios</button></div></div></div>}
   <div className={`toast ${toast?'show':''}`}><span>✓</span>{toast}</div></BackNavigation></ProfileSignerContext.Provider>;
 }
 
-function Nav({active,icon,count,children,onClick}:{active:boolean;icon:string;count?:number;children:React.ReactNode;onClick:()=>void}){return <button className={active?'nav-item active':'nav-item'} onClick={onClick}><span className="nav-icon">{icon}</span><span>{children}</span>{count!==undefined&&<span className="nav-count">{count}</span>}</button>}
-function Dashboard({data,profile,onNavigate,onOpen}:{data:WorkspaceState;profile:LocalState;onNavigate:(view:View)=>void;onOpen:(id:string)=>void}){const cases=data.expedientes.filter(item=>item.activo),visits=data.visitas;return <div className="page-enter"><section className="hero-grid"><article className="hero-card"><p className="eyebrow">TU TRABAJO, ORGANIZADO</p><h1>Tu visita de obra, lista antes de llegar a casa.</h1><p>Captura evidencias, completa plantillas y deja preparado cada informe.</p><div className="hero-actions"><button className="btn btn-primary btn-lg" onClick={()=>onNavigate(cases.length?'expedientes':'crear')}>＋ Nueva visita</button><button className="btn btn-secondary btn-lg" onClick={()=>onNavigate('expedientes')}>Ver expedientes</button></div></article><article className="today-card"><div className="today-card-header"><h3>Tu espacio</h3><span className="date-chip">ARCHFORMS</span></div><div className="today-visit"><strong>{profile.profile?.nombre_completo||'Completa tu perfil'}</strong><span>{profile.profile?.cargo||'Profesional responsable'}</span><span>{data.pending.length?`${data.pending.length} cambios por sincronizar`:'Todo está al día'}</span></div><button className="btn btn-secondary" onClick={()=>onNavigate('perfil')}>Revisar perfil →</button></article></section><section className="metrics"><Metric label="Expedientes activos" value={cases.length}/><Metric label="Visitas creadas" value={visits.length}/><Metric label="Borradores" value={visits.filter(v=>v.estado==='BORRADOR').length}/><Metric label="Plantillas" value={data.plantillas.length||fallbackTemplates.length}/></section><div className="section-heading"><h2>Expedientes recientes</h2><button className="section-link" onClick={()=>onNavigate('expedientes')}>Ver todos →</button></div>{cases.length?<div className="project-grid">{cases.slice(0,3).map(item=><ProjectCard key={item.id} item={item} visits={visits.filter(v=>v.expediente_id===item.id).length} onOpen={()=>onOpen(item.id)}/>)}</div>:<Empty title="Aún no tienes expedientes" text="Crea el primero y deja lista la cabecera y la plantilla para todas sus visitas." action="Crear expediente" onClick={()=>onNavigate('crear')}/>}</div>}
-function Metric({label,value}:{label:string;value:number}){return <article className="card metric"><div className="metric-label"><span>{label}</span><i>▤</i></div><strong>{String(value).padStart(2,'0')}</strong><small>Datos de tu espacio</small></article>}
+function Nav({active,icon,count,children,onClick}:{active:boolean;icon:React.ReactNode;count?:number;children:React.ReactNode;onClick:()=>void}){return <button className={active?'nav-item active':'nav-item'} onClick={onClick}><span className="nav-icon" aria-hidden="true">{icon}</span><span>{children}</span>{count!==undefined&&<span className="nav-count">{count}</span>}</button>}
+function Dashboard({data,profile,onNavigate,onOpen}:{data:WorkspaceState;profile:LocalState;onNavigate:(view:View)=>void;onOpen:(id:string)=>void}){
+  const visits=data.visitas;
+  const visited=new Set(visits.map(v=>v.expediente_id));
+  const cases=recentWorks(data.expedientes,visits).filter(o=>visited.has(o.id));
+  const firstName=profile.profile?.nombre_completo?.trim().split(/\s+/)[0];
+ return <div className="page-enter">
+  <section className="hero-grid"><article className="hero-card"><p className="eyebrow">TU TRABAJO, ORGANIZADO</p><h1>Tu visita de obra, lista antes de llegar a casa.</h1><p>Captura evidencias, completa plantillas y deja preparado cada informe.</p><div className="hero-actions"><button className="btn btn-primary btn-lg" onClick={()=>onNavigate('nueva-visita')}>Nueva visita</button><button className="btn btn-secondary btn-lg" onClick={()=>onNavigate('crear')}>Nuevo expediente</button></div></article><article className="today-card"><div className="today-card-header"><h3>Tu espacio</h3><span className="date-chip">ARCHFORMS</span></div><div className="today-visit"><strong>{firstName?`Hola, ${firstName}`:'Bienvenido a ArchForms'}</strong><span>{profile.profile?.cargo||'Profesional responsable'}</span><span>{data.pending.length?`${data.pending.length} cambios por sincronizar`:'Datos del espacio al día'}</span></div><button className="btn btn-secondary" onClick={()=>onNavigate('pendientes')}>Retomar visitas e informes →</button><button className="btn btn-ghost home-profile-link" onClick={()=>onNavigate('perfil')}>Revisar perfil →</button></article></section>
+  <section className="home-recommendations" aria-label="Recomendaciones de ArchForms">
+   <article className="card home-recommendation"><span className="home-recommendation-icon"><HomeIcon kind="pending"/></span><div><p className="eyebrow">DE LA OBRA AL INFORME</p><h2>Tu informe ya empezó en campo.</h2><p>Retoma tus visitas para revisar observaciones, completar firmas y preparar el PDF.</p><button className="section-link" onClick={()=>onNavigate('pendientes')}>Revisar mis visitas →</button></div></article>
+   <article className="card home-recommendation home-recommendation--templates"><span className="home-recommendation-icon"><HomeIcon kind="template"/></span><div><p className="eyebrow">CONFIGURA UNA VEZ, REUTILIZA SIEMPRE</p><h2>Una plantilla, muchas visitas.</h2><p>Personaliza lo que revisas en obra. Cada visita conserva su propia copia.</p><button className="section-link" onClick={()=>onNavigate('plantillas')}>Explorar mis plantillas →</button></div></article>
+  </section>
+  <div className="section-heading"><h2>Últimas obras visitadas</h2><button className="section-link" onClick={()=>onNavigate('expedientes')}>Ver todas →</button></div>{cases.length?<div className="project-grid">{cases.slice(0,3).map(item=><ProjectCard key={item.id} item={item} visits={visits.filter(v=>v.expediente_id===item.id).length} onOpen={()=>onOpen(item.id)}/>)}</div>:<Empty title="Aquí aparecerán tus últimas obras visitadas" text="Crea una visita para comenzar tu inspección o configura primero un expediente para una obra nueva." action={data.expedientes.some(o=>o.activo)?'Nueva visita':'Crear expediente'} onClick={()=>onNavigate(data.expedientes.some(o=>o.activo)?'nueva-visita':'crear')}/>}
+ </div>;
+}
 function ProjectCard({item,visits,onOpen}:{item:Expediente;visits:number;onOpen:()=>void}){return <button className="card project-card" onClick={onOpen}><div className="project-top"><span className="project-icon">⌂</span><span className="status active">Activo</span></div><h3>{item.detalle_obra||item.propietario||`Expediente ${item.nro_expediente}`}</h3><p className="project-address">{item.ubicacion}</p><div className="project-meta"><span>Expediente<strong>{item.nro_expediente}</strong></span><span>Visitas<strong>{visits}</strong></span></div></button>}
 function Empty({title,text,action,onClick}:{title:string;text:string;action:string;onClick:()=>void}){return <section className="card empty-state"><div className="empty-icon">▤</div><h2>{title}</h2><p>{text}</p><button className="btn btn-primary" onClick={onClick}>{action} →</button></section>}
 
