@@ -151,6 +151,15 @@ async function readJson<T>(path: string): Promise<T | null> {
 }
 const deleteQuiet = (path: string) =>
   Filesystem.deleteFile({ path, directory: Directory.Data }).catch(() => undefined)
+export async function deleteVisitCapture(visitaId:string){
+ const captured=await loadCaptureGroups(visitaId);
+ for(const group of captured){for(const photo of group.photos){await deleteQuiet(photo.path);await deleteQuiet(thumbPath(photo.id));thumbCache.delete(thumbPath(photo.id))}await deleteQuiet(group.audio.path);groups.delete(group.id);runtimeStatus.delete(group.id)}
+ const draft=await loadDraftPhotos(visitaId);
+ for(const photo of draft){await deleteQuiet(photo.path);await deleteQuiet(thumbPath(photo.id))}
+ await Filesystem.rmdir({path:groupDir(visitaId),directory:Directory.Data,recursive:true}).catch(()=>undefined);
+ await deleteQuiet(draftFile(visitaId));
+ drafts.delete(visitaId);loadedVisitas.delete(visitaId);
+}
 async function listDir(path: string): Promise<string[]> {
   try {
     const { files } = await Filesystem.readdir({ path, directory: Directory.Data })

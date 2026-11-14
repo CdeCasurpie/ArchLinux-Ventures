@@ -1,10 +1,19 @@
-import {initReportDocument,parseReportDocument,type Visita} from '@archforms/domain';
+import {initReportDocument,parseReportDocument,restoreGroupBlock,type Visita,type ReportDocumentV1} from '@archforms/domain';
 import {loadCaptureGroups} from './lab-storage';
 import {orderObservations} from './observation-order';
 
 /** Crear conclusiones o firmantes no debe dejar fuera los hallazgos ya capturados. */
 export async function visitDocument(visita:Visita){
- const existing=parseReportDocument(visita.documento_json);if(existing)return existing;
  const groups=await loadCaptureGroups(visita.id);
- return initReportDocument(orderObservations(groups).map(group=>({id:group.id,photoIds:group.photos.map(photo=>photo.id),comment:group.transcripcion??''})));
+ return reconcileFindings(parseReportDocument(visita.documento_json),groups);
+}
+
+export function reconcileFindings(existing:ReportDocumentV1|null,groups:{id:string;photos:{id:string}[];transcripcion?:string;createdAt:string}[]):ReportDocumentV1{
+ const sorted=orderObservations(groups);
+ if(!existing){const doc=initReportDocument(sorted.map(group=>({id:group.id,photoIds:group.photos.map(photo=>photo.id),comment:group.transcripcion??''})));return {...doc,knownCaptureGroups:sorted.map(g=>g.id)}}
+ const known=new Set(existing.knownCaptureGroups??existing.blocks.flatMap(b=>b.type==='capture-group'?[b.groupId]:[]));
+ let next=existing;
+ for(const group of sorted)if(!known.has(group.id))next=restoreGroupBlock(next,group.id,group.photos.map(p=>p.id),group.transcripcion??'');
+ const ids=[...new Set([...known,...sorted.map(g=>g.id)])];
+ return JSON.stringify(ids)===JSON.stringify(existing.knownCaptureGroups)?next:{...next,revision:next===existing?next.revision+1:next.revision,knownCaptureGroups:ids};
 }

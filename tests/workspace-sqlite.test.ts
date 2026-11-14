@@ -69,6 +69,10 @@ describe('workspace on real SQLite SQL engine (not Android plugin)', () => {
     const rejected = { ...visit, id: crypto.randomUUID() };
     await expect(local.save(owner, workspaceOperation('visita', rejected))).rejects.toThrow('disk failure');
     expect((await local.read(owner)).visitas.map(item => item.id)).not.toContain(rejected.id);
-    expect((await local.read(owner)).pending).toEqual(beforeFailure);
+     expect((await local.read(owner)).pending).toEqual(beforeFailure);
+     db.exec('DROP TRIGGER reject_pending');
+     const deletion={...workspaceOperation('expediente',record),workspace_mutation:{type:'delete' as const,payload:{}}};
+     await local.save(owner,deletion);
+     expect(await new SQLiteWorkspaceRepository().read(owner)).toMatchObject({expedientes:[],visitas:[],pending:[deletion]});
   });
 });

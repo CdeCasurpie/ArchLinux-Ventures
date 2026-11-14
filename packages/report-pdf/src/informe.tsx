@@ -389,7 +389,4 @@ export async function stampPageNumbers(
 }
 
 /** Nombre estable del PDF: Informe-<EXP>-V<NN>.pdf */
-export function informeFileName(expediente: Pick<Expediente, 'nro_expediente'>, visita: Pick<Visita, 'nro_visita'>): string {
-  const exp = expediente.nro_expediente.replace(/[^A-Za-z0-9_-]+/g, '_');
-  return `Informe-${exp}-V${String(visita.nro_visita).padStart(2, '0')}.pdf`;
-}
+export {informeFileName} from '@archforms/domain';

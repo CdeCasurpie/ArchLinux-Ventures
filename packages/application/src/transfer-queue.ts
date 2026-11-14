@@ -36,6 +36,11 @@ export class TransferQueue {
   }
   start(){this.stopped=false;return this.run()}
   stop(){this.stopped=true;this.abort?.abort()}
+  async remove(ids:string[]){
+    const stopped=this.stopped;this.stop();await this.active?.catch(()=>{});await this.ready;
+    await this.serial(async()=>{this.jobs=this.jobs.filter(job=>!ids.includes(job.id));await this.persist()});
+    this.stopped=stopped;
+  }
   run():Promise<void>{
     if(this.active)return this.active;
     this.active=this.perform().finally(()=>{this.active=null});return this.active;

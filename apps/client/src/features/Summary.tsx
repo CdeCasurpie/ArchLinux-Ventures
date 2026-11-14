@@ -162,7 +162,7 @@ export function VisitSummary({ visita,expediente, onConclude, onEditReport, onGo
       {actionError&&<p role="alert" className="alert error">{actionError}</p>}
       <span hidden>{transferError}</span>
       <details className="card summary-section summary-disclosure"><summary><div><span className="eyebrow">CABECERA</span><h2>Revisión de la visita</h2></div><svg className="summary-chevron" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg></summary><div className="summary-disclosure-body"><VisitHeaderDetails expediente={expediente} visita={visita}/></div></details>
-      <details className="card summary-section summary-disclosure"><summary><div><span className="eyebrow">CHECKLIST</span><h3>{visita.checklist_nombre}</h3></div><svg className="summary-chevron" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg></summary><div className="summary-disclosure-body"><ChecklistForm schema={visita.checklist_esquema_json} answers={visita.checklist_respuestas_json} readonly/><button className="btn btn-secondary" onClick={onGoChecklist}>Corregir respuestas</button></div></details>
+      <details className="card summary-section summary-disclosure"><summary><div><span className="eyebrow">PLANTILLA</span><h3>{visita.checklist_nombre}</h3></div><svg className="summary-chevron" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg></summary><div className="summary-disclosure-body"><ChecklistForm schema={visita.checklist_esquema_json} answers={visita.checklist_respuestas_json} readonly/><button className="btn btn-secondary" onClick={onGoChecklist}>Corregir respuestas</button></div></details>
       <div className="summary-findings-heading"><h3>Hallazgos</h3><span>{groups.length}</span></div>
       <div className="summary-file-actions">
         <span>{lastPull ? `Archivos actualizados ${timeAgo(lastPull)}` : 'Archivos de esta visita'}</span>
@@ -304,14 +304,14 @@ export function VisitSummary({ visita,expediente, onConclude, onEditReport, onGo
         ) : (
           <>
             <h3 style={{ margin: '0 0 8px 0', fontSize: 15, color: 'var(--navy)' }}>¿Terminaste en campo?</h3>
-            <p style={{ margin: '0 0 12px 0', fontSize: 13, color: '#475569' }}>Al concluir se habilita la edición del informe. El checklist y la captura siguen disponibles.</p>
+            <p style={{ margin: '0 0 12px 0', fontSize: 13, color: '#475569' }}>Al concluir se habilita la edición del informe. La plantilla y la captura siguen disponibles.</p>
             {confirming ? (
               <div style={{ padding: 16, borderRadius: 12, background: 'white', border: '1px solid var(--line)' }}>
-                <p style={{ margin: '0 0 4px 0', fontSize: 14, fontWeight: 800, color: 'var(--navy)' }}>Checklist sin terminar</p>
-                <p style={{ margin: '0 0 14px 0', fontSize: 13, color: 'var(--danger)' }}>Te falta{missingRequired === 1 ? '' : 'n'} {missingRequired} campo{missingRequired === 1 ? '' : 's'} obligatorio{missingRequired === 1 ? '' : 's'} del checklist antes de cerrar la visita.</p>
+                <p style={{ margin: '0 0 4px 0', fontSize: 14, fontWeight: 800, color: 'var(--navy)' }}>Plantilla sin terminar</p>
+                <p style={{ margin: '0 0 14px 0', fontSize: 13, color: 'var(--danger)' }}>Te falta{missingRequired === 1 ? '' : 'n'} {missingRequired} campo{missingRequired === 1 ? '' : 's'} obligatorio{missingRequired === 1 ? '' : 's'} de la plantilla antes de cerrar la visita.</p>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                   <button className="btn btn-primary" onClick={() => { setConfirming(false); onGoChecklist?.(); }}>
-                    Terminar checklist
+                    Terminar plantilla
                   </button>
                   <button className="btn btn-secondary" disabled={finishing} onClick={doConclude}>
                     {finishing ? 'Concluyendo…' : 'Concluir de todos modos'}

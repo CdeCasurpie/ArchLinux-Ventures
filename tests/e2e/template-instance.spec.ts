@@ -5,7 +5,7 @@ import {createClient} from '@supabase/supabase-js';
 const status=JSON.parse(execFileSync('npx',['supabase','status','-o','json'],{encoding:'utf8'}));
 if(!['127.0.0.1','localhost'].includes(new URL(status.API_URL).hostname))throw new Error('Local only');
 
-test('duplicar no cambia el expediente; editar la instancia exige guardar; la visita existente no cambia; publicar mantiene el enlace',async({page})=>{
+test('duplicar y editar plantillas no cambia el expediente; editar su copia exige guardar y no altera visitas existentes',async({page})=>{
  const client=createClient(status.API_URL,status.PUBLISHABLE_KEY||status.ANON_KEY,{auth:{persistSession:false,autoRefreshToken:false}});
  const email=`instancia-${crypto.randomUUID()}@archforms.test`,password='Browser-instance-local-2026';
  const {data,error}=await client.auth.signUp({email,password});
@@ -39,11 +39,11 @@ test('duplicar no cambia el expediente; editar la instancia exige guardar; la vi
   }
   async function editInstance(target:Page,label:string){
    await target.getByRole('button',{name:'Editar expediente'}).click();
-   await target.getByRole('button',{name:/Editar checklist de este expediente/}).click();
+    await target.getByRole('button',{name:/Editar plantilla de este expediente/}).click();
    await target.locator('.editor-field-toggle').first().click();
    await target.getByLabel('Etiqueta del campo').fill(label);
    await target.getByRole('button',{name:/Usar esta versión/}).click();
-   await expect(target.getByText('Cambios en el checklist sin guardar',{exact:false})).toBeVisible();
+    await expect(target.getByText('Cambios en la plantilla sin guardar',{exact:false})).toBeVisible();
   }
 
   await login(page);
@@ -52,11 +52,11 @@ test('duplicar no cambia el expediente; editar la instancia exige guardar; la vi
   await page.locator('.sidebar-nav').getByRole('button',{name:'Plantillas'}).click();
   await expect(page.getByRole('button',{name:'Volver',exact:true})).toHaveCount(1);
   await page.locator('.library-preview-trigger').first().click();
-  await expect(page.getByText('VISTA PREVIA · SOLO LECTURA',{exact:true})).toBeVisible();
+   await expect(page.getByText('VISTA PREVIA',{exact:true}).first()).toBeVisible();
   await expect(page.locator('.template-detail-form .checklist-form')).toBeVisible();
   await expect(page.locator('.template-detail-form input:enabled')).toHaveCount(0);
   await page.getByRole('button',{name:'Volver',exact:true}).click();
-  await expect(page.getByRole('heading',{name:'Plantillas de checklist'})).toBeVisible();
+   await expect(page.getByRole('heading',{name:'Biblioteca de plantillas'})).toBeVisible();
   const originalCard=page.locator('.library-card').filter({hasText:templateName});
   await expect(originalCard).toBeVisible();
   await originalCard.getByRole('button',{name:`Ver plantilla ${templateName}`,exact:true}).click();
@@ -65,9 +65,9 @@ test('duplicar no cambia el expediente; editar la instancia exige guardar; la vi
   await page.getByRole('button',{name:'Volver',exact:true}).click();
   await originalCard.getByRole('button',{name:'Duplicar',exact:true}).click();
   await page.getByRole('button',{name:'Volver',exact:true}).click();
-  await expect(page.getByRole('heading',{name:'Plantillas de checklist'})).toBeVisible();
+   await expect(page.getByRole('heading',{name:'Biblioteca de plantillas'})).toBeVisible();
   await originalCard.getByRole('button',{name:'Duplicar',exact:true}).click();
-  await page.getByLabel('Nombre del checklist').fill(`${templateName} copia`);
+   await page.getByLabel('Título de la plantilla').fill(`${templateName} copia`);
   await page.getByRole('button',{name:/Crear copia/}).click();
   await expect(page.locator('.library-card').filter({hasText:`${templateName} copia`})).toBeVisible();
   await expect.poll(async()=>(await client.from('plantilla_checklist').select('nombre,version').eq('id',templateId).single()).data)
@@ -111,21 +111,18 @@ test('duplicar no cambia el expediente; editar la instancia exige guardar; la vi
    return (rows?.[0]?.checklist_esquema_json as typeof schema | undefined)?.sections[0].fields[0].label;
   }).toBe('Instancia editada');
 
-  // 5) Publicar la instancia crea una plantilla y conserva el enlace original.
-  await page.getByRole('button',{name:'Volver',exact:true}).click();
-  await expect(page.getByRole('button',{name:/Publicar checklist como plantilla/})).toBeVisible();
-  await page.getByRole('button',{name:/Publicar checklist como plantilla/}).click();
-  await expect(page.getByText(/Plantilla publicada/)).toBeVisible();
-  await expect.poll(async()=>{
-   const rows=(await client.from('plantilla_checklist').select('id,nombre,esquema_json').eq('profesional_id',owner).eq('nombre',instanceName)).data;
-   return rows?.length??0;
-  }).toBe(1);
-  const published=(await client.from('plantilla_checklist').select('id,nombre,esquema_json').eq('profesional_id',owner).eq('nombre',instanceName).single()).data;
-  expect((published?.esquema_json as typeof schema | undefined)?.sections[0].fields[0].label).toBe('Instancia editada');
-  expect(published?.id).not.toBe(templateId);
-  expect((await client.from('expediente').select('checklist_template_id').eq('id',expedienteId).single()).data?.checklist_template_id).toBe(templateId);
-  await page.locator('.sidebar-nav').getByRole('button',{name:'Plantillas'}).click();
-  await expect(page.locator('.library-card').filter({hasText:instanceName})).toBeVisible();
+   // 5) No se publica desde el expediente. Editar el original conserva las copias.
+   await page.getByRole('button',{name:'Volver',exact:true}).click();
+   await expect(page.getByRole('button',{name:/Publicar/})).toHaveCount(0);
+   await page.locator('.sidebar-nav').getByRole('button',{name:'Plantillas'}).click();
+   const editable=page.locator('.library-card').filter({has:page.getByRole('heading',{name:templateName,exact:true})});
+   await editable.getByRole('button',{name:'Editar',exact:true}).click();
+   await page.locator('.editor-field-toggle').first().click();
+   await page.getByLabel('Etiqueta del campo').fill('Plantilla editada');
+   await page.getByRole('button',{name:/Guardar plantilla/}).click();
+   await expect.poll(async()=>((await client.from('plantilla_checklist').select('esquema_json').eq('id',templateId).single()).data?.esquema_json as typeof schema|undefined)?.sections[0].fields[0].label).toBe('Plantilla editada');
+   expect(((await client.from('expediente').select('checklist_esquema_json').eq('id',expedienteId).single()).data?.checklist_esquema_json as typeof schema|undefined)?.sections[0].fields[0].label).toBe('Instancia editada');
+   expect((await client.from('visita').select('checklist_esquema_json').eq('id',visitId).single()).data?.checklist_esquema_json).toEqual(schema);
  }finally{
   await client.from('visita').delete().eq('expediente_id',expedienteId);
   await client.from('expediente').delete().eq('id',expedienteId);

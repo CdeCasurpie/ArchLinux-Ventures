@@ -503,6 +503,7 @@ export type Database = {
       }
       profesional: {
         Row: {
+          firma_imagen: string | null
           activo: boolean
           cargo: string | null
           created_at: string
@@ -519,6 +520,7 @@ export type Database = {
           created_at?: string
           email: string
           firma_archivo_id?: string | null
+          firma_imagen?: string | null
           id?: string
           nombre_completo: string
           nro_colegiatura?: string | null
@@ -530,6 +532,7 @@ export type Database = {
           created_at?: string
           email?: string
           firma_archivo_id?: string | null
+          firma_imagen?: string | null
           id?: string
           nombre_completo?: string
           nro_colegiatura?: string | null
@@ -687,6 +690,8 @@ export type Database = {
         Args: { operation_id: string; nombre: string; cargo: string | null; colegiatura: string | null }
         Returns: Json
       }
+      sync_profile_signature_v1: {Args:{operation_id:string;nombre:string;cargo:string|null;colegiatura:string|null;firma:string|null};Returns:Json}
+      sync_delete_workspace_v1: {Args:{operation_id:string;entity:string;entity_id:string};Returns:Json}
       sync_pull_answers_v1: {
         Args: { after_revision?: number; page_size?: number }
         Returns: Json

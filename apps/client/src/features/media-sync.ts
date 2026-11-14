@@ -517,6 +517,7 @@ export class MediaSyncManager {
   }
 
   isRunning(): boolean { return this.engine.active(); }
+  async pause(){this.stop();await this.engine.whenIdle()}
 
   start(schedule?:()=>Promise<void>):void{
     if(this.started)return;

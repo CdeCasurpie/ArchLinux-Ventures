@@ -22,11 +22,12 @@ function templatePayload(payload:Record<string,unknown>):Record<string,unknown>{
 export class SupabaseProfileRepository implements RemoteRepository {
  constructor(private client:SupabaseClient<Database>){}
  async fetch():Promise<Profile>{
-  const {data,error}=await this.client.from('profesional').select('id,email,nombre_completo,cargo,nro_colegiatura,updated_at').single();
+   const {data,error}=await this.client.from('profesional').select('*').single();
   if(error)throw new Error(error.message);return data as Profile;
  }
  async push(op:Pending):Promise<Profile>{
-   const {data,error}=await this.client.rpc('sync_profile_v1',{operation_id:op.id,nombre:op.edit.nombre_completo,cargo:op.edit.cargo,colegiatura:op.edit.nro_colegiatura});
+    const args={operation_id:op.id,nombre:op.edit.nombre_completo,cargo:op.edit.cargo,colegiatura:op.edit.nro_colegiatura};
+    const {data,error}=op.edit.firma_imagen===undefined?await this.client.rpc('sync_profile_v1',args):await this.client.rpc('sync_profile_signature_v1',{...args,firma:op.edit.firma_imagen});
    if(error)throw error;
    if(!data||typeof data!=='object'||Array.isArray(data)||typeof data.id!=='string'||typeof data.updated_at!=='string'||typeof data.nombre_completo!=='string')throw new Error('Invalid profile response');
    return data as unknown as Profile;
@@ -79,6 +80,13 @@ export class SupabaseWorkspaceRepository implements WorkspaceRemoteRepository{
    return {expedientes:cases.sort((a,b)=>b.updated_at.localeCompare(a.updated_at)) as unknown as Expediente[],visitas:visits.sort((a,b)=>b.fecha.localeCompare(a.fecha)) as unknown as Visita[],plantillas:templates.sort((a,b)=>a.nombre.localeCompare(b.nombre)).map(row=>mapTemplate(row as unknown as Record<string,unknown>))};
  }
   async push(operation:WorkspacePending){
+   if(operation.workspace_mutation?.type==='delete'){
+    const {data,error}=await this.client.rpc('sync_delete_workspace_v1',{operation_id:operation.id,entity:operation.entity,entity_id:operation.record.id});
+    if(error)throw error;
+    const paths=data&&typeof data==='object'&&!Array.isArray(data)&&Array.isArray(data.storage_paths)?data.storage_paths.filter((p):p is string=>typeof p==='string'):[];
+    for(let at=0;at<paths.length;at+=100){const {error}=await this.client.storage.from('visita-media').remove(paths.slice(at,at+100));if(error)throw error}
+    return;
+   }
    if(operation.entity==='plantilla'&&operation.workspace_mutation){
     // Las plantillas viajan por el mismo protocolo; el payload se mapea a la
     // forma de la tabla (esquema → esquema_json) solo en el borde de red.

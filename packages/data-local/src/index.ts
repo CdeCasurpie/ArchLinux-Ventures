@@ -76,6 +76,12 @@ export class SQLiteRepository implements LocalRepository {
 
 const emptyWorkspace=():WorkspaceState=>({expedientes:[],visitas:[],plantillas:[],pending:[],last_sync:null});
 const kindOf=(entity:WorkspaceState['pending'][number]['entity'])=>entity==='expediente'?'expedientes':entity==='plantilla'?'plantillas':'visitas';
+function deletedWorkspace(state:WorkspaceState,operation:WorkspacePending):WorkspaceState{
+ const id=operation.record.id;
+ const visits=new Set(state.visitas.filter(v=>operation.entity==='expediente'?v.expediente_id===id:v.id===id).map(v=>v.id));
+ const pending=state.pending.filter(op=>!(op.entity===operation.entity&&op.record.id===id)&&!(op.entity==='visita'&&visits.has(op.record.id)));
+ return {...state,expedientes:state.expedientes.filter(e=>operation.entity!=='expediente'||e.id!==id),visitas:state.visitas.filter(v=>!visits.has(v.id)),pending:[...pending,operation]};
+}
 function mergeWorkspace(state:WorkspaceState,remote:Pick<WorkspaceState,'expedientes'|'visitas'|'plantillas'>,replica?:import('@archforms/domain').ReplicaInfo):WorkspaceState{
  const cases=new Map((replica?.partial?state.expedientes:[]).map(row=>[row.id,row]));
  const visits=new Map((replica?.partial?state.visitas:[]).map(row=>[row.id,row]));
@@ -88,7 +94,13 @@ function mergeWorkspace(state:WorkspaceState,remote:Pick<WorkspaceState,'expedie
   else if(removed.entity==='plantilla')templates.delete(removed.id);
   else visits.delete(removed.id);
  }
- for(const operation of state.pending){
+ const pending=state.pending.filter(op=>op.workspace_mutation?.type==='delete'||!(replica?.deleted??[]).some(removed=>
+  (removed.entity===op.entity&&removed.id===op.record.id)||(removed.entity==='expediente'&&op.entity==='visita'&&(op.record as Visita).expediente_id===removed.id)));
+ for(const operation of pending){
+   if(operation.workspace_mutation?.type==='delete'){
+    if(operation.entity==='expediente'){cases.delete(operation.record.id);for(const [id,row] of visits)if(row.expediente_id===operation.record.id)visits.delete(id)}else visits.delete(operation.record.id);
+    continue;
+   }
   const kind=kindOf(operation.entity);
   const records=kind==='expedientes'?cases:kind==='plantillas'?templates:visits;
   const base=records.get(operation.record.id)??operation.record;
@@ -100,7 +112,7 @@ function mergeWorkspace(state:WorkspaceState,remote:Pick<WorkspaceState,'expedie
   else if(operation.workspace_mutation?.type==='patch')next={...base,...operation.workspace_mutation.payload} as typeof next;
   (records as Map<string,typeof next>).set(next.id,next);
  }
- return {expedientes:[...cases.values()],visitas:[...visits.values()],plantillas:[...templates.values()],pending:state.pending,last_sync:new Date().toISOString(),...(replica?{sync_cursor:replica.cursor}:state.sync_cursor===undefined?{}:{sync_cursor:state.sync_cursor})};
+ return {expedientes:[...cases.values()],visitas:[...visits.values()],plantillas:[...templates.values()],pending,last_sync:new Date().toISOString(),...(replica?{sync_cursor:replica.cursor}:state.sync_cursor===undefined?{}:{sync_cursor:state.sync_cursor})};
 }
 export class IndexedWorkspaceRepository implements WorkspaceLocalRepository{
  private db:Promise<IDBPDatabase>;
@@ -141,8 +153,16 @@ export class IndexedWorkspaceRepository implements WorkspaceLocalRepository{
    const tx=(await this.db).transaction(['records','pending','metadata']);
    const state=await this.snapshot(tx,owner);await tx.done;return state;
   }
-  async save(owner:string,operation:WorkspacePending){
-   const tx=(await this.db).transaction(['records','pending','metadata'],'readwrite');
+   async save(owner:string,operation:WorkspacePending){
+    const tx=(await this.db).transaction(['records','pending','metadata'],'readwrite');
+    if(operation.workspace_mutation?.type==='delete'){
+     const next=deletedWorkspace(await this.snapshot(tx,owner),operation);
+     for(const kind of ['expedientes','visitas','plantillas'] as const){await tx.objectStore('records').delete(IDBKeyRange.bound([owner,kind,''],[owner,kind,'\uffff']));for(const row of next[kind])await tx.objectStore('records').put(row,[owner,kind,row.id])}
+     await tx.objectStore('pending').delete(IDBKeyRange.bound([owner,''],[owner,'\uffff']));
+     for(const op of next.pending)await tx.objectStore('pending').put(op,[owner,op.id]);
+     await tx.objectStore('metadata').put({last_sync:next.last_sync,sync_cursor:next.sync_cursor,order:next.pending.map(op=>op.id)},owner);
+     await tx.done;return;
+    }
    operation=prepareMutation(operation,await tx.objectStore('records').get([owner,kindOf(operation.entity),operation.record.id]));
    await tx.objectStore('records').put(operation.record,[owner,kindOf(operation.entity),operation.record.id]);
    const meta=await tx.objectStore('metadata').get(owner)??{last_sync:null,order:[]};
@@ -178,7 +198,8 @@ export class IndexedWorkspaceRepository implements WorkspaceLocalRepository{
     await tx.objectStore('records').delete(IDBKeyRange.bound([owner,kind,''],[owner,kind,'\uffff']));
     for(const record of next[kind])await tx.objectStore('records').put(record,[owner,kind,record.id]);
    }
-   await tx.objectStore('metadata').put({last_sync:next.last_sync,sync_cursor:next.sync_cursor,order:state.pending.map(op=>op.id)},owner);
+    for(const op of state.pending)if(!next.pending.some(row=>row.id===op.id))await tx.objectStore('pending').delete([owner,op.id]);
+    await tx.objectStore('metadata').put({last_sync:next.last_sync,sync_cursor:next.sync_cursor,order:next.pending.map(op=>op.id)},owner);
    await tx.done;
   }
 }
@@ -224,8 +245,9 @@ export class SQLiteWorkspaceRepository implements WorkspaceLocalRepository{
   }
  read(owner:string){return this.serial(()=>this.raw(owner))}
   private change(owner:string,fn:(state:WorkspaceState)=>WorkspaceState){return this.serial(async()=>{const db=await this.db;await this.writeSnapshot(db,owner,fn(await this.raw(owner)))})}
-  save(owner:string,operation:WorkspacePending){return this.serial(async()=>{
-   const db=await this.db;
+   save(owner:string,operation:WorkspacePending){return this.serial(async()=>{
+    const db=await this.db;
+    if(operation.workspace_mutation?.type==='delete'){await this.writeSnapshot(db,owner,deletedWorkspace(await this.raw(owner),operation));return}
    const previous=await db.query('SELECT payload FROM workspace_records WHERE owner=? AND kind=? AND id=?',[owner,kindOf(operation.entity),operation.record.id]);
    operation=prepareMutation(operation,previous.values?.[0]?JSON.parse(previous.values[0].payload):undefined);
    await db.executeSet([
@@ -281,6 +303,12 @@ const OUTBOX_DDL=[
 ];
 
 export class SQLiteMediaOutboxRepository implements MediaOutboxRepository {
+ removeVisits(ids:string[]){return this.serial(async()=>{
+  for(const id of ids){
+   await this.run("DELETE FROM entity_outbox WHERE json_extract(payload,'$.visita_id')=?",[id]);
+   await this.run('DELETE FROM media_outbox WHERE visita_id=?',[id]);
+  }
+ })}
  private db:Promise<SQLiteDBConnection>;
  private tail:Promise<unknown>=Promise.resolve();
  constructor(){
@@ -397,6 +425,7 @@ export class SQLiteMediaOutboxRepository implements MediaOutboxRepository {
 
 /** No-op implementation for web environments (capture is native-only). */
 export class NoopMediaOutboxRepository implements MediaOutboxRepository {
+ removeVisits(_ids:string[]){return Promise.resolve()}
  pendingMedia(){return Promise.resolve([])}
  markMediaUploading(){return Promise.resolve()}
  markMediaSynced(){return Promise.resolve()}
@@ -416,6 +445,12 @@ export class NoopMediaOutboxRepository implements MediaOutboxRepository {
 
 /** IndexedDB media outbox for web. Same contract as the SQLite one. */
 export class IndexedMediaOutboxRepository implements MediaOutboxRepository {
+ async removeVisits(ids:string[]){
+  const tx=(await this.db).transaction(['media','entities'],'readwrite');
+  let media=await tx.objectStore('media').openCursor();while(media){if(ids.includes(media.value.visita_id))await media.delete();media=await media.continue()}
+  let entity=await tx.objectStore('entities').openCursor();while(entity){if(ids.includes(JSON.parse(entity.value.payload).visita_id))await entity.delete();entity=await entity.continue()}
+  await tx.done;
+ }
  private db:Promise<IDBPDatabase>;
  constructor(name='archforms-media-outbox-v1'){
   this.db=openDB(name,1,{upgrade(db){db.createObjectStore('media');db.createObjectStore('entities')}});

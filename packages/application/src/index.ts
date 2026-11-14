@@ -127,6 +127,7 @@ export function exponentialBackoff(attempt:number):number{
 }
 
 export interface MediaOutboxRepository {
+ removeVisits?(ids:string[]):Promise<void>;
  pendingMedia(now:string):Promise<MediaOutboxItem[]>;
  markMediaUploading(id:string):Promise<void>;
  markMediaSynced(id:string,bucketPath:string):Promise<void>;
@@ -181,7 +182,8 @@ export class MediaSyncEngine {
  }
 
  /** True while a sync pass is in flight (used by the debug panel). */
- active():boolean{return this.running!==null}
+  active():boolean{return this.running!==null}
+  whenIdle():Promise<void>{return this.running??Promise.resolve()}
 
  private async perform():Promise<void>{
   for(let i=0;i<this.MAX_ITER;i++){

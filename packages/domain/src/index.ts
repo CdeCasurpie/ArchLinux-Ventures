@@ -1,8 +1,8 @@
 export type Profile = {
  id:string; email:string; nombre_completo:string; cargo:string|null;
- nro_colegiatura:string|null; updated_at:string;
+ nro_colegiatura:string|null; firma_imagen?:string|null; updated_at:string;
 };
-export type ProfileEdit = Pick<Profile,'nombre_completo'|'cargo'|'nro_colegiatura'>;
+export type ProfileEdit = Pick<Profile,'nombre_completo'|'cargo'|'nro_colegiatura'|'firma_imagen'>;
 export type Pending = {id:string; owner:string; base:string; edit:ProfileEdit};
 export type LocalState = {profile:Profile|null; pending:Pending|null};
 export class ConflictError extends Error { constructor(){super('El perfil cambió en otro dispositivo. Revisa ambas versiones.')} }
@@ -10,7 +10,8 @@ export function validateProfile(edit:ProfileEdit):ProfileEdit {
  const nombre=edit.nombre_completo.trim();
  if(nombre.length<2 || nombre.length>160) throw new Error('Escribe un nombre de 2 a 160 caracteres.');
  if((edit.cargo?.length??0)>160 || (edit.nro_colegiatura?.length??0)>40) throw new Error('Revisa la longitud del cargo y la colegiatura.');
- return {nombre_completo:nombre,cargo:edit.cargo?.trim()||null,nro_colegiatura:edit.nro_colegiatura?.trim()||null};
+  if(edit.firma_imagen&&(!/^data:image\/(png|jpeg);base64,[A-Za-z0-9+/=]+$/.test(edit.firma_imagen)||edit.firma_imagen.length>160000))throw new Error('Imagen de firma inválida o demasiado grande');
+  return {nombre_completo:nombre,cargo:edit.cargo?.trim()||null,nro_colegiatura:edit.nro_colegiatura?.trim()||null,...(edit.firma_imagen===undefined?{}:{firma_imagen:edit.firma_imagen})};
 }
 
 /** Catálogo de campos del checklist dinámico (sección 4 del documento de cambios).
@@ -49,18 +50,22 @@ export interface Visita {
  pdf_archivo_id:string|null;responsable_obra_colegiatura:string|null;created_at:string;updated_at:string;
 }
 export type WorkspaceEntity='expediente'|'visita'|'plantilla';
-export interface WorkspacePending {id:string;entity:WorkspaceEntity;record:Expediente|Visita|ChecklistTemplate;created_at:string;answer_patch?:Record<string,string|number|null>;preserve_answers?:boolean;protocol?:1;workspace_mutation?:{type:'create'|'patch';payload:Record<string,unknown>};blocked_error?:string}
+export function informeFileName(expediente:Pick<Expediente,'nro_expediente'>,visita:Pick<Visita,'nro_visita'>):string{
+ const exp=expediente.nro_expediente.replace(/[^A-Za-z0-9_-]+/g,'_');
+ return `Informe-${exp}-V${String(visita.nro_visita).padStart(2,'0')}.pdf`;
+}
+export interface WorkspacePending {id:string;entity:WorkspaceEntity;record:Expediente|Visita|ChecklistTemplate;created_at:string;answer_patch?:Record<string,string|number|null>;preserve_answers?:boolean;protocol?:1;workspace_mutation?:{type:'create'|'patch'|'delete';payload:Record<string,unknown>};blocked_error?:string}
 export interface WorkspaceState {expedientes:Expediente[];visitas:Visita[];plantillas:ChecklistTemplate[];pending:WorkspacePending[];last_sync:string|null;sync_cursor?:number}
 export interface ReplicaInfo {cursor:number;partial:boolean;deleted:{entity:WorkspaceEntity;id:string}[]}
 export function assertChecklist(schema:ChecklistSchema){
- if(schema.version!==1&&schema.version!==2)throw new Error('Versión de checklist no soportada.');
- if(!schema.sections.length)throw new Error('El checklist necesita al menos una sección.');
+  if(schema.version!==1&&schema.version!==2)throw new Error('Versión de plantilla no soportada.');
+  if(!schema.sections.length)throw new Error('La plantilla necesita al menos una sección.');
  const ids=new Set<string>();
  for(const section of schema.sections){
   if(!section.title.trim())throw new Error('Cada sección necesita un título.');
   for(const field of section.fields){
    if(!field.label.trim())throw new Error('Cada campo necesita una etiqueta.');
-   if(ids.has(field.id))throw new Error('Los identificadores del checklist deben ser únicos.');
+    if(ids.has(field.id))throw new Error('Los identificadores de la plantilla deben ser únicos.');
    ids.add(field.id);
    if(field.type==='select'){
     const options=field.options??[];
@@ -171,6 +176,7 @@ export type ReportBlock =
  |{id:string;type:'signatures';locked:true};
 
 export interface ReportDocumentV1 {
+  knownCaptureGroups?:string[];
   schemaVersion:1;revision:number;blocks:ReportBlock[];
   /** Imágenes pequeñas de firma manuscrita; no son firmas digitales certificadas. */
   signers?:ReportSigner[];
@@ -223,7 +229,7 @@ export function parseReportDocument(json:unknown):ReportDocumentV1|null{
  }
  if(!blocks.some(b=>b.type==='header')||!blocks.some(b=>b.type==='checklist')||!blocks.some(b=>b.type==='signatures'))return null;
  if(doc.signers!==undefined&&(!Array.isArray(doc.signers)||doc.signers.length>6||doc.signers.some(s=>!s||typeof s.id!=='string'||typeof s.nombre!=='string'||typeof s.cargo!=='string'||typeof s.colegiatura!=='string'||(s.image!==undefined&&(typeof s.image!=='string'||!/^data:image\/(png|jpeg);base64,[A-Za-z0-9+/=]+$/.test(s.image)||s.image.length>160000)))))return null;
- return {schemaVersion:1,revision:doc.revision,generatedRevision:typeof doc.generatedRevision==='number'?doc.generatedRevision:undefined,blocks,...(doc.signers?{signers:structuredClone(doc.signers)}:{})};
+  return {schemaVersion:1,revision:doc.revision,generatedRevision:typeof doc.generatedRevision==='number'?doc.generatedRevision:undefined,blocks,...(Array.isArray(doc.knownCaptureGroups)?{knownCaptureGroups:doc.knownCaptureGroups.filter((id):id is string=>typeof id==='string')} :{}),...(doc.signers?{signers:structuredClone(doc.signers)}:{})};
 }
 
 function bump(doc:ReportDocumentV1,blocks:ReportBlock[]):ReportDocumentV1{

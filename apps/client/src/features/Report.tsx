@@ -19,6 +19,8 @@ import {SerialAutosave,type SaveStatus} from './serial-autosave';
 import type {SaveBarrier} from './save-barrier';
 import {reportSource} from './report-source';
 import {orderObservations} from './observation-order';
+import {reconcileFindings} from './visit-document';
+import {subscribeGroupCreated,subscribeMediaSync} from './media-sync';
 
 function bytesToBase64(bytes: Uint8Array): string {
   let binary = '';
@@ -95,7 +97,7 @@ export function VisitReport({ visita, expediente, profile, onSave,onSaveAnswers,
       setGroups(sorted);
       const parsed = parseReportDocument(visita.documento_json);
       if (parsed) {
-        setDoc(parsed);
+        setDoc(reconcileFindings(parsed,sorted));
         setSavedRevision(parsed.revision);
       } else {
         const fresh = initReportDocument(sorted.map(gr => ({
@@ -122,6 +124,12 @@ export function VisitReport({ visita, expediente, profile, onSave,onSaveAnswers,
       return next;
     });
   };
+  useEffect(()=>{
+   let disposed=false;
+   const reload=()=>{void loadCaptureGroups(visita.id).then(groups=>{if(disposed||initedFor.current!==visita.id)return;setGroups(orderObservations(groups));setDoc(current=>current?reconcileFindings(current,groups):current)}).catch(error=>setLoadError(String(error)))};
+   const offGroup=subscribeGroupCreated(reload),offSync=subscribeMediaSync(reload);
+   return()=>{disposed=true;offGroup();offSync()};
+  },[visita.id]);
   const undo = () => {
     setPast(p => {
       if (!p.length || !doc) return p;
@@ -343,7 +351,7 @@ function BlockCard({ block, index, total, group, onMove, onRemove, onPhotos, onC
 }) {
   const locked = block.type === 'header' || block.type === 'checklist' || block.type === 'signatures';
   const title = block.type === 'header' ? 'Cabecera (fija)'
-    : block.type === 'checklist' ? 'Checklist (fijo)'
+    : block.type === 'checklist' ? 'Plantilla (fija)'
     : block.type === 'capture-group' ? `Hallazgo · ${group ? new Date(group.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '?'}` 
     : block.type === 'conclusions' ? 'Conclusiones'
     : block.type === 'signatures' ? 'Firmas (fijo)'

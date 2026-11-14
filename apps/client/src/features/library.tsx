@@ -25,11 +25,10 @@ function syncBadge(templateId:string,pending:WorkspacePending[]):{label:string;c
  return {label:'Pendiente de subir',cls:'pending'};
 }
 
-/** B3 — Biblioteca de formularios: gestor completo con sync offline-first.
- *  Las plantillas son inmutables: duplicar crea una nueva y nunca modifica las
- *  existentes. En modo retorno (Hilo C) crear regresa automáticamente al expediente. */
+/** Biblioteca offline-first. Editar una plantilla propia conserva su identidad;
+ * los expedientes y las visitas mantienen sus copias. Duplicar crea otra plantilla. */
 export function TemplateLibrary({owner,templates,pending,returning,onSave,onReturn}:{owner:string;templates:ChecklistTemplate[];pending:WorkspacePending[];returning:boolean;onSave:(template:ChecklistTemplate)=>Promise<void>;onReturn:(template:ChecklistTemplate)=>void}){
- const [editor,setEditor]=useState<{source:ChecklistTemplate|null;mode:'create'|'duplicate'}|null>(null);
+  const [editor,setEditor]=useState<{source:ChecklistTemplate|null;mode:'create'|'duplicate'|'edit'}|null>(null);
  const [preview,setPreview]=useState<ChecklistTemplate|null>(null);
  useBackAction(()=>setPreview(null),Boolean(preview)&&!editor);
  const [search,setSearch]=useState('');
@@ -49,59 +48,55 @@ export function TemplateLibrary({owner,templates,pending,returning,onSave,onRetu
  async function reactivate(template:ChecklistTemplate){
   try{await onSave({...template,activa:true})}catch(err){setError(err instanceof Error?err.message:String(err))}
  }
- function openEditor(source:ChecklistTemplate|null,mode:'create'|'duplicate'){setError('');setEditor({source,mode})}
+  function openEditor(source:ChecklistTemplate|null,mode:'create'|'duplicate'|'edit'){setError('');setEditor({source,mode})}
 
  if(editor)return <div className="page-enter"><TemplateEditor owner={owner} source={editor.source} mode={editor.mode}
   onCancel={()=>setEditor(null)} onSave={saveTemplate}/></div>;
 
  if(preview)return <div className="page-enter template-detail">
-  <header className="page-heading"><div><p className="eyebrow">VISTA PREVIA · SOLO LECTURA</p><h1>{preview.nombre}</h1><p>{preview.esquema.sections.length} secciones · Versión {preview.version} · {preview.profesional_id===null?'De la plataforma':'Formulario propio'}</p></div><button className="btn btn-primary" onClick={()=>{setPreview(null);openEditor(preview,'duplicate')}}>Duplicar y editar</button></header>
-  <div className="template-preview-note"><span aria-hidden="true">◇</span><p>Así se verá el checklist al completar una visita. Para personalizarlo, crea una copia.</p></div>
+   <header className="page-heading"><div><p className="eyebrow">VISTA PREVIA</p><h1>{preview.nombre}</h1><p>{preview.esquema.sections.length} secciones · Versión {preview.version}</p></div><button className="btn btn-primary" onClick={()=>{setPreview(null);openEditor(preview,preview.profesional_id===owner?'edit':'duplicate')}}>{preview.profesional_id===owner?'Editar plantilla':'Duplicar y editar'}</button></header>
+   <div className="template-preview-note"><span aria-hidden="true">◇</span><p>Los expedientes conservan copias independientes de esta plantilla.</p></div>
   <section className="card template-detail-form" aria-label={`Vista previa de ${preview.nombre}`}><ChecklistForm schema={withAvanceObra(preview.esquema)} answers={{}} readonly/></section>
  </div>;
 
  return <div className="page-enter">
   <header className="page-heading">
    <div>
-    <p className="eyebrow">BIBLIOTECA DE CHECKLISTS</p>
-    <h1>Plantillas de checklist</h1>
-    <p>{returning?'Crea un formulario nuevo; al terminar volverás al expediente con todo intacto.':'Crea y reutiliza tus propios formularios. Las plantillas son inmutables: duplica una para cambiarla y los expedientes existentes no se modifican.'}</p>
+     <p className="eyebrow">TU COLECCIÓN</p>
+     <h1>Biblioteca de plantillas</h1>
+     <p>{returning?'Crea una plantilla; al terminar volverás al expediente con todo intacto.':'Crea, edita y reutiliza tus plantillas. Los expedientes conservan sus propias copias.'}</p>
    </div>
-   <button className="btn btn-primary" onClick={()=>openEditor(null,'create')}>＋ Crear formulario</button>
+    <button className="btn btn-primary" onClick={()=>openEditor(null,'create')}>＋ Crear plantilla</button>
   </header>
   {returning&&<div className="return-banner">
-   <span>Estás creando o editando un formulario para un expediente.</span>
+    <span>Estás creando o editando una plantilla para un expediente.</span>
   </div>}
   {error&&<div className="alert error">{error}</div>}
   <div className="filterbar"><div className="search-field"><SearchIcon/><input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Buscar plantillas por nombre…"/></div></div>
    <TemplateGroup title="De la plataforma" items={platform} pending={pending} owner={owner} onPreview={setPreview} onEdit={openEditor} onReactivate={reactivate} hint="No se pueden editar; se duplican para crear tu versión."/>
-   <TemplateGroup title="Mis formularios" items={mine} pending={pending} owner={owner} onPreview={setPreview} onEdit={openEditor} onReactivate={reactivate} empty="Aún no tienes formularios propios. Crea el primero o duplica una plantilla de la plataforma." hint="Inmutables: duplicar crea una plantilla nueva."/>
+    <TemplateGroup title="Mis plantillas" items={mine} pending={pending} owner={owner} onPreview={setPreview} onEdit={openEditor} onReactivate={reactivate} empty="Aún no tienes plantillas propias. Crea la primera o duplica una de la plataforma." hint="Editarlas no afecta a los expedientes existentes."/>
    {inactive.length>0&&<TemplateGroup title="Desactivados" items={inactive} pending={pending} owner={owner} onPreview={setPreview} onEdit={openEditor} onReactivate={reactivate}/>}
  </div>;
 }
 
-function TemplateGroup({title,items,pending,owner,hint,empty,onPreview,onEdit,onReactivate}:{title:string;items:ChecklistTemplate[];pending:WorkspacePending[];owner:string;hint?:string;empty?:string;onPreview:(template:ChecklistTemplate)=>void;onEdit:(source:ChecklistTemplate|null,mode:'create'|'duplicate')=>void;onReactivate:(template:ChecklistTemplate)=>Promise<void>}){
+function TemplateGroup({title,items,pending,owner,hint,empty,onPreview,onEdit}:{title:string;items:ChecklistTemplate[];pending:WorkspacePending[];owner:string;hint?:string;empty?:string;onPreview:(template:ChecklistTemplate)=>void;onEdit:(source:ChecklistTemplate|null,mode:'create'|'duplicate'|'edit')=>void;onReactivate:(template:ChecklistTemplate)=>Promise<void>}){
  if(!items.length)return empty?<section className="section-heading" style={{marginTop:18}}><p className="eyebrow">{title.toUpperCase()}</p><p style={{color:'var(--muted)',fontSize:12}}>{empty}</p></section>:null;
  return <section style={{marginTop:18}}>
-  <div className="section-heading"><h2 style={{fontSize:14}}>{title}</h2>{hint&&<span style={{color:'var(--muted)',fontSize:11}}>{hint}</span>}</div>
-  <div className="project-grid">
+   <div className="section-heading template-group-heading"><h2 style={{fontSize:14}}>{title}</h2>{hint&&<span style={{color:'var(--muted)',fontSize:11}}>{hint}</span>}</div>
+   <div className="library-grid">
    {items.map(template=>{
     const own=template.profesional_id===owner,badge=syncBadge(template.id,pending);
     return <article className="card library-card" key={template.id}>
       <button type="button" className="library-preview-trigger" aria-label={`Ver plantilla ${template.nombre}`} onClick={()=>onPreview(template)}>
-      <div className="library-card-top">
-      <span className="project-icon">✓</span>
-      {badge&&<span className={`sync-badge ${badge.cls}`}>{badge.label}</span>}
-      {!badge&&template.activa===false&&<span className="sync-badge inactive">Desactivada</span>}
-     </div>
-     <h3>{template.nombre}</h3>
-      <p>{template.esquema.sections.length===1?'1 sección':`${template.esquema.sections.length} secciones`} · {(() => { const n = template.esquema.sections.reduce((sum,s)=>sum+s.fields.length,0); return n===1?'1 campo':`${n} campos`; })()} · Versión {template.version}</p>
-      <span className="library-preview-link">Ver plantilla <span aria-hidden="true">↗</span></span>
+       <span className="project-icon" aria-hidden="true"><svg width="16" height="18" viewBox="0 0 20 22" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2H4a1 1 0 0 0-1 1v16a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V7ZM12 2v5h5M7 11h6M7 15h6"/></svg></span>
+       <div className="library-card-copy"><h3 title={template.nombre}>{template.nombre}</h3>
+       <p>{template.esquema.sections.length===1?'1 sección':`${template.esquema.sections.length} secciones`} · {(() => { const n = template.esquema.sections.reduce((sum,s)=>sum+s.fields.length,0); return n===1?'1 campo':`${n} campos`; })()} · Versión {template.version}</p>
+       {badge&&<span className={`sync-badge ${badge.cls}`}>{badge.label}</span>}
+       {!badge&&template.activa===false&&<span className="sync-badge inactive">Desactivada</span>}</div>
       </button>
      <div className="library-actions">
       <button className="btn btn-secondary" onClick={()=>onEdit(template,'duplicate')}>{own?'Duplicar':'Duplicar y editar'}</button>
-      {own&&template.activa!==false&&<button className="btn btn-ghost" onClick={()=>onReactivate({...template,activa:false})}>Desactivar</button>}
-      {own&&template.activa===false&&<button className="btn btn-ghost" onClick={()=>onReactivate(template)}>Reactivar</button>}
+       {own&&<button className="btn btn-ghost" onClick={()=>onEdit(template,'edit')}>Editar</button>}
      </div>
     </article>;
    })}
@@ -119,14 +114,14 @@ export type TemplateEditorResult=
  *  y campos plegables. «Avance de obra» es una fila más, bloqueada y translúcida.
  *  `instance` edita la copia del expediente y solo devuelve un borrador. */
 export function TemplateEditor({owner,source,mode,initialName,initialSchema,instanceTarget='expediente',onCancel,onSave}:{
- owner:string;source:ChecklistTemplate|null;mode:'create'|'duplicate'|'instance';
+  owner:string;source:ChecklistTemplate|null;mode:'create'|'duplicate'|'instance'|'edit';
   initialName?:string;initialSchema?:ChecklistSchema;
   instanceTarget?:'expediente'|'visita';
  onCancel:()=>void;onSave:(result:TemplateEditorResult)=>Promise<void>|void;
 }){
  const instance=mode==='instance';
  useBackAction(onCancel);
- const [name,setName]=useState(instance?(initialName??'Checklist'):source?`${source.nombre} (copia)`:'Checklist nuevo');
+  const [name,setName]=useState(instance?(initialName??''):source?(mode==='edit'?source.nombre:`${source.nombre} (copia)`):'');
  const [sections,setSections]=useState<ChecklistSection[]>(()=>{
   const base=instance&&initialSchema?structuredClone(initialSchema):source?structuredClone(source.esquema):{version:2 as const,sections:[{id:uid('seccion'),title:'General',fields:[] as ChecklistField[]}]};
   return withAvanceObra(base).sections;
@@ -164,16 +159,17 @@ export function TemplateEditor({owner,source,mode,initialName,initialSchema,inst
 
  async function submit(){
   setBusy(true);setError('');
-  try{
+   try{
+    if(!name.trim())throw new Error('Escribe un título para la plantilla.');
    const esquema=assertChecklist(withAvanceObra(draftSchema));
    if(instance){
-    await onSave({kind:'instance',nombre:name.trim()||'Checklist',esquema});
+     await onSave({kind:'instance',nombre:name.trim(),esquema});
     return;
    }
    const template:ChecklistTemplate={
-    id:crypto.randomUUID(),
-    codigo:`USR-${crypto.randomUUID().replace(/-/g,'').slice(0,8).toUpperCase()}`,
-    nombre:name.trim()||'Checklist',version:1,
+     id:mode==='edit'&&source?source.id:crypto.randomUUID(),
+     codigo:mode==='edit'&&source?source.codigo:`USR-${crypto.randomUUID().replace(/-/g,'').slice(0,8).toUpperCase()}`,
+     nombre:name.trim(),version:mode==='edit'&&source?source.version+1:1,
     esquema,profesional_id:owner,activa:true,
    };
    await onSave({kind:'template',template});
@@ -183,15 +179,15 @@ export function TemplateEditor({owner,source,mode,initialName,initialSchema,inst
  return <div className="template-editor">
   <header className="page-heading">
    <div>
-    <p className="eyebrow">EDITOR DE CHECKLIST</p>
-     <h1>{instance?`Editar checklist ${instanceTarget==='visita'?'de esta visita':'del expediente'}`:mode==='duplicate'?'Duplicar plantilla':'Nuevo formulario'}</h1>
-     <p>{instance?(instanceTarget==='visita'?'Pulsa «Usar esta versión» para guardar el esquema en esta visita. El expediente, la plantilla y las otras visitas no cambian.':'Los cambios solo afectan a este expediente. Pulsa «Usar esta versión» y luego «Guardar cambios»; las visitas ya creadas no cambian.'):mode==='duplicate'?'Se creará una plantilla nueva e inmutable. La original y los expedientes existentes no cambian.':'Configura secciones y campos; la vista previa muestra cómo se llenará.'}</p>
+     <p className="eyebrow">EDITOR DE PLANTILLAS</p>
+      <h1>{instance?`Editar plantilla ${instanceTarget==='visita'?'de esta visita':'del expediente'}`:mode==='edit'?'Editar plantilla':mode==='duplicate'?'Duplicar plantilla':'Nueva plantilla'}</h1>
+      <p>{instance?(instanceTarget==='visita'?'Pulsa «Usar esta versión» para guardar la plantilla en esta visita. El expediente, la biblioteca y las otras visitas no cambian.':'Los cambios solo afectan a este expediente. Pulsa «Usar esta versión» y luego «Guardar cambios»; las visitas ya creadas no cambian.'):mode==='edit'?'Los cambios se aplicarán a futuros expedientes. Las copias existentes conservan su contenido.':mode==='duplicate'?'Se creará una plantilla nueva. La original y los expedientes existentes no cambian.':'Configura secciones y campos; la vista previa muestra cómo se llenará.'}</p>
    </div>
   </header>
   {error&&<div className="alert error">{error}</div>}
   <div className="editor-layout">
    <div className="editor-main">
-    <label className="form-group">Nombre del checklist<input className="field" value={name} onChange={e=>setName(e.target.value)}/></label>
+     <label className="form-group">Título de la plantilla *<input className="field" required placeholder="Escribe un título" value={name} onChange={e=>setName(e.target.value)}/></label>
     {sections.map((section,si)=>{
      const closed=Boolean(closedSections[section.id]);
      const count=section.fields.length;
@@ -303,7 +299,7 @@ function FieldRow({field,sectionId,at,total,open,descriptionOpen,onToggle,onTogg
    </div>}
    {descriptionOpen
     ?<label className="editor-label">Descripción (opcional)
-      <input className="field" value={field.description??''} onChange={e=>onPatch(sectionId,field.id,{description:e.target.value||undefined})} placeholder="Ayuda breve que verá quien llena el checklist"/>
+      <input className="field" value={field.description??''} onChange={e=>onPatch(sectionId,field.id,{description:e.target.value||undefined})} placeholder="Ayuda breve que verá quien llena la plantilla"/>
      </label>
     :<button type="button" className="link-btn" onClick={onToggleDescription}>＋ Añadir descripción</button>}
   </div>}
