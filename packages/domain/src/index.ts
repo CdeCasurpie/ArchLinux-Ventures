@@ -170,7 +170,7 @@ export interface RemoteFoto {
 export type ReportBlock =
  |{id:string;type:'header';locked:true}
  |{id:string;type:'checklist';locked:true}
- |{id:string;type:'capture-group';groupId:string;photoIds:string[];comment:string}
+ |{id:string;type:'capture-group';groupId:string;photoIds:string[];comment:string;commentEdited?:boolean}
  |{id:string;type:'text';content:string}
  |{id:string;type:'conclusions';content:string}
  |{id:string;type:'signatures';locked:true};
@@ -222,7 +222,7 @@ export function parseReportDocument(json:unknown):ReportDocumentV1|null{
    blocks.push({id:String((block as {id?:unknown}).id??uid()),type:block.type,locked:true});
   }else if(block.type==='capture-group'){
    if(typeof block.groupId!=='string'||!Array.isArray(block.photoIds))return null;
-   blocks.push({id:String((block as {id?:unknown}).id??uid()),type:'capture-group',groupId:block.groupId,photoIds:block.photoIds.filter((p):p is string=>typeof p==='string'),comment:typeof block.comment==='string'?block.comment:''});
+    blocks.push({id:String((block as {id?:unknown}).id??uid()),type:'capture-group',groupId:block.groupId,photoIds:block.photoIds.filter((p):p is string=>typeof p==='string'),comment:typeof block.comment==='string'?block.comment:'',...(block.commentEdited===true?{commentEdited:true}:{})});
   }else if(block.type==='text'||block.type==='conclusions'){
    blocks.push({id:String((block as {id?:unknown}).id ?? uid()),type:block.type,content:typeof block.content==='string'?block.content:''});
   }else return null;
@@ -285,7 +285,7 @@ export function setBlockPhotos(doc:ReportDocumentV1,id:string,photoIds:string[])
 }
 
 export function setBlockComment(doc:ReportDocumentV1,id:string,comment:string):ReportDocumentV1{
- const blocks=doc.blocks.map(b=>b.type==='capture-group'&&b.id===id?{...b,comment}:b);
+  const blocks=doc.blocks.map(b=>b.type==='capture-group'&&b.id===id?{...b,comment,commentEdited:true}:b);
  return bump(doc,blocks);
 }
 

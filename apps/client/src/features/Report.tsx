@@ -380,7 +380,14 @@ function BlockCard({ block, index, total, group, onMove, onRemove, onPhotos, onC
               <audio controls src={group.audio.displayUrl} style={{ width: '100%', height: 32 }} />
             </div>
           )}
+          {group?.transcripcion && (
+            <details style={{ marginBottom: 12, fontSize: 13 }}>
+              <summary style={{ cursor: 'pointer', color: 'var(--blue-700)' }}>Transcripción original del audio</summary>
+              <p style={{ whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' }}>{group.transcripcion}</p>
+            </details>
+          )}
           <textarea
+            aria-label="Comentario del hallazgo"
             rows={3}
             value={block.comment}
             onChange={e => onComment(e.target.value)}

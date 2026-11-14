@@ -20,7 +20,19 @@ test('firma con cámara integrada, reutilización del perfil y eliminación múl
   await expect(page.locator('button.project-card').filter({hasText:label})).toBeVisible();
   await page.locator('.profile-card').click();
   await page.getByLabel('Nombre completo').fill('Ana Firma');await page.getByLabel('Cargo',{exact:true}).fill('Supervisora');await page.getByLabel('Colegiatura / identificación').fill('CAP 123');
-  await page.getByRole('button',{name:'Con imagen',exact:true}).click();
+   await page.getByRole('button',{name:'Con imagen',exact:true}).click();
+   for(const width of [1440,1100,820,390]){
+    await page.setViewportSize({width,height:900});
+    const layout=await page.locator('.profile-form').evaluate(card=>{
+     const fields=[...card.querySelectorAll<HTMLInputElement>('.signer-fields input')];
+     return {overflow:document.documentElement.scrollWidth>window.innerWidth,fieldWidths:fields.map(field=>field.getBoundingClientRect().width),uploadDisplay:getComputedStyle(card.querySelector('.signature-upload')!).display};
+    });
+    expect(layout.overflow).toBe(false);
+    expect(layout.fieldWidths.every(width=>width>=160)).toBe(true);
+    expect(layout.uploadDisplay).toBe('flex');
+    if(width===1440||width===390)await page.screenshot({path:`/tmp/opencode/profile-${width}.png`,fullPage:true});
+   }
+   await page.setViewportSize({width:1280,height:900});
   await expect(page.locator('input[capture]')).toHaveCount(0);
   await page.getByRole('button',{name:'Tomar foto',exact:true}).click();
   const camera=page.getByRole('dialog',{name:'Fotografiar firma'});
