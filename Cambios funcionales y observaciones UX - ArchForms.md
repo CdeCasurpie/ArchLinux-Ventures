@@ -2,6 +2,10 @@
 
 Este documento reúne y reorganiza las necesidades identificadas durante la revisión con arquitectos y la revisión del código actual. Es un inventario de cambios de comportamiento y experiencia de uso: no define una secuencia de implementación, estimaciones ni una arquitectura técnica.
 
+**Última revisión documental: 2026-11-14.** Estado contrastado con el código hasta el
+commit `3e12e03`. Las secciones temáticas describen el comportamiento vigente; las
+revisiones fechadas conservan el historial y sus resultados de validación originales.
+
 **Despliegue remoto 2026-11-13:** se aplicaron las migraciones `006` a `013` en el
 proyecto Supabase `pcmkrfnjdfrnjkqnpqgf`. La nueva migración
 `20260917001300_checklist_template_links.sql` incorpora de forma incremental los
@@ -23,22 +27,71 @@ de vigencia del PDF deben interpretarse a la luz de esa decisión.
 **Revisión 2026-11-12:** se implementaron las observaciones 9.3, 9.4 y las conclusiones
 de la sección 6 (escritura directa y dictado en el resumen). La regla de completitud por
 obligatoriedad se aplicó en cliente, fusión de réplica y servidor: la migración
-`20260917000700_sync_answers.sql` fue modificada, por lo que al desplegar esta rama hay
-que reaplicarla en el destino (en local ya se reaplicó con `db reset`; el remoto no se
-ha tocado). Ver detalles en cada sección.
+`20260917000700_sync_answers.sql` fue modificada y entonces requería reaplicación en
+el destino; en local se reaplicó con `db reset`. El despliegue remoto del 2026-11-13
+resolvió ese pendiente. Ver detalles en cada sección.
 
 **Revisión 2026-11-12 (formularios dinámicos):** se implementaron las secciones 3
 (selección del formulario + retorno expediente⇄plantillas), 4 (checklist dinámico con
 catálogo de 7 tipos y campo de sistema «Avance de obra») y 5 (biblioteca de formularios
 con editor visual y sync offline-first de plantillas propias). Se modificaron las
-migraciones `00100`, `00900`, `00700` y `01000` (ya reaplicadas en local con `db reset`;
-el remoto de Supabase sigue sin desplegarse). La sección Plantillas adopta el editor y
-gestor completos, manteniendo el nombre visible «Checklist». Ver detalles y linaje de
+migraciones `00100`, `00900`, `00700` y `01000` (reaplicadas entonces en local con
+`db reset`; el despliegue remoto se completó el 2026-11-13). La sección Plantillas
+adopta el editor y gestor completos, manteniendo el nombre visible «Checklist». Ver detalles y linaje de
 `visita.avance_general` en las secciones 3, 4 y 5.
 
 ## Estado actual de las funcionalidades agregadas
 
-### Ajustes de revisión 2026-11-13 — orden, resumen, firmas y Android
+### Estado consolidado al 2026-11-14
+
+- **Base de datos:** el último push remoto confirmó «Remote database is up to date»;
+  el historial local/remoto coincide hasta `013`. Los ajustes posteriores de interfaz
+  y transcripción no añadieron migraciones.
+- **Navegación:** un único control de regreso, representado solo por una flecha en el
+  encabezado. Cierra primero vistas previas y editores internos. En móvil, la pantalla
+  de visita oculta el encabezado global completo, incluida la flecha; el informe y
+  las demás pantallas mantienen el encabezado. Atrás del navegador/Android conserva
+  su integración con el historial.
+- **Plantillas:** pulsar una tarjeta abre el checklist real en vista previa de solo
+  lectura. Crear una versión modificada requiere duplicar; la original es inmutable.
+- **Resumen:** cabecera y checklist cerrados por defecto y desplegables. Todas las
+  secciones comparten ancho exterior. «Hallazgos» muestra su cantidad, acciones de
+  archivos compactas y las observaciones en orden cronológico inicial o en el orden
+  ya guardado en el informe. Conclusiones y firmantes conservan sus títulos propios;
+  se retiró el título intermedio «Conclusiones y firmantes».
+- **Sincronización:** indicador compacto en la sidebar de escritorio y en el
+  encabezado móvil, excepto dentro de la visita, donde se oculta esa barra. Sin panel
+  global rojo ni aviso verde de hallazgos enviados. El detalle técnico de sync queda
+  oculto en el DOM; se conservan reintentos y progreso de transferencias en curso.
+  El mensaje permanente de fotografías/audio comprobados también se retiró.
+- **Firmantes:** hasta seis, con datos de identidad, selector «En papel / Con imagen»,
+  adjuntar imagen y tomar foto. Sin borde exterior por firmante. La imagen, o el
+  espacio reservado para firmar en papel, queda sobre la línea en pantalla y PDF.
+- **Android:** insets nativos y barras del sistema visibles; el encabezado global
+  oculto dentro de la visita móvil es una decisión de interfaz independiente de las
+  barras del sistema.
+- **Transcripción de hallazgos:** comprobación de existencia/tamaño de pesos antes de
+  cada intento, descarga si faltan o están truncados y espera si no hay conexión.
+  El parche nativo abre las rutas descargadas y corrige el fallo de búsqueda en assets.
+  Se recuperan al arrancar los hallazgos con ese error y hay reintento manual en Android.
+  Esto no habilita el dictado nativo de conclusiones, que sigue pendiente.
+
+**Última validación disponible:** `npm run check` correcto (151 pruebas, TypeScript y
+build); 4 pruebas JVM del resolver de pesos correctas; aplicación del parche mediante
+`postinstall` verificada y APK debug compilada. Los 3 E2E de Chromium pasaron durante
+las revisiones de interfaz; el del informe volvió a pasar tras ocultar la barra móvil
+y limpiar el resumen. Se mantienen tres advertencias previas de lint y el aviso de
+tamaño de bundles. Esta revisión documental no vuelve a ejecutar esas pruebas.
+
+**Despliegue y comprobaciones pendientes:** la APK generada está en
+`apps/client/android/app/build/outputs/apk/debug/app-debug.apk`; el arreglo de Whisper
+requiere actualizar la APK instalada. No hubo instalación por ADB ni despliegue web
+en estas últimas operaciones. Quedan pendientes la inferencia real en el teléfono,
+las barras/teclado/rotación/cámara y atrás de Android en dispositivo físico. También
+siguen abiertas la validación del contenido de las tres plantillas base, el dictado
+nativo de conclusiones y la decisión sobre mover los bloques actualmente fijos.
+
+### Registro de ajustes 2026-11-13 a 2026-11-14 — orden, resumen, firmas y Android
 
 **Corrección nativa de transcripción:** el fallo «`…ggml-tiny-q5_1.bin.bin is not in
 the app assets`» provenía de `capacitor-whisper` 0.2.1, que interpretaba la ruta de los
@@ -249,6 +302,12 @@ implementados. La navegación general ahora utiliza historial de pantallas y con
 el contexto de sesión descrito en la actualización anterior; la validación física del
 gesto/botón atrás en Android sigue pendiente.
 
+**Presentación vigente (2026-11-14):** se retiraron los controles duplicados de
+regreso. La flecha única del encabezado permite cerrar primero la vista previa de
+plantillas o el editor interno de checklist. En móvil se oculta el encabezado global
+en cualquiera de las tres pestañas de la pantalla de visita; permanece en el
+informe y en las demás pantallas.
+
 ## 2. Guardado local, nube y disponibilidad offline
 
 ### Necesidades identificadas
@@ -265,6 +324,14 @@ gesto/botón atrás en Android sigue pendiente.
 - Mostrar el progreso de descarga de las fotografías pendientes, con una barra o porcentaje y una cantidad comprensible, por ejemplo: «12 de 20 fotos descargadas».
 - Distinguir una descarga en curso de una descarga detenida, fallida o pendiente de conexión.
 - Cuando no pueda calcularse un porcentaje real, evitar porcentajes ficticios: mostrar cantidad de archivos o un estado de carga explícito.
+
+**Situación actual (2026-11-14):** se conserva la cola persistente y priorizada y su
+progreso durante comprobaciones/descargas. El indicador de datos está en la sidebar
+de escritorio y en una cápsula del encabezado móvil; dentro de la visita móvil se
+oculta ese encabezado. «Al día» se refiere a los datos del espacio, no a que todos los
+archivos estén descargados. Se retiraron los avisos permanentes de hallazgos enviados
+y de fotografías/audio comprobados. Los errores de sync conservan el diagnóstico en
+un nodo `hidden`; los de descarga muestran un aviso breve y reintento.
 
 ## 3. Expedientes
 
@@ -288,7 +355,9 @@ bloquea nuevas visitas.
 - Incluir una acción «Crear nuevo formulario» que permita volver al expediente sin perder información.
 - Al regresar, dejar seleccionado el formulario recién creado y colocarlo en la primera posición de esas tres opciones.
 
-**Aspecto por precisar:** qué cuenta como «uso reciente» y cómo se combina ese criterio con la creación de un formulario nuevo.
+**Criterio vigente:** se toma el uso en las visitas más recientes por fecha; una
+plantilla recién creada desde el expediente se ancla primero al regresar. Sin
+historial se utilizan tres plantillas de plataforma.
 
 **Situación actual (implementado el 12-11-2026, ajustado el 13-11-2026):** el expediente ya trae `checklist_template_id` (FK a la plantilla de origen, en `expediente` y `visita`) y el panel de selección muestra primero las tres opciones de «Uso reciente» —checklists de las visitas más recientes ordenadas por `fecha` descendente; sin historial, tres plantillas de plataforma—, seguidas del resto del catálogo, con vista previa fiel renderizada por tipo de campo. La acción «Crear nuevo formulario» redirige a la sección Plantillas conservando el borrador del expediente íntegro; al terminar, el retorno automático deja la plantilla recién creada seleccionada y anclada en la primera posición. La acción «Editar checklist de este expediente» edita **solo la copia del expediente** (no la plantilla) y exige pulsar «Guardar cambios»; si se intenta salir con cambios pendientes se ofrece guardar o descartar explícitamente. Publicar la copia como plantilla crea una fila nueva e inmutable y mantiene el enlace original. El retorno desde la biblioteca solo existe si se vino del expediente.
 
@@ -301,7 +370,7 @@ bloquea nuevas visitas.
 - Permitir distintos tipos de campos y bloques. Catálogo aprobado (7 tipos): `boolean` (Sí/No/N.A.), `text` (texto corto), `textarea` (párrafo), `number` (con unidad opcional, p. ej. m, m², S/), `percent` (0–100), `date` y `select` (opción única de una lista configurable). El esquema está versionado (`version: 2`, compatible con esquemas `version: 1` existentes).
 - Incluir un campo de porcentaje de avance de obra, diferenciándolo del porcentaje de llenado del formulario.
 
-**Situación actual (implementado el 12-11-2026):** el componente compartido `ChecklistForm` renderiza el catálogo completo por tipo (segmentado Sí/No/N.A., texto corto, párrafo, número con unidad, porcentaje 0–100 con sufijo `%` sin slider, fecha y selección única —radios si hay ≤4 opciones, lista desplegable si hay más—) tanto en la visita como en las vistas previas. El **avance de obra** es un campo de sistema obligatorio (`avance_obra`, tipo `percent`): se inyecta automáticamente en el esquema del expediente y de cada visita, aparece en el editor de plantillas deshabilitado con la nota «Campo de sistema · no editable», y en la visita se muestra como tarjeta destacada. La validación del patch de respuestas en el servidor acepta los 7 tipos (opciones del `select`, rangos min/max, 0–100 para porcentajes); un `0` cuenta como respuesta válida y la completitud por obligatoriedad lo respeta.
+**Situación actual (implementado el 12-11-2026, contrastado el 14-11-2026):** el componente compartido `ChecklistForm` renderiza el catálogo completo por tipo (segmentado Sí/No/N.A., texto corto, párrafo, número con unidad, porcentaje 0–100 con sufijo `%` sin slider, fecha y selección única mediante lista desplegable) tanto en la visita como en las vistas previas. El **avance de obra** es un campo de sistema obligatorio (`avance_obra`, tipo `percent`): se inyecta automáticamente en el esquema del expediente y de cada visita, aparece en el editor de plantillas deshabilitado con la nota «Campo de sistema · no editable», y en la visita se muestra como tarjeta destacada. La validación del patch de respuestas en el servidor acepta los 7 tipos (opciones del `select`, rangos min/max, 0–100 para porcentajes); un `0` cuenta como respuesta válida y la completitud por obligatoriedad lo respeta.
 
 **Nota de linaje de `avance_general`:** la columna `visita.avance_general` existía en la BD desde la migración 001 sin uso; hoy se **espeja** desde la respuesta `avance_obra` del checklist (migración 007 escribe la columna al recibir el patch). El checklist es la única fuente de verdad para el usuario; la columna es un reflejo de consulta. **Decisión futura:** eliminar la columna de la BD o retirar el campo del checklist; mientras tanto, cualquier lectura de avance debe preferir `checklist_respuestas_json.avance_obra`.
 
@@ -322,8 +391,6 @@ barrera de navegación interna que espera el guardado local.
 - Poder añadir campos omitidos y responderlos, con una experiencia equivalente a llenar el formulario inicialmente.
 - Las modificaciones de una visita no deben alterar otras visitas históricas ni la plantilla de origen.
 
-**Situación actual:** el esquema admite campos booleanos, texto, fecha y número. La ampliación solicitada va más allá de ese conjunto.
-
 **Actualización (2026-11-13):** el esquema admite el catálogo de siete tipos y el
 editor del informe permite corregir respuestas y añadir o editar campos de la copia
 de esa visita. Las respuestas se autoguardan mediante el protocolo de patches; el
@@ -338,6 +405,12 @@ esquema se guarda al pulsar «Usar esta versión». Las otras visitas no cambian
 - Ofrecer un editor visual comparable, como referencia de interacción, al constructor de Google Forms: crear campos, configurar sus características y organizar el contenido.
 - Mostrar una vista previa que represente cómo se completará realmente el formulario.
 - Conservar la distinción entre plantilla reutilizable, copia del expediente y copia de cada visita.
+
+**Consulta de plantillas (2026-11-14):** pulsar el contenido de una tarjeta abre una
+vista previa de solo lectura con `ChecklistForm`, tanto en plantillas de plataforma
+como propias o desactivadas. «Duplicar y editar» abre una copia nueva; ver la
+plantilla no cambia el original. La flecha de regreso cierra primero la vista previa
+o el editor antes de salir de la biblioteca.
 
 ### Tres plantillas base
 
@@ -364,6 +437,14 @@ Los dos tipos de obra específicos y el contenido de las tres plantillas quedan 
 - Evitar que el porcentaje de llenado del checklist domine toda la percepción del avance de la visita.
 - Colocar la acción y el estado de conclusión de la visita al final, después de revisar el contenido, las conclusiones y los firmantes.
 - Explicar con claridad la diferencia entre concluir el trabajo de campo, editar el informe y generar el PDF.
+
+**Situación actual (2026-11-14):** cabecera de consulta y checklist son desplegables,
+cerrados por defecto. Las secciones comparten ancho. Los hallazgos muestran cantidad,
+texto/audio/fotos y acciones compactas de archivos, sin el aviso verde de envío. Las
+conclusiones y «Firmantes y firmas» aparecen después, sin el rótulo intermedio
+«Conclusiones y firmantes», y el cierre de campo queda al final. Los reintentos de
+subida se muestran cuando hay pendientes. Dentro de la visita móvil no se muestra
+la barra superior global.
 
 ### Conclusiones
 
@@ -396,6 +477,12 @@ autoguardado offline-first. El PDF incorpora esas imágenes o conserva el espaci
 sin imagen, siempre por encima de la línea. Hay acciones para adjuntar imagen,
 tomar foto y dejar en blanco para firmar en papel. El tratamiento futuro de adjuntos generales queda por precisar; no se
 solicita eliminarlos del modelo.
+
+**Presentación vigente (2026-11-14):** identidad con iniciales, datos agrupados y
+selector «En papel / Con imagen». Cada firmante se separa con espacio, sin borde ni
+caja exterior. En modo imagen se ofrecen «Adjuntar imagen» y «Tomar foto»; al volver
+a papel se retira la imagen conservando los datos personales. La apertura real de
+la cámara depende del navegador/dispositivo y está pendiente de validación física.
 
 ## 7. Editor integral del informe
 
@@ -451,13 +538,21 @@ al CSS mientras el encabezado permanece en `top: 0`. El espacio se reserva para 
 la interfaz, incluida la cámara. APK compilada; comprobación física pendiente de
 conectar el dispositivo.
 
+**Encabezado de la visita móvil (2026-11-14):** se oculta únicamente la barra global
+de la aplicación dentro de la visita (flecha, número/título, estado de datos y avatar).
+La cabecera propia de la visita y sus pestañas siguen visibles. Esta regla también
+se aplica en web con ancho móvil; el encabezado global se conserva en escritorio y
+en la pantalla de informe. No se oculta la barra de estado del sistema Android.
+
 ## 9. Observaciones adicionales de diseño y funcionamiento
 
 Estos puntos se añaden a las solicitudes anteriores a partir de la lectura del código y de los incidentes de esta revisión.
 
 ### 9.1 Inicio de sesión sin salida clara ante fallos
 
-En `App.tsx`, la carga inicial espera `getSession()` sin un manejo explícito de rechazo ni una salida de espera con recuperación. Ya se observó la pantalla «Abriendo tu espacio…» durante fallos de renovación de sesión.
+**Incidente original:** en `App.tsx`, la carga inicial esperaba `getSession()` sin un
+manejo explícito de rechazo ni una salida de espera con recuperación. Se observó la
+pantalla «Abriendo tu espacio…» durante fallos de renovación de sesión.
 
 **Necesidad:** mostrar un error recuperable y ofrecer reintento o regreso al inicio de sesión, sin exigir borrar el almacenamiento del navegador ni poner en riesgo trabajo local pendiente.
 
@@ -466,14 +561,18 @@ reintento y regreso a la pantalla de acceso sin borrar trabajo local.
 
 ### 9.2 Indicadores que pueden prometer más de lo disponible
 
-La visita muestra «Disponible sin conexión», y el espacio de trabajo puede anunciar «Todo sincronizado» después de sincronizar perfil y datos de expedientes/visitas, mientras el multimedia se gestiona por separado.
+**Observación original:** la visita mostraba «Disponible sin conexión», y el espacio
+de trabajo podía anunciar «Todo sincronizado» después de sincronizar perfil y datos
+de expedientes/visitas, mientras el multimedia se gestionaba por separado.
 
 **Necesidad:** que los mensajes distingan datos, fotografías, audios e informe PDF. «Disponible offline» y «Todo sincronizado» deben reflejar el alcance real, no solo una parte del trabajo.
 
-**Situación actual (2026-11-13):** los indicadores principales distinguen datos y
-archivos; el resumen informa del envío de hallazgos locales y el panel de descarga
-comprueba fotografías/audio por separado. El PDF se identifica como una copia local
-generada bajo demanda.
+**Situación actual (2026-11-14):** «Al día» identifica el estado de datos del espacio
+en el indicador compacto, con ubicación y visibilidad descritas en la sección 2.
+La descarga de fotografías/audio se comprueba por separado y muestra progreso o
+reintento cuando corresponde; se retiraron tanto el aviso de hallazgos locales
+enviados como el mensaje permanente de archivos comprobados. El PDF es una copia
+local generada bajo demanda y no se sube a Supabase.
 
 ### 9.3 Completitud del formulario y obligatoriedad
 
@@ -486,8 +585,9 @@ una acción para concluir de todos modos.
 **Implementado (2026-11-12):** la completitud ahora depende solo de los campos
 obligatorios (`checklistCompleted` en `packages/domain`), aplicada en el guardado local
 de respuestas, en la fusión de la réplica incremental y en el servidor
-(`sync_patch_answers_v1`, migración 007 modificada y reaplicada en local). Los campos
-obligatorios se marcan con asterisco en el checklist, se advierte «Faltan N campos
+(`sync_patch_answers_v1`, migración 007 modificada y desplegada también en remoto el
+2026-11-13). Los campos obligatorios se marcan con asterisco en el checklist, se
+advierte «Faltan N campos
 obligatorios por responder» al pie del checklist, y el diálogo para concluir ahora
 indica exactamente cuántos obligatorios faltan. Un formulario sin campos obligatorios
 nunca queda bloqueado por completitud; el porcentaje de llenado sigue siendo informativo.
@@ -535,18 +635,51 @@ botón manual. Checklist, informe, conclusiones y firmantes distinguen estado de
 guardado local y error, con reintento. Las acciones de acceso, cierre de campo y
 transferencia liberan el estado ocupado aunque fallen y muestran el error al usuario.
 
-**Ajuste de presentación (2026-11-13):** el error técnico extenso de sincronización
+**Presentación vigente (2026-11-14):** el error técnico extenso de sincronización
 ya no aparece como un bloque rojo gigante: su texto permanece en un nodo `hidden`
-del DOM para diagnóstico. Se mantiene el indicador breve «Sincronización requiere
-atención» y «Reintentar», sin confundirlo con un fallo de guardado local. El estado
-de sincronización se separó del estado de errores locales, de modo que un nuevo ciclo
-de sync no borre ni oculte un error de navegación, creación o publicación local.
+del DOM para diagnóstico. El indicador compacto muestra «Reintentar sync» si falla,
+«Sin conexión», «Sincronizando», la cantidad pendiente o «Al día», según el estado.
+Está en la sidebar de escritorio o el encabezado móvil; en la visita móvil se oculta
+con ese encabezado. Se retiró el panel global del contenido. Los errores de descarga
+muestran un aviso breve y reintento con el detalle técnico oculto. El estado de sync
+está separado del de errores locales, de modo que un nuevo ciclo no borra un error
+de navegación, creación o publicación local.
+
+### 9.9 Transcripción de hallazgos y pesos descargados
+
+**Incidente reproducido en el teléfono:** el plugin buscaba
+`…ggml-tiny-q5_1.bin.bin` en los assets, aunque el modelo se había descargado al
+almacenamiento privado. `capacitor-whisper` 0.2.1 trataba el parámetro `model` como un
+nombre de asset, no como la ruta absoluta que le enviaba el cliente.
+
+**Corrección implementada, revisada el 2026-11-14:** el parche versionado abre primero
+archivos absolutos o URI `file:` y solo busca en assets para nombres de modelo.
+`postinstall` lo aplica mediante `patch-package --error-on-fail`. Antes de cada
+transcripción el cliente comprueba existencia y tamaño mínimo con `Filesystem.stat`;
+si falta o está truncado, descarga a `.part`, valida y publica el archivo. Las
+solicitudes concurrentes comparten la descarga y, sin conexión, esperan a recuperarla.
+
+Al arrancar se recuperan automáticamente los hallazgos que quedaron con el error
+específico de búsqueda en assets. Para otros fallos locales, Android ofrece
+«Reintentar transcripción»; el diagnóstico se consulta en «Ver detalle del error».
+Los hallazgos ya transcritos o recibidos como remotos conservan su tratamiento actual.
+La recuperación de pesos borrados/truncados está cubierta por pruebas del cliente;
+cuatro pruebas JVM cubren rutas absolutas/URI, nombres de asset y archivos ausentes,
+vacíos o inválidos. Se compiló la APK con el parche; falta comprobar la inferencia
+real en un teléfono actualizado. Este cambio no habilita el dictado de conclusiones.
 
 ## 10. Referencias de la revisión
 
 - `apps/client/src/App.tsx`: navegación, expedientes, formulario de visita y catálogo de plantillas.
-- `apps/client/src/features/Summary.tsx`: resumen, completitud, conclusión de visita, conclusiones editables con dictado y secciones pendientes.
+- `apps/client/src/features/Summary.tsx`: resumen, cabecera/checklist desplegables, hallazgos, conclusiones, cierre de campo y recuperación de transcripción.
+- `apps/client/src/features/back-navigation.tsx`: control único de regreso y acciones de subpantallas.
+- `apps/client/src/features/library.tsx`: biblioteca, vista previa de solo lectura y editor de copias de checklist.
+- `apps/client/src/features/Signers.tsx` y `apps/client/src/features/VisitSigners.tsx`: identidad, modos de firma, imagen/foto y autoguardado de firmantes.
+- `apps/client/src/features/SyncStatus.tsx` y `apps/client/src/features/VisitDownload.tsx`: indicador compacto de datos y progreso/reintento de archivos.
 - `apps/client/src/features/dictation.ts`: dictado por voz del resumen (Web Speech API, solo web).
+- `apps/client/src/features/whisper-service.ts` y `apps/client/src/features/transcription-service.ts`: pesos descargados, transcripción local de hallazgos y recuperación.
+- `patches/capacitor-whisper+0.2.1.patch`: apertura nativa de pesos descargados y pruebas JVM del resolver.
+- `apps/client/capacitor.config.ts` y `apps/client/index.html`: configuración de insets y viewport Android.
 - `apps/client/src/features/serial-autosave.ts`: autoguardado serializado del checklist y de las conclusiones.
 - `apps/client/src/features/Report.tsx`: edición, guardado y generación del informe.
 - `apps/client/src/features/media-sync.ts`: sincronización de archivos y grupos de captura.
@@ -554,5 +687,7 @@ de sync no borre ni oculte un error de navegación, creación o publicación loc
 - `packages/report-pdf/src/informe.tsx`: composición del PDF.
 - `supabase/migrations/20260917000700_sync_answers.sql`: recomputación de completitud en el servidor (modificada el 2026-11-12).
 - `tests/checklist-completion.test.ts`: pruebas de la regla de completitud por obligatoriedad.
+- `tests/observation-order.test.ts`, `tests/whisper-model.test.ts` y `tests/transcription.test.ts`: orden persistido, verificación/recuperación de pesos y transcripción.
+- `tests/e2e/report-editing.spec.ts` y `tests/e2e/template-instance.spec.ts`: regresiones de informe, resumen móvil, firmas, navegación y plantillas.
 
 El documento no cambia por sí mismo las reglas de negocio existentes ni autoriza modificaciones del esquema. Las decisiones abiertas se mantienen explícitas para no convertir supuestos en requisitos.
