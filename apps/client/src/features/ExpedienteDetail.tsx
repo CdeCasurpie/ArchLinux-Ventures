@@ -1,5 +1,5 @@
 import {useEffect,useRef,useState} from 'react';
-import {createPortal} from 'react-dom';
+import {Icon,Modal} from './ui';
 import type {Expediente,Visita} from '@archforms/domain';
 import {useBackAction} from './back-navigation';
 import {TrashIcon} from './TrashIcon';
@@ -9,7 +9,6 @@ export function ExpedienteDetail({expediente,visitas,onEdit,onVisit,onOpenVisit,
  const [selected,setSelected]=useState<string[]>([]),[confirm,setConfirm]=useState<'expediente'|'visita'|null>(null),[busy,setBusy]=useState(false),[error,setError]=useState('');
  const [singleDelete,setSingleDelete]=useState<string|null>(null);
  const deleteIds=singleDelete?[singleDelete]:selected;
- useEffect(()=>{if(!confirm)return;const overflow=document.body.style.overflow;document.body.style.overflow='hidden';return()=>{document.body.style.overflow=overflow}},[confirm]);
  function dismissConfirmation(){setConfirm(null);setSingleDelete(null)}
  useBackAction(()=>confirm?dismissConfirmation():setSelected([]),Boolean(confirm)||selected.length>0);
  const toggle=(id:string)=>setSelected(current=>current.includes(id)?current.filter(value=>value!==id):[...current,id]);
@@ -18,7 +17,7 @@ export function ExpedienteDetail({expediente,visitas,onEdit,onVisit,onOpenVisit,
    <section className="detail-banner">
     <p className="eyebrow">EXPEDIENTE {expediente.nro_expediente}</p><h1>{expediente.detalle_obra||expediente.propietario||'Obra'}</h1><p>{expediente.ubicacion}</p>
     <div className="detail-meta"><div><span>Propietario</span><strong>{expediente.propietario||'Por completar'}</strong></div><div><span>Licencia</span><strong>{expediente.nro_licencia||'Por completar'}{expediente.modalidad?` · ${expediente.modalidad}`:''}</strong></div><div><span>Vigencia</span><strong>{expediente.vigencia_desde||'—'} — {expediente.vigencia_hasta||'—'}</strong></div><div><span>Plantilla</span><strong>{expediente.checklist_nombre}</strong></div></div>
-    <div className="detail-actions"><button className="btn btn-primary btn-lg" disabled={creating} onClick={onVisit}>＋ Nueva visita</button><button className="btn btn-secondary" onClick={onEdit}>Editar expediente</button></div>
+    <div className="detail-actions"><button className="btn btn-primary btn-lg" disabled={creating} onClick={onVisit}><Icon name="plus"/>Nueva visita</button><button className="btn btn-secondary" onClick={onEdit}>Editar expediente</button></div>
     <footer className="detail-footer"><button className="case-delete-action" onClick={()=>setConfirm('expediente')}><TrashIcon/>Eliminar expediente</button></footer>
    </section>
    <section className="card timeline-card"><div className="section-heading"><div><p className="eyebrow">HISTORIAL</p><h2>Visitas de inspección</h2></div><span className="date-chip">{visitas.length}{expediente.total_visitas_programadas?` de ${expediente.total_visitas_programadas}`:''} creadas</span></div>
@@ -26,7 +25,7 @@ export function ExpedienteDetail({expediente,visitas,onEdit,onVisit,onOpenVisit,
   {selected.length>0&&<div className="visit-selection-toolbar"><strong role="status">{selected.length} seleccionadas</strong><button className="btn btn-ghost" onClick={()=>setSelected(visitas.map(v=>v.id))}>Todas</button><button className="btn btn-ghost" onClick={()=>setSelected([])}>Cancelar</button><button className="delete-icon-button" aria-label="Eliminar seleccionadas" title="Eliminar seleccionadas" onClick={()=>setConfirm('visita')}><TrashIcon/></button></div>}
   {[...visitas].sort((a,b)=>b.nro_visita-a.nro_visita).map(item=><SelectableVisit key={item.id} item={item} selecting={selected.length>0} selected={selected.includes(item.id)} onToggle={()=>toggle(item.id)} onOpen={()=>onOpenVisit(item.id)} onReport={()=>onEditReport(item.id)} onDelete={()=>{setSingleDelete(item.id);setConfirm('visita')}}/>)}
  {!visitas.length&&<div className="empty-state"><h3>Aún no hay visitas</h3><p>La primera visita conservará una copia independiente de la plantilla.</p><button className="btn btn-primary" onClick={onVisit}>Nueva visita</button></div>}</section>
-  {confirm&&createPortal(<div className="modal-backdrop deletion-backdrop" role="alertdialog" aria-modal="true" aria-labelledby="delete-title" aria-describedby="delete-description">
+   {confirm&&<Modal alert labelledBy="delete-title" describedBy="delete-description" onClose={dismissConfirmation} busy={busy}>
    <section className="card modal-card deletion-confirm">
     <span className="deletion-icon"><TrashIcon size={20}/></span>
     <h2 id="delete-title">{confirm==='expediente'?'¿Eliminar este expediente?':deleteIds.length===1?'¿Eliminar esta visita?':`¿Eliminar ${deleteIds.length} visitas?`}</h2>
@@ -37,7 +36,7 @@ export function ExpedienteDetail({expediente,visitas,onEdit,onVisit,onOpenVisit,
     {error&&<p className="alert error" role="alert">{error}</p>}
     <div className="form-actions"><button autoFocus className="btn btn-secondary" disabled={busy} onClick={dismissConfirmation}>Conservar {confirm==='expediente'?'expediente':deleteIds.length===1?'visita':'visitas'}</button><button className="btn delete-confirm-button" disabled={busy} onClick={()=>void remove()}>{busy?'Eliminando…':confirm==='expediente'?'Eliminar expediente':deleteIds.length===1?'Eliminar visita':'Eliminar visitas'}</button></div>
    </section>
-  </div>,document.body)}
+   </Modal>}
  </div>;
 }
 

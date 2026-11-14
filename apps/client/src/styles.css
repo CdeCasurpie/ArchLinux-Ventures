@@ -1,5 +1,4 @@
-@import "../../../docs/context/prototipo-archforms/styles.css";
-@font-face{font-family:"Google Sans Flex";src:local("Google Sans Flex");font-display:swap}
+@import "./styles/foundation.css";
 
 button,input,select,textarea{font-family:var(--font)}
 button:disabled{cursor:not-allowed;opacity:.55}

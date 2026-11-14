@@ -35,12 +35,39 @@ test('inicio responsive: escritorio original, accesos móviles y nueva visita of
    expect(await page.locator('.home-mobile-blue').evaluate(el=>getComputedStyle(el,'::before').content)).not.toBe('none');
   }
   await page.setViewportSize({width:390,height:844});await page.screenshot({path:'/tmp/opencode/archforms-real-mobile.png',fullPage:true,animations:'disabled'});
+  await page.evaluate(()=>document.fonts.ready);
+  expect(await page.evaluate(()=>getComputedStyle(document.body).fontFamily)).toContain('Manrope');
+  const fontResponse=await page.request.get('/fonts/Manrope-Variable.ttf');expect(fontResponse.ok()).toBe(true);
+  await page.getByRole('button',{name:'Nuevo expediente',exact:true}).click();
+  const number=page.locator('input[name=nro_expediente]');
+  expect(await number.evaluate(el=>getComputedStyle(el).fontSize)).toBe('16px');
+  expect((await number.boundingBox())!.height).toBeGreaterThanOrEqual(44);
+  await number.fill('BORRADOR DE PRUEBA');
+  await page.locator('.mobile-utility-nav').getByRole('button',{name:'Inicio',exact:true}).click();
+  await expect(page.getByRole('dialog')).toBeVisible();
+  await page.keyboard.press('Tab');
+  expect(await page.getByRole('dialog').evaluate(el=>el.contains(document.activeElement))).toBe(true);
+  await page.keyboard.press('Escape');await expect(page.getByRole('dialog')).not.toBeVisible();
+  await expect(number).toHaveValue('BORRADOR DE PRUEBA');
+  await page.locator('.mobile-utility-nav').getByRole('button',{name:'Inicio',exact:true}).click();await page.getByRole('button',{name:'Descartar',exact:true}).click();
+  for(const width of [821,1024,1440]){
+   await page.setViewportSize({width,height:900});
+   await expect(page.locator('.desktop-dashboard')).toBeVisible();
+   expect((await page.locator('.desktop-dashboard .hero-card').boundingBox())!.width).toBeGreaterThan(400);
+   expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
+  }
+  await page.setViewportSize({width:390,height:844});
   await page.getByRole('button',{name:'Nueva visita',exact:true}).click();
   await expect(page.getByRole('heading',{name:'¿Qué obra vas a visitar?'})).toBeVisible();
   await page.locator('.launcher-work').filter({hasText:'HOME-0'}).click();
   await expect(page.getByRole('dialog')).toBeVisible();
   await page.getByRole('button',{name:/Continuar visita 01/}).click();
   await expect(page.getByRole('heading',{name:'Plantilla de visita',exact:true})).toBeVisible();
+  await expect(page.getByLabel('Nota',{exact:true})).toBeVisible();
+  await expect(page.locator('.mobile-nav--field button')).toHaveCount(2);
+  await expect(page.locator('.mobile-nav--field').getByRole('button',{name:'Inicio',exact:true})).toBeVisible();
+  await expect(page.locator('.mobile-nav--field').getByRole('button',{name:'Más opciones',exact:true})).toBeVisible();
+  await expect(page.locator('.mobile-create')).toHaveCount(0);
   await page.locator('.mobile-nav').getByRole('button',{name:/Inicio/}).click();
   await page.getByRole('button',{name:'Nueva visita',exact:true}).click();
   await context.setOffline(true);

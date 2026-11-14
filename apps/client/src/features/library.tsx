@@ -1,5 +1,6 @@
 import {useState} from 'react';
 import {useBackAction} from './back-navigation';
+import {Icon} from './ui';
 import {assertChecklist,withAvanceObra,AVANCE_OBRA_FIELD_ID,type ChecklistField,type ChecklistFieldType,type ChecklistSchema,type ChecklistSection,type ChecklistTemplate,type Expediente,type WorkspacePending} from '@archforms/domain';import {ChecklistForm} from './checklist';
 
 /** Borrador del expediente que sobrevive el ida y vuelta a la biblioteca (Hilo C). */
@@ -66,7 +67,7 @@ export function TemplateLibrary({owner,templates,pending,returning,onSave,onRetu
      <h1>Biblioteca de plantillas</h1>
      <p>{returning?'Crea una plantilla; al terminar volverás al expediente con todo intacto.':'Crea, edita y reutiliza tus plantillas. Los expedientes conservan sus propias copias.'}</p>
    </div>
-    <button className="btn btn-primary" onClick={()=>openEditor(null,'create')}>＋ Crear plantilla</button>
+    <button className="btn btn-primary" onClick={()=>openEditor(null,'create')}><Icon name="plus"/>Crear plantilla</button>
   </header>
   {returning&&<div className="return-banner">
     <span>Estás creando o editando una plantilla para un expediente.</span>
@@ -221,11 +222,11 @@ export function TemplateEditor({owner,source,mode,initialName,initialSchema,inst
           onToggle={()=>setOpenField(current=>current===field.id?null:field.id)}
           onToggleDescription={()=>setOpenDescriptions(current=>({...current,[field.id]:true}))}
           onPatch={patchField} onMove={moveField} onDuplicate={duplicateField} onRemove={removeField}/>)}
-       <button type="button" className="editor-add-field" onClick={()=>addField(section.id)}>＋ Añadir campo</button>
+        <button type="button" className="editor-add-field" onClick={()=>addField(section.id)}><Icon name="plus"/> Añadir campo</button>
       </div>}
      </section>;
     })}
-    <button type="button" className="editor-add-section" onClick={addSection}>＋ Añadir sección</button>
+    <button type="button" className="editor-add-section" onClick={addSection}><Icon name="plus"/> Añadir sección</button>
     <div className="form-actions">
      <button type="button" className="btn btn-primary btn-lg" disabled={busy} onClick={submit}>{busy?'Guardando…':instance?'Usar esta versión →':mode==='duplicate'?'Crear copia →':'Guardar plantilla →'}</button>
     </div>
@@ -290,7 +291,7 @@ function FieldRow({field,sectionId,at,total,open,descriptionOpen,onToggle,onTogg
      <input className="field compact" value={option} onChange={e=>{const options=[...(field.options??[])];options[oi]=e.target.value;onPatch(sectionId,field.id,{options})}}/>
      <div className="editor-tools"><button type="button" className="danger" title="Quitar opción" aria-label="Quitar opción" onClick={()=>{const options=[...(field.options??[])];options.splice(oi,1);onPatch(sectionId,field.id,{options})}}><TrashIcon/></button></div>
     </div>)}
-    <button type="button" className="link-btn" onClick={()=>onPatch(sectionId,field.id,{options:[...(field.options??[]),'Opción nueva']})}>＋ Añadir opción</button>
+     <button type="button" className="link-btn" onClick={()=>onPatch(sectionId,field.id,{options:[...(field.options??[]),'Opción nueva']})}><Icon name="plus"/>Añadir opción</button>
    </div>}
    {(field.type==='number'||field.type==='percent')&&<div className="field-config-grid">
     {field.type==='number'&&<label className="editor-label">Unidad<input className="field compact" value={field.unit??''} onChange={e=>onPatch(sectionId,field.id,{unit:e.target.value||undefined})}/></label>}
@@ -301,7 +302,7 @@ function FieldRow({field,sectionId,at,total,open,descriptionOpen,onToggle,onTogg
     ?<label className="editor-label">Descripción (opcional)
       <input className="field" value={field.description??''} onChange={e=>onPatch(sectionId,field.id,{description:e.target.value||undefined})} placeholder="Ayuda breve que verá quien llena la plantilla"/>
      </label>
-    :<button type="button" className="link-btn" onClick={onToggleDescription}>＋ Añadir descripción</button>}
+    :<button type="button" className="link-btn" onClick={onToggleDescription}><Icon name="plus"/>Añadir descripción</button>}
   </div>}
  </div>;
 }

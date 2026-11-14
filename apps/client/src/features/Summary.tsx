@@ -17,6 +17,7 @@ import type {Expediente} from '@archforms/domain';
 import {visitDocument} from './visit-document';
 import {transcriptionService} from './transcription-service';
 import {orderObservations} from './observation-order';
+import {Icon} from './ui';
 
 // Pasa a true para mostrar el panel de diagnóstico de sync en el Resumen.
 const SHOW_SYNC_DEBUG = false;
@@ -203,17 +204,17 @@ export function VisitSummary({ visita,expediente, onConclude, onEditReport, onGo
             const remoteNoText = group.transcripcionStatus === 'remote' && noText;
             const transcribing = noText && !failed && !remoteNoText;
             return (
-            <div key={group.id} className="card" style={{ background: 'white', borderRadius: 16, padding: 16, border: transcribing ? '2px solid #7fb5f5' : '1px solid var(--line)', boxShadow: 'var(--shadow-sm)' }}>
+            <div key={group.id} className={`card finding-card${transcribing?' finding-card--processing':''}`}>
               {/* Header row */}
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-                 <h3 style={{ margin: 0, fontSize: 16, color: 'var(--navy)' }}>Hallazgo {i + 1}</h3>
+              <div className="finding-heading">
+                 <h3>Hallazgo {i + 1}</h3>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                   {transcribing && (
-                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 11, fontWeight: 700, padding: '4px 12px', borderRadius: 100, background: '#d7e9fd', color: '#0b4a8f', whiteSpace: 'nowrap' }}>
+                    <span className="processing-badge">
                       <span className="spinner" />Procesando
                     </span>
                   )}
-                  <span style={{ fontSize: 11, color: '#81909d' }}>
+                  <span className="finding-meta">
                     {new Date(group.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                   </span>
                 </div>
@@ -227,7 +228,7 @@ export function VisitSummary({ visita,expediente, onConclude, onEditReport, onGo
                 </div>
               ) : (
                 group.transcripcion && (
-                  <p style={{ margin: '0 0 12px 0', fontSize: 14, color: 'var(--navy)', lineHeight: 1.5 }}>
+                  <p className="finding-text">
                     <span>{group.transcripcion}</span>
                   </p>
                 )
@@ -235,8 +236,8 @@ export function VisitSummary({ visita,expediente, onConclude, onEditReport, onGo
 
               {/* Audio: real desde el primer momento */}
               {group.audio && (
-                <div style={{ padding: '8px 12px', background: '#f8fafc', borderRadius: 10, border: '1px solid #e2e8f0', marginBottom: group.photos.length ? 16 : 0 }}>
-                  <span style={{ display: 'block', fontSize: 12, fontWeight: 700, color: 'var(--blue-700)', marginBottom: 6 }}>Nota de voz original</span>
+                <div className="report-audio">
+                  <span className="report-audio-title"><Icon name="mic"/>Nota de voz original</span>
                   <audio controls src={group.audio.displayUrl} style={{ width: '100%', height: 32 }} />
                 </div>
               )}
@@ -244,7 +245,7 @@ export function VisitSummary({ visita,expediente, onConclude, onEditReport, onGo
               {/* Fotos: reales desde el primer momento */}
               {group.photos.length > 0 && (
                 <div>
-                  <span style={{ display: 'block', fontSize: 11, fontWeight: 700, color: '#81909d', textTransform: 'uppercase', marginBottom: 8, letterSpacing: 0.5 }}>
+                  <span className="report-photo-label">
                     Evidencia Fotográfica ({group.photos.length})
                   </span>
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(80px, 1fr))', gap: 8 }}>
@@ -417,16 +418,16 @@ function ConclusionsCard({ visita, onSave, saveBarrier }: {
   const native = Capacitor.isNativePlatform();
   const statusLabel = saveStatus === 'saving' ? 'Guardando…' : saveStatus === 'error' ? 'No se pudo guardar' : 'Guardado en este dispositivo';
   return (
-    <div style={{ background: 'white', borderRadius: 16, padding: 20, border: '1px solid var(--line)', marginBottom: 20 }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12, gap: 8, flexWrap: 'wrap' }}>
+    <div className="conclusions-card">
+      <div className="finding-heading">
         {/* El dictado nativo (Whisper) llegará después: por ahora solo web. */}
-        <h3 style={{ margin: 0, fontSize: 15, color: 'var(--navy)' }}>Conclusiones</h3>
+        <h3>Conclusiones</h3>
         <button
           className="btn btn-secondary"
           disabled={native}
           onClick={() => (dictation.state === 'listening' ? dictation.stop() : dictation.start())}
         >
-          {dictation.state === 'listening' ? '■ Detener dictado' : '🎙 Dictar'}
+          <Icon name="mic"/>{dictation.state === 'listening' ? 'Detener dictado' : 'Dictar'}
         </button>
       </div>
       <textarea
@@ -436,7 +437,7 @@ function ConclusionsCard({ visita, onSave, saveBarrier }: {
         placeholder="Escribe o dicta las conclusiones globales de la visita…"
         onChange={e => { textRef.current = e.target.value; dirty.current = true; setText(e.target.value); void writer.save(e.target.value); }}
       />
-      <p role="status" style={{ margin: '8px 0 0 0', fontSize: 12, color: '#65758b' }}>
+      <p role="status" className="report-save-status">
         {dictation.state === 'listening' && 'Escuchando… toca «Detener dictado» al terminar. '}
         {native && 'El dictado por voz estará disponible en la app más adelante; por ahora puedes escribirlo. '}
         {dictation.state === 'unsupported' && 'El dictado por voz no está disponible aquí; escribe el texto. '}

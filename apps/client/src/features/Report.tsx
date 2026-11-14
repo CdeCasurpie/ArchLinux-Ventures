@@ -21,6 +21,7 @@ import {reportSource} from './report-source';
 import {orderObservations} from './observation-order';
 import {reconcileFindings} from './visit-document';
 import {subscribeGroupCreated,subscribeMediaSync} from './media-sync';
+import {Icon,IconButton} from './ui';
 
 function bytesToBase64(bytes: Uint8Array): string {
   let binary = '';
@@ -257,11 +258,10 @@ export function VisitReport({ visita, expediente, profile, onSave,onSaveAnswers,
   return (
     <div className="page-enter">
       {provisional&&<p role="status">El número de visita es provisional hasta sincronizar. El PDF llevará esa advertencia.</p>}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12, flexWrap: 'wrap' }}>
-        <span className="status active">{pdfStale?'PDF anterior desactualizado · vuelve a generarlo':'PDF local · se genera en cada descarga'}</span>
-        <span style={{ flex: 1 }} />
-        <button className="btn btn-secondary" onClick={undo} disabled={!past.length}>←</button>
-        <button className="btn btn-secondary" onClick={redo} disabled={!future.length}>→</button>
+      <div className="report-toolbar" role="toolbar" aria-label="Acciones del informe">
+        <span className={`status ${pdfStale?'review':'active'}`}>{pdfStale?'PDF anterior desactualizado · vuelve a generarlo':'PDF local · se genera en cada descarga'}</span>
+        <IconButton icon="undo" label="Deshacer" onClick={undo} disabled={!past.length}/>
+        <IconButton icon="redo" label="Rehacer" onClick={redo} disabled={!future.length}/>
         <button className="btn btn-secondary" onClick={() => void save().catch(error=>setPdfMsg(`No se pudo guardar: ${String(error)}`))} disabled={saving || (saveStatus!=='error'&&!dirty && !fresh)}>
           {saving ? 'Guardando…' : saveStatus==='error'?'Reintentar guardado':'Guardar informe'}
         </button>
@@ -269,7 +269,7 @@ export function VisitReport({ visita, expediente, profile, onSave,onSaveAnswers,
           {busy ? 'Generando…' : 'Generar PDF'}
         </button>
       </div>
-      <p role="status">{saveStatus==='saving'?'Guardando informe en el dispositivo…':saveStatus==='error'?'No se pudo guardar el informe. Reintenta antes de salir.':'Informe guardado en este dispositivo · se sincroniza al tener conexión'}</p>
+      <p className="report-save-status" role="status">{saveStatus==='saving'?'Guardando informe en el dispositivo…':saveStatus==='error'?'No se pudo guardar el informe. Reintenta antes de salir.':'Informe guardado en este dispositivo · se sincroniza al tener conexión'}</p>
       {pdfMsg && <div className="alert notice">{pdfMsg}</div>}
       {fileSheetOpen && savedFile && Capacitor.isNativePlatform() && createPortal(
         <>
@@ -307,7 +307,7 @@ export function VisitReport({ visita, expediente, profile, onSave,onSaveAnswers,
                 className="btn btn-secondary"
                 onClick={() => apply(d => restoreGroupBlock(d, g.id, g.photos.map(p => p.id), g.transcripcion ?? ''))}
               >
-                ＋ Hallazgo {groups.length - groups.indexOf(g)}
+                <Icon name="plus"/> Hallazgo {groups.length - groups.indexOf(g)}
               </button>
             ))}
           </div>
@@ -357,15 +357,14 @@ function BlockCard({ block, index, total, group, onMove, onRemove, onPhotos, onC
     : block.type === 'signatures' ? 'Firmas (fijo)'
     : 'Texto';
   return (
-    <article className="card" style={{ padding: 16 }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
+    <article className="card report-block">
+      <div className="report-block-heading">
         <strong>{title}</strong>
-        <span style={{ flex: 1 }} />
         {!locked && (
           <>
-            <button className="btn btn-secondary" onClick={() => onMove(-1)} disabled={index === 0} aria-label="Subir">↑</button>
-            <button className="btn btn-secondary" onClick={() => onMove(1)} disabled={index === total - 1} aria-label="Bajar">↓</button>
-            <button className="btn btn-secondary" onClick={onRemove} aria-label="Quitar del informe">×</button>
+            <IconButton icon="up" label="Subir" onClick={() => onMove(-1)} disabled={index === 0}/>
+            <IconButton icon="down" label="Bajar" onClick={() => onMove(1)} disabled={index === total - 1}/>
+            <IconButton icon="close" label="Quitar del informe" onClick={onRemove}/>
           </>
         )}
       </div>
@@ -375,15 +374,15 @@ function BlockCard({ block, index, total, group, onMove, onRemove, onPhotos, onC
       {block.type === 'capture-group' && (
         <>
           {group?.audio && (
-            <div style={{ padding: '8px 12px', background: '#f8fafc', borderRadius: 10, border: '1px solid #e2e8f0', marginBottom: 8 }}>
-              <span style={{ display: 'block', fontSize: 12, fontWeight: 700, marginBottom: 6 }}>🎙 Escucha el audio mientras corriges</span>
+            <div className="report-audio">
+              <span className="report-audio-title"><Icon name="mic"/>Escucha el audio mientras corriges</span>
               <audio controls src={group.audio.displayUrl} style={{ width: '100%', height: 32 }} />
             </div>
           )}
           {group?.transcripcion && (
-            <details style={{ marginBottom: 12, fontSize: 13 }}>
-              <summary style={{ cursor: 'pointer', color: 'var(--blue-700)' }}>Transcripción original del audio</summary>
-              <p style={{ whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' }}>{group.transcripcion}</p>
+            <details className="report-transcript">
+              <summary>Transcripción original del audio</summary>
+              <p>{group.transcripcion}</p>
             </details>
           )}
           <textarea
@@ -394,23 +393,23 @@ function BlockCard({ block, index, total, group, onMove, onRemove, onPhotos, onC
             placeholder="Comentario del hallazgo (editable; la transcripción original se conserva en la pestaña Resumen)"
             style={{ width: '100%', marginBottom: 8 }}
           />
-          <span style={{ display: 'block', fontSize: 11, fontWeight: 700, color: '#81909d', textTransform: 'uppercase', marginBottom: 8 }}>
+          <span className="report-photo-label">
             Fotos en el informe ({block.photoIds.length}/{group?.photos.length ?? 0})
           </span>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(90px, 1fr))', gap: 8 }}>
+          <div className="report-photos">
             {orderedPhotos(group, block.photoIds).map((p) => {
               const included = block.photoIds.includes(p.id);
               return (
-                <div key={p.id} style={{ position: 'relative', borderRadius: 8, overflow: 'hidden', border: included ? '2px solid var(--blue-700)' : '1px solid #e2e8f0', opacity: included ? 1 : 0.45 }}>
-                  <img src={p.displayUrl} alt="" style={{ width: '100%', aspectRatio: '1', objectFit: 'cover', display: 'block' }} />
-                  <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, display: 'flex', background: 'rgba(255,255,255,0.9)' }}>
-                    <button style={{ flex: 1 }} onClick={() => {
+                <div key={p.id} className={`report-photo${included?' report-photo--included':''}`}>
+                  <img src={p.displayUrl} alt="Evidencia del hallazgo" />
+                  <div className="report-photo-actions">
+                    <IconButton icon={included?'check':'plus'} label={included?'Excluir foto del informe':'Incluir foto en el informe'} aria-pressed={included} onClick={() => {
                       const ids = included ? block.photoIds.filter(id => id !== p.id) : [...block.photoIds, p.id];
                       // Mantener el orden de captura al reincorporar.
                       const order = new Map((group?.photos ?? []).map((ph, idx) => [ph.id, idx]));
                       onPhotos(ids.sort((a, b) => (order.get(a) ?? 0) - (order.get(b) ?? 0)));
-                    }}>{included ? '✓' : '＋'}</button>
-                    <button
+                    }}/>
+                    <IconButton icon="left" label="Mover foto antes"
                       disabled={!included || block.photoIds.length < 2}
                       onClick={() => {
                         const ids = [...block.photoIds];
@@ -419,8 +418,8 @@ function BlockCard({ block, index, total, group, onMove, onRemove, onPhotos, onC
                         [ids[at], ids[to]] = [ids[to], ids[at]];
                         onPhotos(ids);
                       }}
-                    >←</button>
-                    <button
+                    />
+                    <IconButton icon="right" label="Mover foto después"
                       disabled={!included || block.photoIds.length < 2}
                       onClick={() => {
                         const ids = [...block.photoIds];
@@ -429,14 +428,14 @@ function BlockCard({ block, index, total, group, onMove, onRemove, onPhotos, onC
                         [ids[at], ids[to]] = [ids[to], ids[at]];
                         onPhotos(ids);
                       }}
-                    >→</button>
+                    />
                   </div>
                   {included && <span style={{ position: 'absolute', top: 4, left: 4, background: 'var(--blue-700)', color: 'white', fontSize: 10, borderRadius: 8, padding: '0 6px' }}>{block.photoIds.indexOf(p.id) + 1}</span>}
                 </div>
               );
             })}
           </div>
-          {!group && <p style={{ color: '#991b1b' }}>Este hallazgo aún no está descargado en este dispositivo.</p>}
+          {!group && <p className="alert error">Este hallazgo aún no está descargado en este dispositivo.</p>}
         </>
       )}
 
@@ -447,8 +446,8 @@ function BlockCard({ block, index, total, group, onMove, onRemove, onPhotos, onC
         <textarea rows={4} value={block.content} onChange={e => onContent(e.target.value)} placeholder="Conclusiones globales de la visita…" style={{ width: '100%' }} />
       )}
 
-      <div style={{ marginTop: 8 }}>
-        <button className="edit-link" onClick={onAddText}>＋ Añadir texto debajo</button>
+      <div className="report-add-text">
+        <button className="edit-link" onClick={onAddText}><Icon name="plus"/>Añadir texto debajo</button>
       </div>
     </article>
   );

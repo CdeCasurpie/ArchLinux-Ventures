@@ -48,19 +48,18 @@ function CaptureActions({ cameraOn, recorderState, justSaved, elapsed, photoCoun
 }) {
   return (
     <>
-      <div className="actions" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: compact ? 12 : 25 }}>
-        <button className="btn btn-secondary" style={{ padding: '16px 0', fontSize: 13, background: 'white' }} onClick={onToggleCamera}>
+      <div className={`capture-action-grid${compact?' capture-action-grid--compact':''}`}>
+        <button className="btn btn-secondary" onClick={onToggleCamera}>
           {cameraOn ? 'Apagar cámara' : 'Encender cámara'}
         </button>
-        <button className="btn btn-primary" style={{ padding: '16px 0', fontSize: 13 }} onClick={onTakePhoto} disabled={!cameraOn}>
+        <button className="btn btn-primary" onClick={onTakePhoto} disabled={!cameraOn}>
           Tomar foto
         </button>
       </div>
 
-      <div className="audio-section" style={compact ? undefined : { marginBottom: 25 }}>
+      <div className={`audio-section${compact?'':' audio-section--spaced'}`}>
         <button
-          className={`btn ${recorderState === 'recording' ? 'btn-danger' : 'btn-secondary'}`}
-          style={{ width: '100%', minHeight: 65, fontSize: 16, display: 'flex', alignItems: 'center', justifyItems: 'center', gap: 12, justifyContent: 'center', borderRadius: 16, background: recorderState === 'recording' ? '' : 'white' }}
+          className={`btn capture-record ${recorderState === 'recording' ? 'btn-danger' : 'btn-secondary'}`}
           onClick={onRecord}
           disabled={recorderState === 'saving' || (!cameraOn && photoCount === 0 && recorderState === 'idle')}
         >

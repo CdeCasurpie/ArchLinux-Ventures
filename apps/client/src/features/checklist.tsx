@@ -11,7 +11,7 @@ export function ChecklistForm({schema,answers,onChange,readonly=false}:{schema:C
  const avance=schema.sections.flatMap(section=>section.fields).find(field=>field.id===AVANCE_OBRA_FIELD_ID);
  const [closed,setClosed]=useState<Record<string,boolean>>({});
  const setValue=(id:string,value:string|number|null)=>onChange?.(id,value);
- return <div className="checklist-form">
+  return <div className={`checklist-form${readonly?' checklist-form--readonly':''}`}>
   {avance&&<AvanceCard field={avance} value={answers[avance.id]} onChange={value=>setValue(avance.id,value)} readonly={readonly}/>}
   {schema.sections.map((section,index)=>{
    const fields=section.fields.filter(field=>field.id!==AVANCE_OBRA_FIELD_ID);
@@ -49,7 +49,7 @@ function AvanceCard({field,value,onChange,readonly}:{field:ChecklistField;value:
   <div><strong>{field.label}</strong><small>{field.description??'Porcentaje de avance de la obra'}</small></div>
   {readonly
    ?<span className="avance-value">{value===undefined||value===null||value===''?'—':`${value} %`}</span>
-   :<span className="avance-input"><input type="number" min={0} max={100} inputMode="decimal" value={text}
+    :<span className="avance-input"><input aria-label={field.label} type="number" min={0} max={100} inputMode="decimal" value={text}
      onChange={e=>onChange(e.target.value===''?'':Math.max(0,Math.min(100,Number(e.target.value))))}/><i>%</i></span>}
  </div>;
 }
@@ -57,34 +57,34 @@ function AvanceCard({field,value,onChange,readonly}:{field:ChecklistField;value:
 function FieldControl({field,value,onChange,readonly}:{field:ChecklistField;value:unknown;onChange:(value:string|number|null)=>void;readonly:boolean}){
  const text=String(value??'');
  if(field.type==='boolean'){
-  return <div className="segmented">{([['si','Sí'],['no','No'],['na','N/A']] as const).map(([option,label])=>
-   <button key={option} type="button" disabled={readonly} className={value===option?'active':''} onClick={()=>onChange(value===option?null:option)}>{label}</button>)}</div>;
+   return <div className="segmented" role="group" aria-label={field.label}>{([['si','Sí'],['no','No'],['na','N/A']] as const).map(([option,label])=>
+    <button key={option} type="button" aria-pressed={value===option} disabled={readonly} className={value===option?'active':''} onClick={()=>onChange(value===option?null:option)}>{label}</button>)}</div>;
  }
  if(field.type==='select'){
   const options=field.options??[];
-  return <select className="field inline-field" value={text} disabled={readonly} onChange={e=>onChange(e.target.value||null)}>
+   return <select aria-label={field.label} className="field inline-field" value={text} disabled={readonly} onChange={e=>onChange(e.target.value||null)}>
    <option value="">Sin responder</option>
    {options.map(option=><option key={option} value={option}>{option}</option>)}
   </select>;
  }
  if(field.type==='textarea'){
-  return <textarea rows={3} value={text} disabled={readonly} onChange={e=>onChange(e.target.value)}/>;
+   return <textarea aria-label={field.label} rows={3} value={text} disabled={readonly} onChange={e=>onChange(e.target.value)}/>;
  }
  if(field.type==='number'){
   return <span className="unit-field">
-   <input className="field inline-field" type="number" inputMode="decimal" min={field.min} max={field.max} value={text} disabled={readonly}
+    <input aria-label={field.label} className="field inline-field" type="number" inputMode="decimal" min={field.min} max={field.max} value={text} disabled={readonly}
     onChange={e=>onChange(e.target.value===''?'':Number(e.target.value))}/>
    {field.unit&&<i>{field.unit}</i>}
   </span>;
  }
  if(field.type==='percent'){
   return <span className="unit-field">
-   <input className="field inline-field" type="number" inputMode="decimal" min={0} max={100} value={text} disabled={readonly}
+    <input aria-label={field.label} className="field inline-field" type="number" inputMode="decimal" min={0} max={100} value={text} disabled={readonly}
     onChange={e=>onChange(e.target.value===''?'':Math.max(0,Math.min(100,Number(e.target.value))))}/>
    <i>%</i>
   </span>;
  }
- return <input className="field inline-field" type={field.type==='date'?'date':'text'} value={text} disabled={readonly}
+  return <input aria-label={field.label} className="field inline-field" type={field.type==='date'?'date':'text'} value={text} disabled={readonly}
   onChange={e=>onChange(e.target.value)}/>;
 }
 
