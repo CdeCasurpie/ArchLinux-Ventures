@@ -71,6 +71,7 @@ create table public.expediente (
   datos_cabecera_extra jsonb,
   checklist_nombre text not null,
   checklist_esquema_json jsonb not null,
+  checklist_template_id uuid,
   activo boolean not null default true,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
@@ -90,6 +91,7 @@ create table public.visita (
   checklist_esquema_json jsonb not null,
   checklist_respuestas_json jsonb not null,
   checklist_completado boolean not null default false,
+  checklist_template_id uuid,
   avance_general decimal,
   nivel_riesgo text,
   calificacion text,
@@ -178,6 +180,8 @@ alter table public.expediente add foreign key (profesional_id) references public
 alter table public.visita add foreign key (expediente_id) references public.expediente (id);
 alter table public.visita add foreign key (conclusiones_audio_archivo_id) references public.archivo (id);
 alter table public.visita add foreign key (pdf_archivo_id) references public.archivo (id);
+alter table public.expediente add foreign key (checklist_template_id) references public.plantilla_checklist (id);
+alter table public.visita add foreign key (checklist_template_id) references public.plantilla_checklist (id);
 alter table public.grupo_captura add foreign key (visita_id) references public.visita (id);
 alter table public.grupo_captura add foreign key (audio_archivo_id) references public.archivo (id);
 alter table public.foto add foreign key (visita_id) references public.visita (id);

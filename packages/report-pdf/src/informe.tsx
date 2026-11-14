@@ -3,9 +3,10 @@ import type React from 'react';
 import { Document, Page, View, Text, Image, Svg, Path, StyleSheet } from '@react-pdf/renderer';
 import { PDFDocument, StandardFonts, rgb } from 'pdf-lib';
 import type { ReportDocumentV1, ReportBlock, Expediente, Visita, Profile } from '@archforms/domain';
+import { AVANCE_OBRA_FIELD_ID } from '@archforms/domain';
 import { imageSizeFromDataUrl } from './mosaic';
 import { PAGE_TOP, PAGE_BOTTOM, MARGIN, MOSAIC, CAP_FULL } from './layout';
-import { planPhotoPages, estimateChecklistHeight, estimateTextHeight, H, SAFETY, type PlanGroup, type PlanUnit } from './paginate';
+import { planPhotoPages, estimateChecklistHeight, estimateTextHeight, formatAnswerValue, H, SAFETY, type PlanGroup, type PlanUnit } from './paginate';
 
 export interface InformeInput {
   doc: ReportDocumentV1;
@@ -42,16 +43,24 @@ const s = StyleSheet.create({
   h2: { fontSize: 12, fontWeight: 'bold', color: C.navy, marginTop: 16, marginBottom: 7, paddingBottom: 3, borderBottomWidth: 1.5, borderBottomColor: C.navy },
   para: { marginBottom: 6 },
 
-  // Checklist
-  ckHead: { flexDirection: 'row', alignItems: 'center', backgroundColor: C.navy, paddingVertical: 4, paddingHorizontal: 6, borderTopLeftRadius: 3, borderTopRightRadius: 3 },
-  ckHeadTxt: { fontSize: 7, color: '#ffffff', fontWeight: 'bold', letterSpacing: 0.6, textAlign: 'center' },
-  ckSection: { backgroundColor: C.tint, paddingVertical: 3, paddingHorizontal: 6, borderBottomWidth: 0.5, borderBottomColor: C.line },
-  ckSectionTxt: { fontSize: 8, fontWeight: 'bold', color: C.navy, letterSpacing: 0.5, textTransform: 'uppercase' },
-  ckRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 3.5, paddingHorizontal: 6, borderBottomWidth: 0.5, borderBottomColor: C.line },
-  ckDesc: { flex: 1, fontSize: 9.5 },
-  ckCol: { width: 30, alignItems: 'center' },
-  ckObs: { width: 150, fontSize: 8.5, color: C.ink, paddingLeft: 6 },
-  box: { width: 11, height: 11, borderWidth: 0.9, borderColor: C.muted, borderRadius: 1.5, alignItems: 'center', justifyContent: 'center' },
+  // Checklist minimalista: sin bloques de color, solo tipografía y líneas finas.
+  ckSection: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 13, paddingBottom: 3, borderBottomWidth: 0.75, borderBottomColor: C.line },
+  ckNum: { width: 14, fontSize: 7.2, lineHeight: 1.3, fontWeight: 'bold', color: C.muted, letterSpacing: 0.4 },
+  ckSectionTxt: { flex: 1, fontSize: 9.2, lineHeight: 1.3, fontWeight: 'bold', color: C.navy, letterSpacing: 0.2 },
+  ckLegend: { flexDirection: 'row', width: 78 },
+  ckLegendTxt: { width: 26, textAlign: 'center', fontSize: 6.3, lineHeight: 1.2, color: C.muted, textTransform: 'uppercase', letterSpacing: 0.4 },
+  ckRow: { flexDirection: 'row', alignItems: 'flex-start', paddingVertical: 3.5, borderBottomWidth: 0.5, borderBottomColor: '#edf1f6' },
+  ckLabelCell: { flex: 1, paddingRight: 12 },
+  ckLabel: { fontSize: 8.8, lineHeight: 1.3, color: C.ink },
+  ckDesc: { fontSize: 7.3, lineHeight: 1.3, color: C.muted, fontStyle: 'italic', marginTop: 1 },
+  ckValue: { fontSize: 8.8, lineHeight: 1.3, color: C.ink, textAlign: 'right', maxWidth: 200 },
+  ckNote: { fontSize: 8.6, lineHeight: 1.35, color: C.ink, marginTop: 3 },
+  ckMarks: { flexDirection: 'row', width: 78 },
+  ckCol: { width: 26, alignItems: 'center', paddingTop: 0.5 },
+  avanceRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 2, marginBottom: 8, paddingVertical: 4, borderBottomWidth: 0.75, borderBottomColor: C.line },
+  avanceBandTxt: { fontSize: 7.5, fontWeight: 'bold', letterSpacing: 1.1, color: C.muted },
+  avanceBandVal: { fontSize: 13, color: C.navy, lineHeight: 1.2 },
+  box: { width: 10, height: 10, borderWidth: 0.9, borderColor: '#c6d0dc', borderRadius: 1.5, alignItems: 'center', justifyContent: 'center' },
 
   // Hallazgos y mosaico
   groupTitle: { flexDirection: 'row', alignItems: 'center', marginTop: 10, marginBottom: 5 },
@@ -64,27 +73,22 @@ const s = StyleSheet.create({
   muted: { color: C.muted, fontStyle: 'italic', fontSize: 9 },
 
   // Firmas
-  signBox: { marginTop: 34, flexDirection: 'row', gap: 36 },
-  signCell: { flex: 1, borderTopWidth: 1, borderTopColor: C.navy, paddingTop: 4 },
+  signBox: { marginTop: 24, flexDirection: 'row', flexWrap:'wrap', gap: 24 },
+  signCell: { width:'46%', borderTopWidth: 1, borderTopColor: C.navy, paddingTop: 4 },
 });
 
 // ── Utilidades ──────────────────────────────────────────────────────────────
 type Answer = 'si' | 'no' | 'na' | null;
 function asAnswer(v: unknown): Answer { return v === 'si' || v === 'no' || v === 'na' ? v : null; }
-function asText(v: unknown): string {
-  if (v === undefined || v === null || v === '' || asAnswer(v)) return '';
-  return String(v);
-}
-
 function Mark({ kind, on }: { kind: 'si' | 'no' | 'na'; on: boolean }) {
   if (!on) return <View style={s.box} />;
   const color = kind === 'si' ? C.okBg : kind === 'no' ? C.red : C.muted;
   return (
     <View style={[s.box, { borderColor: color, backgroundColor: kind === 'si' ? color : '#ffffff' }]}>
-      <Svg width={9} height={9} viewBox="0 0 10 10">
-        {kind === 'si' && <Path d="M1.8 5.4 L4.1 7.7 L8.3 2.4" stroke="#ffffff" strokeWidth={1.6} fill="none" />}
-        {kind === 'no' && <Path d="M2.2 2.2 L7.8 7.8 M7.8 2.2 L2.2 7.8" stroke={color} strokeWidth={1.6} fill="none" />}
-        {kind === 'na' && <Path d="M2.2 5 L7.8 5" stroke={color} strokeWidth={1.6} fill="none" />}
+      <Svg width={8} height={8} viewBox="0 0 10 10">
+        {kind === 'si' && <Path d="M1.8 5.4 L4.1 7.7 L8.3 2.4" stroke="#ffffff" strokeWidth={1.7} fill="none" />}
+        {kind === 'no' && <Path d="M2.2 2.2 L7.8 7.8 M7.8 2.2 L2.2 7.8" stroke={color} strokeWidth={1.7} fill="none" />}
+        {kind === 'na' && <Path d="M2.2 5 L7.8 5" stroke={color} strokeWidth={1.7} fill="none" />}
       </Svg>
     </View>
   );
@@ -103,7 +107,7 @@ function HeaderBlock({ visita, expediente, profesional }: { visita: Visita; expe
     <View>
       <View style={s.band}>
         <Text style={s.brand}>ARCHFORMS · INFORME DE VISITA</Text>
-        <Text style={s.bandTitle}>Visita {String(visita.nro_visita).padStart(2, '0')} · Exp. {expediente.nro_expediente}</Text>
+        <Text style={s.bandTitle}>Visita {String(visita.nro_visita).padStart(2, '0')}{expediente.total_visitas_programadas?`/${expediente.total_visitas_programadas}`:''} · Exp. {expediente.nro_expediente}</Text>
         {sub ? <Text style={s.bandSub}>{sub}</Text> : null}
       </View>
       <View style={s.card}>
@@ -129,45 +133,79 @@ function HeaderBlock({ visita, expediente, profesional }: { visita: Visita; expe
 
 function ChecklistBlock({ visita }: { visita: Visita }) {
   const answers = visita.checklist_respuestas_json;
+  const avance = visita.checklist_esquema_json.sections.flatMap(sec => sec.fields).find(f => f.id === AVANCE_OBRA_FIELD_ID);
+  const sections = visita.checklist_esquema_json.sections
+    .map(section => ({ section, fields: section.fields.filter(f => f.id !== AVANCE_OBRA_FIELD_ID) }))
+    .filter(({ fields }) => fields.length > 0);
   // Fragmento plano: cada fila es hijo directo de <Page> para que wrap/minPresenceAhead funcionen.
+  // Fiel al formulario: casillas solo en boolean, valor en el resto y sin columna de observaciones.
   return (
     <Fragment>
       <Text style={s.h2} minPresenceAhead={80}>{visita.checklist_nombre}</Text>
-      <View style={s.ckHead} wrap={false} minPresenceAhead={40}>
-        <Text style={[s.ckHeadTxt, { flex: 1, textAlign: 'left' }]}>DESCRIPCIÓN</Text>
-        <Text style={[s.ckHeadTxt, { width: 30 }]}>SÍ</Text>
-        <Text style={[s.ckHeadTxt, { width: 30 }]}>NO</Text>
-        <Text style={[s.ckHeadTxt, { width: 30 }]}>N/A</Text>
-        <Text style={[s.ckHeadTxt, { width: 150, textAlign: 'left', paddingLeft: 6 }]}>OBSERVACIONES</Text>
-      </View>
-      {visita.checklist_esquema_json.sections.map(section => (
-        <Fragment key={section.id}>
-          <View style={s.ckSection} wrap={false} minPresenceAhead={40}>
-            <Text style={s.ckSectionTxt}>{section.title}</Text>
-          </View>
-          {section.fields.map(field => {
-            const raw = answers[field.id];
-            const a = asAnswer(raw);
-            const obs = asText(raw);
-            return (
-              <View key={field.id} style={s.ckRow} wrap={false}>
-                <Text style={s.ckDesc}>{field.label}</Text>
-                {obs ? (
-                  // Campo de texto libre: sin casillas, la observación ocupa el ancho de las 3 columnas + observaciones.
-                  <Text style={{ width: 240, fontSize: 8.5, paddingLeft: 6 }}>{obs}</Text>
-                ) : (
-                  <Fragment>
-                    <View style={s.ckCol}><Mark kind="si" on={a === 'si'} /></View>
-                    <View style={s.ckCol}><Mark kind="no" on={a === 'no'} /></View>
-                    <View style={s.ckCol}><Mark kind="na" on={a === 'na'} /></View>
-                    <Text style={s.ckObs} />
-                  </Fragment>
-                )}
-              </View>
-            );
-          })}
-        </Fragment>
-      ))}
+      {avance && (
+        <View style={s.avanceRow} wrap={false} minPresenceAhead={40}>
+          <Text style={s.avanceBandTxt}>AVANCE DE OBRA</Text>
+          <Text style={s.avanceBandVal}>{formatAnswerValue(avance, answers[avance.id])}</Text>
+        </View>
+      )}
+      {sections.map(({ section, fields }, index) => {
+        const booleans = fields.some(f => (f.type ?? 'boolean') === 'boolean');
+        return (
+          <Fragment key={section.id}>
+            <View style={s.ckSection} wrap={false} minPresenceAhead={36}>
+              <Text style={s.ckNum}>{String(index + 1).padStart(2, '0')}</Text>
+              <Text style={s.ckSectionTxt}>{section.title}</Text>
+              {booleans && (
+                <View style={s.ckLegend}>
+                  <Text style={s.ckLegendTxt}>Sí</Text>
+                  <Text style={s.ckLegendTxt}>No</Text>
+                  <Text style={s.ckLegendTxt}>N/A</Text>
+                </View>
+              )}
+            </View>
+            {fields.map(field => {
+              const isBoolean = (field.type ?? 'boolean') === 'boolean';
+              if (isBoolean) {
+                const a = asAnswer(answers[field.id]);
+                return (
+                  <View key={field.id} style={s.ckRow} wrap={false}>
+                    <View style={s.ckLabelCell}>
+                      <Text style={s.ckLabel}>{field.label}</Text>
+                      {field.description ? <Text style={s.ckDesc}>{field.description}</Text> : null}
+                    </View>
+                    <View style={s.ckMarks}>
+                      <View style={s.ckCol}><Mark kind="si" on={a === 'si'} /></View>
+                      <View style={s.ckCol}><Mark kind="no" on={a === 'no'} /></View>
+                      <View style={s.ckCol}><Mark kind="na" on={a === 'na'} /></View>
+                    </View>
+                  </View>
+                );
+              }
+              const value = formatAnswerValue(field, answers[field.id]);
+              // Respuestas largas van a ancho completo: leerlas en una columna angosta
+              // a la derecha rompe la armonía del bloque.
+              if (field.type === 'textarea' || value.length > 60) {
+                return (
+                  <View key={field.id} style={[s.ckRow, { flexDirection: 'column', alignItems: 'stretch' }]} wrap={false}>
+                    <Text style={s.ckLabel}>{field.label}</Text>
+                    {field.description ? <Text style={s.ckDesc}>{field.description}</Text> : null}
+                    <Text style={s.ckNote}>{value}</Text>
+                  </View>
+                );
+              }
+              return (
+                <View key={field.id} style={s.ckRow} wrap={false}>
+                  <View style={s.ckLabelCell}>
+                    <Text style={s.ckLabel}>{field.label}</Text>
+                    {field.description ? <Text style={s.ckDesc}>{field.description}</Text> : null}
+                  </View>
+                  <Text style={s.ckValue}>{value}</Text>
+                </View>
+              );
+            })}
+          </Fragment>
+        );
+      })}
     </Fragment>
   );
 }
@@ -206,7 +244,7 @@ function PhotoUnit({ unit, n, comment, missing, ids, photos, lead }: {
   );
 }
 
-function SignaturesBlock({ visita, profesional }: { visita: Visita; profesional: Profile | null }) {
+function SignaturesBlock({ visita, profesional,doc }: { visita: Visita; profesional: Profile | null;doc:ReportDocumentV1 }) {
   const signer = (nombre: string | null | undefined, cargo: string | null | undefined, extra?: string | null) => (
     <View style={s.signCell}>
       <Text style={[s.value, { fontWeight: 'bold' }]}>{nombre || '—'}</Text>
@@ -218,8 +256,10 @@ function SignaturesBlock({ visita, profesional }: { visita: Visita; profesional:
     <View wrap={false}>
       <Text style={s.h2}>Firmas</Text>
       <View style={s.signBox}>
+        {doc.signers?.length?doc.signers.map(person=><View key={person.id} style={s.signCell}>{person.image?<Image src={person.image} style={{width:150,height:60,objectFit:'contain'}}/>:null}<Text style={s.value}>{person.nombre||'—'}</Text><Text style={s.label}>{person.cargo||'Firmante'}</Text><Text style={s.label}>{person.colegiatura}</Text></View>):<>
         {signer(visita.responsable_obra_nombre, 'Responsable de obra', visita.responsable_obra_colegiatura)}
         {signer(profesional?.nombre_completo, profesional?.cargo ?? 'Profesional', profesional?.nro_colegiatura)}
+        </>}
       </View>
     </View>
   );
@@ -300,7 +340,7 @@ export function buildInformeDoc(input: InformeInput) {
         );
         break;
       case 'signatures':
-        children.push(<SignaturesBlock key={block.id} visita={visita} profesional={profesional} />);
+        children.push(<SignaturesBlock key={block.id} visita={visita} profesional={profesional} doc={doc} />);
         break;
     }
   }

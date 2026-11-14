@@ -3,6 +3,18 @@
 
 button,input,select,textarea{font-family:var(--font)}
 button:disabled{cursor:not-allowed;opacity:.55}
+.navigation-back{margin-bottom:16px}
+.summary-section{padding:20px;margin-bottom:20px}
+.visit-header-details{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:14px;margin:12px 0}
+.visit-header-details dt{font-size:11px;color:var(--muted);font-weight:700}
+.visit-header-details dd{margin:4px 0 0;overflow-wrap:anywhere;font-size:14px}
+.signer-card{min-width:0;border:1px solid var(--line);border-radius:12px;padding:16px;margin:16px 0}
+.signer-card legend{font-weight:700;padding:0 8px}
+.signature-preview{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin:12px 0}
+.signature-preview img{max-width:100%;width:280px;height:100px;object-fit:contain;border:1px dashed var(--line);background:white}
+.signature-upload{display:block;margin:12px 0;font-weight:700;font-size:12px}.signature-upload input{display:block;max-width:100%;margin-top:8px}
+.transfer-status{padding:12px 16px;border-radius:12px;background:var(--soft-blue);font-size:12px}.transfer-status progress{display:block;width:100%;margin-top:8px;accent-color:var(--blue-600)}
+@media(max-width:600px){.summary-section{padding:14px}.signer-card{padding:12px}.signers-editor .form-grid{grid-template-columns:1fr}.visit-header-details{grid-template-columns:1fr 1fr}}
 .brand-button,.mobile-brand-button{padding:0;border:0;background:transparent;cursor:pointer;text-align:left}
 .sidebar{top:0}.app-shell{padding-top:0}.app-area{min-height:100vh}.topbar{top:0}
 .sidebar-nav .nav-item{display:grid}.mobile-nav .nav-item{display:flex;min-height:auto;padding:0;border-radius:0;background:transparent;grid-template-columns:none;text-align:center}
@@ -12,6 +24,12 @@ button:disabled{cursor:not-allowed;opacity:.55}
 .connection{display:inline-flex;gap:6px;padding:7px 10px;border-radius:9px;color:var(--success);background:#eaf8f3;font-size:10px;font-weight:800}.connection.offline{color:var(--warning);background:#fff5e8}
 .top-avatar{border:0;cursor:pointer}.project-card{width:100%;text-align:left}.expedient-row{width:100%;text-align:left}.template-option{width:100%;text-align:left;background:white}.template-card{padding:20px;text-align:left}.template-card p{margin-bottom:0}.template-card .project-icon{margin-bottom:18px}
 .alert{margin-bottom:18px;padding:13px 16px;border-radius:11px;font-size:11px}.alert.error{color:#9a2841;background:#fff0f3}.alert.notice{color:var(--blue-700);background:var(--soft-blue)}
+.detail-actions .btn-ghost{color:rgba(255,255,255,.9);border-color:transparent;background:transparent}.detail-actions .btn-ghost:hover{background:rgba(255,255,255,.12)}
+.modal-backdrop{position:fixed;inset:0;z-index:120;display:grid;place-items:center;padding:24px;background:rgba(7,24,42,.48);backdrop-filter:blur(2px)}
+.modal-card{width:min(480px,100%);padding:26px;box-shadow:0 24px 70px rgba(7,24,42,.28)}
+.modal-card h2{margin:6px 0 10px;font-size:22px}
+.modal-card p{color:var(--muted);font-size:12px;line-height:1.6}
+.modal-card .form-actions{flex-wrap:wrap;margin-top:18px}
 .text-button{display:block;margin:15px auto;padding:10px;border:0;color:var(--indigo);background:transparent;cursor:pointer}
 .auth-layout{min-height:100vh;display:grid;grid-template-columns:1.05fr 1fr;background:white}.auth-story{position:relative;display:flex;flex-direction:column;justify-content:center;overflow:hidden;padding:7vw;color:white;background:linear-gradient(130deg,var(--navy),var(--blue-700) 58%,var(--indigo))}.auth-story::after{content:"";position:absolute;width:440px;height:440px;right:-160px;top:-110px;border:70px solid rgba(174,141,245,.16);border-radius:50%}.auth-story .brand{position:absolute;top:48px;left:7vw;color:white}.auth-story .brand span,.auth-story .brand strong{color:white}.auth-story .eyebrow{color:#c5e3ff}.auth-story h1{max-width:680px;font-size:clamp(38px,5vw,66px);line-height:1.08}.auth-story h1 em{color:#cebaff;font-style:normal}.auth-story p{max-width:500px;color:#d5e7f7;font-size:15px}.auth{width:min(460px,100%);margin:auto;padding:40px}.auth.simple{min-height:100vh;display:grid;place-content:center}.auth h2{font-size:34px}.auth>p{margin-bottom:28px}.auth form{display:grid;gap:17px}.auth label,.profile-form label{display:block;color:#43536a;font-size:10px;font-weight:800}.auth input{margin-top:7px}.auth .btn{width:100%;margin-top:5px}
 .profile-form{max-width:760px;padding:28px}.profile-title{display:flex;align-items:center;gap:14px;margin-bottom:25px}.profile-title p{margin:3px 0 0}.avatar.large{width:52px;height:52px;font-size:16px}.profile-form form{display:grid;gap:15px}
@@ -113,3 +131,125 @@ body.camera-active .checklist-card {
 .sync-status--error{background:#fff1f2;border-color:#fecdd3;color:#9f1239}
 .sync-status--running{background:#eff6ff;border-color:#bfdbfe;color:#1e40af}
 @media(max-width:600px){.sync-status{align-items:stretch;flex-direction:column}.sync-status .btn{align-self:flex-start}}
+
+/* ── Checklist dinámico: tipos de campo y avance de obra ───────────────────── */
+.unit-field{display:inline-flex;align-items:center;gap:6px}
+.unit-field i,.avance-input i{font-style:normal;font-weight:800;color:var(--muted);font-size:11px}
+.check-item select.inline-field{max-width:100%}
+
+/* Secciones: separadas por aire y una línea fina, sin bloques de color.
+   El chevron vive a la izquierda del nombre; la numeración refuerza el orden. */
+.check-group{margin-top:24px;padding:0;border-top:1px solid var(--line)}
+.check-group:first-child{border-top:0;margin-top:10px}
+.check-group-head{display:flex;align-items:center;gap:9px;width:100%;padding:16px 0 10px;border:0;background:none;font:inherit;text-align:left;cursor:pointer}
+.check-group-head h3{display:flex;align-items:center;gap:8px;font-size:13px;letter-spacing:.1px}
+.check-group-index{display:inline-flex;align-items:center;justify-content:center;width:20px;height:20px;border-radius:50%;background:#eef2f7;color:#5a6b80;font-size:10px;font-weight:800;flex:none}
+.check-group-meta{margin-left:auto;color:var(--muted);font-size:9px;font-weight:700;white-space:nowrap}
+.check-group-chev{display:inline-flex;color:var(--muted);flex:none}
+.check-group-chev svg{transition:transform .15s}
+.check-group.collapsed .check-group-head{padding-bottom:6px}
+.check-item{grid-template-columns:minmax(0,1fr) minmax(150px,260px);align-items:center}
+.check-item > *{min-width:0}
+.check-item textarea{width:100%;min-width:0;min-height:66px}
+.check-item:last-child{border-bottom:0}
+
+/* Contenedor estrecho (previews): etiqueta arriba y control a todo el ancho. */
+.checklist-form{container-type:inline-size}
+@container (max-width: 560px){
+ .check-item{grid-template-columns:1fr;gap:7px;padding:12px 0}
+ .check-item .inline-field,.check-item select.inline-field{max-width:100%}
+ .segmented{width:100%}
+ .segmented button{flex:1}
+}
+
+/* Avance de obra: protagonista en el render real y la vista previa. */
+.avance-card{display:flex;justify-content:space-between;align-items:center;gap:12px;border:1.5px solid var(--blue-600);background:var(--soft-blue);border-radius:14px;padding:12px 16px;margin:14px 0 6px}
+.avance-card strong{font-size:13px}
+.avance-card small{display:block;color:var(--muted);font-size:10px;margin-top:2px}
+.avance-value{font-size:22px;font-weight:800;color:var(--blue-600);white-space:nowrap}
+.avance-input{display:inline-flex;align-items:center;gap:6px}
+.avance-input input{width:96px;min-height:44px;text-align:right;font-size:18px;font-weight:800;background:var(--surface);border:1.5px solid var(--line);border-radius:10px;padding:6px 12px;-moz-appearance:textfield;appearance:textfield}
+.avance-input input::-webkit-inner-spin-button,.avance-input input::-webkit-outer-spin-button{-webkit-appearance:none;margin:0}
+.avance-input input:focus{border-color:var(--blue-600);box-shadow:0 0 0 3px rgba(17,108,186,.1);outline:none}
+
+/* ── Biblioteca de plantillas y editor visual ─────────────────────────────── */
+.return-banner{display:flex;justify-content:space-between;align-items:center;gap:12px;border:1px solid var(--blue-600);border-radius:10px;background:var(--soft-blue);padding:10px 14px;margin-bottom:14px;font-size:12px}
+.library-card{display:flex;flex-direction:column;gap:10px;align-items:flex-start;padding:18px}
+.library-card-top{display:flex;justify-content:space-between;width:100%;align-items:center}
+.library-card h3{margin:0}
+.library-card p{margin:0;color:var(--muted);font-size:11px}
+.library-actions{display:flex;gap:8px;margin-top:auto;padding-top:6px;flex-wrap:wrap}
+.sync-badge{font-size:9px;font-weight:800;letter-spacing:.4px;text-transform:uppercase;border-radius:999px;padding:3px 9px}
+.sync-badge.pending{background:#fff4d6;color:#8a6100}
+.sync-badge.error{background:#fde7e5;color:var(--danger,#b3261e)}
+.sync-badge.inactive{background:#eef1f5;color:var(--muted)}
+
+/* Editor: columna de edición + vista previa amplia y fija. */
+.template-editor .editor-layout{display:grid;grid-template-columns:minmax(0,1fr) minmax(340px,420px);gap:20px;align-items:start}
+.editor-main{display:flex;flex-direction:column;gap:14px;min-width:0}
+.editor-section{display:flex;flex-direction:column;overflow:hidden}
+.editor-section-head{display:flex;align-items:center;gap:8px;padding:10px 12px;background:#f7fafd;border-bottom:1px solid var(--line)}
+.editor-section-title{flex:1;min-width:0;border:1px solid transparent;background:transparent;border-radius:8px;padding:6px 8px;font:inherit;font-weight:800;font-size:14px;color:var(--ink)}
+.editor-section-title:hover{border-color:var(--line)}
+.editor-section-title:focus{border-color:var(--blue-600);background:var(--surface);outline:none}
+.editor-section-body{display:flex;flex-direction:column}
+.editor-field{border-top:1px solid #eef2f6;transition:box-shadow .15s,background .15s}
+.editor-section-body .editor-field:first-child{border-top:0}
+.editor-field.open{background:#fbfdff;box-shadow:inset 3px 0 0 var(--blue-600)}
+.editor-field-head{display:flex;align-items:center;gap:8px;padding:9px 12px}
+.editor-field-toggle{display:flex;align-items:center;flex:1;min-width:0;border:0;background:none;padding:2px 0;font:inherit;text-align:left;cursor:pointer}
+.editor-field-label{font-size:12px;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.editor-chips{display:flex;gap:6px;align-items:center;flex:none}
+.chip{font-size:9px;font-weight:800;letter-spacing:.3px;border-radius:999px;padding:3px 9px;background:#eef2f7;color:#5a6b80;white-space:nowrap}
+.chip-required{background:var(--soft-blue);color:var(--blue-600)}
+.chip-system{border:1px solid var(--line);background:var(--surface);color:var(--muted);text-transform:uppercase;letter-spacing:.6px}
+.editor-field-body{display:flex;flex-direction:column;gap:10px;padding:4px 14px 16px 32px}
+.editor-label{display:flex;flex-direction:column;gap:4px;font-size:10px;font-weight:800;color:#43536a}
+.editor-label.switch-row{flex-direction:row;align-items:center;justify-content:space-between;gap:10px;padding-top:16px}
+.field-config-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:10px}
+.options-editor{display:flex;flex-direction:column;gap:8px}
+.editor-row{display:flex;gap:8px;align-items:center}
+.editor-row .field{flex:1;min-width:0}
+.editor-field.locked{opacity:.62;box-shadow:none}
+.editor-field.locked .editor-field-head{padding:11px 12px}
+.drag-dots{display:inline-flex;color:#b4c2d2;flex:none}
+.lock-chip{display:inline-flex;align-items:center;color:var(--muted);flex:none}
+
+/* Botones de icono del editor. */
+.editor-tools{display:flex;gap:3px;align-items:center;flex:none}
+.editor-tools button{display:inline-flex;align-items:center;justify-content:center;width:28px;height:28px;border:1px solid transparent;background:transparent;border-radius:7px;cursor:pointer;color:var(--muted);padding:0}
+.editor-tools button:hover:not(:disabled){border-color:var(--line);background:var(--surface);color:var(--ink)}
+.editor-tools button:disabled{opacity:.3;cursor:default}
+.editor-tools button.danger:hover:not(:disabled){color:var(--danger,#b3261e);border-color:#f3c9c5;background:#fdf4f3}
+
+/* Interruptor de obligatoriedad. */
+.switch{position:relative;display:inline-flex;width:40px;height:22px;flex:none}
+.switch input{position:absolute;inset:0;margin:0;opacity:0;cursor:pointer;z-index:2}
+.switch span{position:relative;display:block;width:100%;height:100%;border-radius:999px;background:#cfdbe7;transition:background .15s;pointer-events:none}
+.switch span::after{content:"";position:absolute;top:3px;left:3px;width:16px;height:16px;border-radius:50%;background:#fff;box-shadow:0 1px 3px rgba(9,30,66,.25);transition:transform .15s}
+.switch input:checked + span{background:var(--blue-600)}
+.switch input:checked + span::after{transform:translateX(18px)}
+.switch input:focus-visible + span{box-shadow:0 0 0 3px rgba(17,108,186,.18)}
+
+/* Acciones de añadir: botones punteados de ancho completo. */
+.editor-add-field{width:calc(100% - 24px);margin:10px 12px 14px;border:1.5px dashed #c9d7e5;background:transparent;border-radius:10px;padding:9px;font:inherit;font-size:11px;font-weight:800;color:var(--muted);cursor:pointer;transition:.15s}
+.editor-add-field:hover{border-color:var(--blue-600);color:var(--blue-600);background:#fbfdff}
+.editor-add-section{width:100%;border:1.5px dashed #c9d7e5;background:transparent;border-radius:12px;padding:12px;font:inherit;font-size:12px;font-weight:800;color:var(--blue-600);cursor:pointer;transition:.15s}
+.editor-add-section:hover{background:var(--soft-blue);border-color:var(--blue-600)}
+.link-btn{border:0;background:none;padding:0;font:inherit;font-size:11px;font-weight:800;color:var(--blue-600);cursor:pointer;text-align:left}
+
+.editor-preview{position:sticky;top:16px;padding:18px}
+.editor-preview-hint{color:var(--muted);font-size:11px;margin:0 0 8px}
+@media (max-width:960px){.template-editor .editor-layout{grid-template-columns:1fr}.editor-preview{position:static}}
+
+/* ── Panel de selección del expediente (uso reciente + biblioteca) ─────────── */
+.panel-label{margin:14px 0 6px;font-size:9px;font-weight:800;letter-spacing:1px;text-transform:uppercase;color:var(--muted)}
+.template-option.compact{padding:8px 10px}
+.template-option.compact strong{font-size:11px}
+.library-cta{display:flex;flex-direction:column;gap:8px;margin:14px 0 4px}
+.checklist-preview{border:1px solid var(--line);background:var(--surface)}
+.checklist-preview .check-group{margin-top:12px}
+.checklist-preview .avance-card{padding:10px 13px}
+.search-field .search-glyph{position:absolute;left:14px;top:50%;transform:translateY(-50%);color:var(--muted);display:inline-flex}
+.search-field input{padding-left:39px}
+.editor-sep{width:1px;height:18px;background:var(--line);margin:0 2px;flex:none}

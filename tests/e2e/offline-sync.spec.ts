@@ -23,11 +23,11 @@ test('browser saves offline, reconnects and another browser reads server values'
       await target.getByRole('button',{name:/Entrar a mi espacio/}).click();
       await target.locator('button.project-card').filter({hasText:label}).click();
       await target.getByRole('button',{name:'Abrir',exact:true}).click();
-      await expect(target.locator('.check-item textarea')).toBeVisible();
+      await expect(target.locator('.check-item input')).toBeVisible();
     }
     await openVisit(page);
     await context.setOffline(true);
-    await page.locator('.check-item textarea').fill('Guardado offline desde Chromium');
+    await page.locator('.check-item input').fill('Guardado offline desde Chromium');
     await expect(page.getByText('Guardado en este dispositivo',{exact:true}).first()).toBeVisible();
     await expect(page.getByText('Modo offline',{exact:true})).toBeVisible();
     expect((await client.from('visita').select('checklist_respuestas_json').eq('id',visitId).single()).data?.checklist_respuestas_json).toEqual({});
@@ -37,7 +37,7 @@ test('browser saves offline, reconnects and another browser reads server values'
     try{
       const otherPage=await other.newPage();
       await openVisit(otherPage);
-      await expect(otherPage.locator('.check-item textarea')).toHaveValue('Guardado offline desde Chromium');
+      await expect(otherPage.locator('.check-item input')).toHaveValue('Guardado offline desde Chromium');
     }finally{await other.close()}
     // PDF rendering must not depend on a reachable backend or upload a binary.
     await page.getByRole('button',{name:/3 Resumen/}).click();

@@ -1,8 +1,24 @@
 # Infraestructura offline — estado y validación
 
-Actualizado: 2026-11-10. Rama: `feat/offline-sync-foundation`.
-Todos los cambios de BD se aplicaron exclusivamente a Supabase local. No hubo push,
-merge a main ni despliegue remoto.
+Actualizado: 2026-11-13. Rama: `feat/offline-sync-foundation`.
+
+## Despliegue remoto — 2026-11-13
+
+- Proyecto: `pcmkrfnjdfrnjkqnpqgf`.
+- El remoto tenía aplicadas las migraciones `001` a `005`; se aplicaron `006` a `013`
+  mediante `supabase db push --linked`.
+- `013_checklist_template_links` añade de forma incremental las columnas anulables
+  `checklist_template_id` y sus FKs en expediente/visita. También se aplicó localmente;
+  es compatible con las instalaciones nuevas que ya incluyen esos campos en `001`.
+- Verificación: historial local/remoto coincidente hasta `20260917001300`; dump del
+  esquema remoto confirma funciones de sync, validaciones de respuestas, trigger de
+  réplica de plantillas, columnas/FKs y políticas RLS por propietario.
+- El dry-run posterior devuelve «Remote database is up to date».
+- No se reseteó la base remota ni se desplegó el cliente como parte de este push.
+  Las pruebas de integración y E2E documentadas siguen siendo contra Supabase local.
+
+Las menciones de despliegue exclusivamente local en las secciones históricas siguientes
+corresponden al estado anterior a esta actualización.
 
 ## Implementación actual
 
@@ -33,6 +49,23 @@ merge a main ni despliegue remoto.
 - El catálogo de plantillas y el perfil todavía se consultan completos: no se presentan como
   una réplica incremental de todas las tablas de dominio.
 
+### Plantillas propias por la réplica (2026-11-12)
+
+- El workspace sync (`sync_workspace_v1`) acepta la entidad `plantilla` (tabla
+  `plantilla_checklist`) con campos permitidos `codigo, nombre, version, esquema_json, activa`;
+  solo filas propias (`profesional_id = actor`). Las plantillas de plataforma quedan read-only.
+- Validación server-side ligera del catálogo: esquema con `sections` no vacío, `version >= 1`
+  y `codigo` no vacío. El borrado es lógico (patch `activa: false`); no hay DELETE físico.
+- Trigger `replica_plantilla` sobre `plantilla_checklist` (migración 010): las plantillas
+  propias entran al feed de réplica con entity normalizado `plantilla`; las de plataforma
+  (`profesional_id` nulo) se omiten y se leen directas de la tabla.
+- Fuera de la BD, el payload viaja en forma de dominio (`esquema`) y se mapea a
+  `esquema_json` solo en el borde de red (`data-supabase`).
+- Las consultas de lectura ya no filtran `activa = true`: las propias desactivadas también
+  se replican y el UI las oculta (grupo «Desactivados», con reactivación).
+- Trazabilidad de plantilla: columnas `checklist_template_id` (FK anulable) en
+  `expediente` y `visita` (migración 001), añadidas al allowlist del sync.
+
 ### Multimedia
 
 - Coordinación común de datos, perfil, subidas y descargas; las transferencias se ejecutan
@@ -62,8 +95,15 @@ merge a main ni despliegue remoto.
 
 ## Pruebas de esta entrega
 
-- `npm run check`: 119 pruebas unitarias, TypeScript y build correctos.
-- `npm run test:integration:local`: cuatro pruebas de integración contra Postgres y Storage locales.
+- `npm run check`: TypeScript, lint y build correctos; 138 pruebas unitarias (incluyen
+  catálogo de tipos v2, `withAvanceObra`, estadísticas 9.4 y ciclo offline de plantillas).
+- `npm run test:integration:local`: seis pruebas de integración contra Postgres y Storage
+  locales, incluidas dos nuevas: protocolo de plantillas (create/patch/réplica/lectura de
+  plataforma) y validación de tipos dinámicos de respuestas con espejo `avance_obra →
+  avance_general` (incluye rechazo de select fuera de opciones, número fuera de rango,
+  percent >100, y un `0` porcentual válido).
+- Migraciones `00100`, `00700`, `00900` y `01000` modificadas y reaplicadas con
+  `supabase db reset` en local sin errores. El remoto de Supabase sigue sin desplegarse.
 - `npm run test:e2e`: Chromium real, guardado offline, reconexión, lectura en segundo navegador
   y dos PDFs válidos con el backend bloqueado, sin subidas del PDF.
 - Cobertura añadida: cola persistente, prioridades, reparación de corrupción, reutilización de
@@ -120,6 +160,8 @@ La excepción HTTP pertenece solo al source set debug y permite exclusivamente l
 - Una edición pendiente sobre una entidad borrada puede necesitar recuperación manual. Se conserva
   el comando y se presenta el error; no se recrea ni descarta automáticamente en el servidor.
 - No hay historial de versiones ni resolución colaborativa de documentos completos.
-- No se añadieron gestión de formularios, firmas nuevas ni navegación por historial completo.
+- No hay historial de versiones de plantillas (cada guardado avanza `version` sobre la misma
+  fila) ni resolución colaborativa de documentos completos. El catálogo de plantillas propias
+  ya viaja por la réplica; la edición de respuestas desde el editor del informe sigue pendiente.
 - No borrar almacenamiento para reparar fallos. Volver a una APK con esquema local anterior requiere
   una recuperación específica; un rollback de código no revierte las migraciones locales.

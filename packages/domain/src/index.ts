@@ -13,11 +13,24 @@ export function validateProfile(edit:ProfileEdit):ProfileEdit {
  return {nombre_completo:nombre,cargo:edit.cargo?.trim()||null,nro_colegiatura:edit.nro_colegiatura?.trim()||null};
 }
 
-export type ChecklistFieldType='boolean'|'text'|'date'|'number';
-export interface ChecklistField {id:string;label:string;description?:string;type:ChecklistFieldType;required?:boolean}
+/** Catálogo de campos del checklist dinámico (sección 4 del documento de cambios).
+ *  `textarea` es el párrafo largo; `percent` es 0–100 (avance de obra); `select`
+ *  elige una opción de una lista configurable. */
+export type ChecklistFieldType='boolean'|'text'|'textarea'|'date'|'number'|'percent'|'select';
+export interface ChecklistField {
+ id:string;label:string;description?:string;type:ChecklistFieldType;required?:boolean;
+ /** `select`: lista de opciones (al menos una). */
+ options?:string[];
+ /** `number`/`percent`: rango permitido. */
+ min?:number;max?:number;
+ /** `number`: sufijo de unidad mostrado (m, m², S/, mm…). */
+ unit?:string;
+}
 export interface ChecklistSection {id:string;title:string;fields:ChecklistField[]}
-export interface ChecklistSchema {version:1;sections:ChecklistSection[]}
-export interface ChecklistTemplate {id:string;codigo:string;nombre:string;version:number;esquema:ChecklistSchema;profesional_id:string|null}
+/** v1 es el esquema histórico (4 tipos); v2 añade el catálogo dinámico. Ambas
+ *  versiones son válidas y se leen igual — v2 es la que se crea de ahora en adelante. */
+export interface ChecklistSchema {version:1|2;sections:ChecklistSection[]}
+export interface ChecklistTemplate {id:string;codigo:string;nombre:string;version:number;esquema:ChecklistSchema;profesional_id:string|null;activa?:boolean}
 export interface Expediente {
  id:string;profesional_id:string;nro_expediente:string;nro_licencia:string|null;modalidad:string|null;
  entidad_destinataria:string|null;fecha_emision_licencia:string|null;vigencia_desde:string|null;vigencia_hasta:string|null;
@@ -25,21 +38,23 @@ export interface Expediente {
  tipo_obra:string|null;uso_predio:string|null;detalle_obra:string|null;valor_obra:number|null;
  total_visitas_programadas:number|null;responsable_obra_nombre:string|null;responsable_obra_colegiatura:string|null;
  poliza_car_json:Record<string,unknown>|null;datos_cabecera_extra:Record<string,unknown>|null;
- checklist_nombre:string;checklist_esquema_json:ChecklistSchema;activo:boolean;created_at:string;updated_at:string;
+ checklist_nombre:string;checklist_esquema_json:ChecklistSchema;checklist_template_id:string|null;activo:boolean;created_at:string;updated_at:string;
 }
 export interface Visita {
  id:string;expediente_id:string;nro_visita:number;codigo_informe:string|null;fecha:string;
  estado:'BORRADOR'|'EN_CAMPO'|'EN_REVISION'|'FINALIZADA'|'ARCHIVADA';checklist_nombre:string;
  checklist_esquema_json:ChecklistSchema;checklist_respuestas_json:Record<string,unknown>;checklist_completado:boolean;
+ checklist_template_id:string|null;
  documento_json:Record<string,unknown>;estado_documento:'BORRADOR'|'GENERADO';responsable_obra_nombre:string|null;
  pdf_archivo_id:string|null;responsable_obra_colegiatura:string|null;created_at:string;updated_at:string;
 }
-export type WorkspaceEntity='expediente'|'visita';
-export interface WorkspacePending {id:string;entity:WorkspaceEntity;record:Expediente|Visita;created_at:string;answer_patch?:Record<string,string|number|null>;preserve_answers?:boolean;protocol?:1;workspace_mutation?:{type:'create'|'patch';payload:Record<string,unknown>};blocked_error?:string}
+export type WorkspaceEntity='expediente'|'visita'|'plantilla';
+export interface WorkspacePending {id:string;entity:WorkspaceEntity;record:Expediente|Visita|ChecklistTemplate;created_at:string;answer_patch?:Record<string,string|number|null>;preserve_answers?:boolean;protocol?:1;workspace_mutation?:{type:'create'|'patch';payload:Record<string,unknown>};blocked_error?:string}
 export interface WorkspaceState {expedientes:Expediente[];visitas:Visita[];plantillas:ChecklistTemplate[];pending:WorkspacePending[];last_sync:string|null;sync_cursor?:number}
 export interface ReplicaInfo {cursor:number;partial:boolean;deleted:{entity:WorkspaceEntity;id:string}[]}
 export function assertChecklist(schema:ChecklistSchema){
- if(schema.version!==1||!schema.sections.length)throw new Error('El checklist necesita al menos una sección.');
+ if(schema.version!==1&&schema.version!==2)throw new Error('Versión de checklist no soportada.');
+ if(!schema.sections.length)throw new Error('El checklist necesita al menos una sección.');
  const ids=new Set<string>();
  for(const section of schema.sections){
   if(!section.title.trim())throw new Error('Cada sección necesita un título.');
@@ -47,9 +62,66 @@ export function assertChecklist(schema:ChecklistSchema){
    if(!field.label.trim())throw new Error('Cada campo necesita una etiqueta.');
    if(ids.has(field.id))throw new Error('Los identificadores del checklist deben ser únicos.');
    ids.add(field.id);
+   if(field.type==='select'){
+    const options=field.options??[];
+    if(!options.length)throw new Error(`El campo «${field.label}» necesita al menos una opción.`);
+    if(options.some(option=>!option.trim()))throw new Error(`Las opciones de «${field.label}» no pueden quedar vacías.`);
+   }
+   if((field.type==='number'||field.type==='percent')&&(field.min!==undefined||field.max!==undefined)){
+    const min=field.min,max=field.max;
+    if(min!==undefined&&max!==undefined&&min>max)throw new Error(`El rango de «${field.label}» es inválido.`);
+    if(field.type==='percent'&&((min!==undefined&&(min<0||min>100))||(max!==undefined&&(max<0||max>100))))
+     throw new Error(`El porcentaje de «${field.label}» debe estar entre 0 y 100.`);
+   }
   }
  }
  return schema;
+}
+
+/** Id del campo de sistema «Avance de obra»: porcentaje obligatorio inyectado
+ *  por la aplicación (sección 4). La BD ya lo espeja en `visita.avance_general`. */
+export const AVANCE_OBRA_FIELD_ID='avance_obra';
+export const avanceObraField:ChecklistField={id:AVANCE_OBRA_FIELD_ID,label:'Avance de obra',description:'Porcentaje de avance de la obra en esta visita',type:'percent',required:true};
+/** Garantiza que el esquema contenga el campo de sistema; no muta el original. */
+export function withAvanceObra(schema:ChecklistSchema):ChecklistSchema{
+ if(schema.sections.some(section=>section.fields.some(field=>field.id===AVANCE_OBRA_FIELD_ID)))return schema;
+ const sections=schema.sections.length?schema.sections.slice():[{id:'general',title:'General',fields:[]as ChecklistField[]}];
+ sections[sections.length-1]={...sections[sections.length-1],fields:[...sections[sections.length-1].fields,avanceObraField]};
+ return {...schema,sections};
+}
+/** Acepta esquemas v1 y v2; devuelve un esquema normalizado v2 (v1 ⊂ v2). */
+export function parseChecklistSchema(raw:unknown):ChecklistSchema|null{
+ if(typeof raw!=='object'||!raw)return null;
+ const candidate=raw as {version?:unknown;sections?:unknown};
+ if(candidate.version!==1&&candidate.version!==2||!Array.isArray(candidate.sections))return null;
+ return {version:candidate.version,sections:structuredClone(candidate.sections) as ChecklistSection[]};
+}
+
+/** 9.3: solo los campos obligatorios impiden la completitud del checklist;
+ *  los opcionales vacíos no cuentan como formulario incompleto.
+ *  «Respondida» es igual para todos los tipos: un 0 numérico SÍ responde. */
+export function isAnsweredValue(value:unknown):boolean{
+ return value!==undefined&&value!==null&&value!=='';
+}
+export function checklistCompleted(schema:ChecklistSchema,answers:Record<string,unknown>):boolean{
+ return schema.sections.flatMap(section=>section.fields).every(field=>!field.required||
+  isAnsweredValue(answers[field.id]));
+}
+/** Progreso del checklist (9.4): global y por sección, contando respuestas reales. */
+export function checklistStats(schema:ChecklistSchema,answers:Record<string,unknown>){
+ const fields=schema.sections.flatMap(section=>section.fields);
+ const answered=fields.filter(field=>isAnsweredValue(answers[field.id])).length;
+ return {
+  total:fields.length,answered,
+  progress:fields.length?Math.round(answered/fields.length*100):0,
+  missingRequired:fields.filter(field=>field.required&&!isAnsweredValue(answers[field.id])).length,
+ };
+}
+export function sectionStats(section:ChecklistSection,answers:Record<string,unknown>){
+ return {
+  total:section.fields.length,
+  answered:section.fields.filter(field=>isAnsweredValue(answers[field.id])).length,
+ };
 }
 
 // ── Capture-media domain types (Iteración 4) ──────────────────────────────────
@@ -99,9 +171,20 @@ export type ReportBlock =
  |{id:string;type:'signatures';locked:true};
 
 export interface ReportDocumentV1 {
- schemaVersion:1;revision:number;blocks:ReportBlock[];
+  schemaVersion:1;revision:number;blocks:ReportBlock[];
+  /** Imágenes pequeñas de firma manuscrita; no son firmas digitales certificadas. */
+  signers?:ReportSigner[];
  /** Revisión con la que se generó el PDF vigente (ausente = nunca generado). */
  generatedRevision?:number;
+}
+
+export interface ReportSigner { id:string; nombre:string; cargo:string; colegiatura:string; image?:string }
+export function setReportSigners(doc:ReportDocumentV1,signers:ReportSigner[]):ReportDocumentV1 {
+ if(signers.length>6)throw new Error('Se admiten hasta seis firmantes');
+ for(const signer of signers){
+  if(signer.image&&(!/^data:image\/(png|jpeg);base64,[A-Za-z0-9+/=]+$/.test(signer.image)||signer.image.length>160000))throw new Error('Imagen de firma inválida o demasiado grande');
+ }
+ return {...doc,revision:doc.revision+1,signers:structuredClone(signers)};
 }
 
 const uid=()=>`b_${Math.random().toString(36).slice(2,10)}`;
@@ -139,7 +222,8 @@ export function parseReportDocument(json:unknown):ReportDocumentV1|null{
   }else return null;
  }
  if(!blocks.some(b=>b.type==='header')||!blocks.some(b=>b.type==='checklist')||!blocks.some(b=>b.type==='signatures'))return null;
- return {schemaVersion:1,revision:doc.revision,generatedRevision:typeof doc.generatedRevision==='number'?doc.generatedRevision:undefined,blocks};
+ if(doc.signers!==undefined&&(!Array.isArray(doc.signers)||doc.signers.length>6||doc.signers.some(s=>!s||typeof s.id!=='string'||typeof s.nombre!=='string'||typeof s.cargo!=='string'||typeof s.colegiatura!=='string'||(s.image!==undefined&&(typeof s.image!=='string'||!/^data:image\/(png|jpeg);base64,[A-Za-z0-9+/=]+$/.test(s.image)||s.image.length>160000)))))return null;
+ return {schemaVersion:1,revision:doc.revision,generatedRevision:typeof doc.generatedRevision==='number'?doc.generatedRevision:undefined,blocks,...(doc.signers?{signers:structuredClone(doc.signers)}:{})};
 }
 
 function bump(doc:ReportDocumentV1,blocks:ReportBlock[]):ReportDocumentV1{

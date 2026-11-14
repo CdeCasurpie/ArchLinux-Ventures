@@ -2,7 +2,7 @@ import { openDB, type IDBPDatabase } from 'idb';
 import { answerOperation, prepareMutation } from './workspace-mutations';
 import { CapacitorSQLite, SQLiteConnection, type SQLiteDBConnection } from '@capacitor-community/sqlite';
 import { type LocalRepository,type WorkspaceLocalRepository,queuedState,acknowledgedState,type MediaOutboxRepository } from '@archforms/application';
-import type {LocalState,Profile,ProfileEdit,Pending,WorkspaceState,WorkspacePending,MediaOutboxItem,EntityOutboxItem,Visita} from '@archforms/domain';
+import { checklistCompleted, type LocalState,Profile,ProfileEdit,Pending,WorkspaceState,WorkspacePending,MediaOutboxItem,EntityOutboxItem,Visita } from '@archforms/domain';
 const empty=():LocalState=>({profile:null,pending:null});
 const sqliteManager=new SQLiteConnection(CapacitorSQLite);
 // One creation promise per database name: SQLiteRepository and
@@ -75,27 +75,32 @@ export class SQLiteRepository implements LocalRepository {
 }
 
 const emptyWorkspace=():WorkspaceState=>({expedientes:[],visitas:[],plantillas:[],pending:[],last_sync:null});
+const kindOf=(entity:WorkspaceState['pending'][number]['entity'])=>entity==='expediente'?'expedientes':entity==='plantilla'?'plantillas':'visitas';
 function mergeWorkspace(state:WorkspaceState,remote:Pick<WorkspaceState,'expedientes'|'visitas'|'plantillas'>,replica?:import('@archforms/domain').ReplicaInfo):WorkspaceState{
  const cases=new Map((replica?.partial?state.expedientes:[]).map(row=>[row.id,row]));
  const visits=new Map((replica?.partial?state.visitas:[]).map(row=>[row.id,row]));
+ const templates=new Map((replica?.partial?state.plantillas:[]).map(row=>[row.id,row]));
  for(const row of remote.expedientes)cases.set(row.id,row);
  for(const row of remote.visitas)visits.set(row.id,row);
+ for(const row of remote.plantillas)templates.set(row.id,row);
  for(const removed of replica?.deleted??[]){
   if(removed.entity==='expediente'){cases.delete(removed.id);for(const [id,row] of visits)if(row.expediente_id===removed.id)visits.delete(id)}
+  else if(removed.entity==='plantilla')templates.delete(removed.id);
   else visits.delete(removed.id);
  }
  for(const operation of state.pending){
-  const records=operation.entity==='expediente'?cases:visits;
+  const kind=kindOf(operation.entity);
+  const records=kind==='expedientes'?cases:kind==='plantillas'?templates:visits;
   const base=records.get(operation.record.id)??operation.record;
   let next=operation.record;
   if(operation.answer_patch){
    const visit=base as Visita,answers={...visit.checklist_respuestas_json,...operation.answer_patch};
-   next={...visit,checklist_respuestas_json:answers,checklist_completado:visit.checklist_esquema_json.sections.flatMap(section=>section.fields).every(field=>answers[field.id]!==undefined&&answers[field.id]!==null&&answers[field.id]!==''),updated_at:operation.record.updated_at};
+   next={...visit,checklist_respuestas_json:answers,checklist_completado:checklistCompleted(visit.checklist_esquema_json,answers),updated_at:(operation.record as Visita).updated_at};
   }
   else if(operation.workspace_mutation?.type==='patch')next={...base,...operation.workspace_mutation.payload} as typeof next;
   (records as Map<string,typeof next>).set(next.id,next);
  }
- return {expedientes:[...cases.values()],visitas:[...visits.values()],plantillas:remote.plantillas,pending:state.pending,last_sync:new Date().toISOString(),...(replica?{sync_cursor:replica.cursor}:state.sync_cursor===undefined?{}:{sync_cursor:state.sync_cursor})};
+ return {expedientes:[...cases.values()],visitas:[...visits.values()],plantillas:[...templates.values()],pending:state.pending,last_sync:new Date().toISOString(),...(replica?{sync_cursor:replica.cursor}:state.sync_cursor===undefined?{}:{sync_cursor:state.sync_cursor})};
 }
 export class IndexedWorkspaceRepository implements WorkspaceLocalRepository{
  private db:Promise<IDBPDatabase>;
@@ -138,8 +143,8 @@ export class IndexedWorkspaceRepository implements WorkspaceLocalRepository{
   }
   async save(owner:string,operation:WorkspacePending){
    const tx=(await this.db).transaction(['records','pending','metadata'],'readwrite');
-   operation=prepareMutation(operation,await tx.objectStore('records').get([owner,operation.entity==='expediente'?'expedientes':'visitas',operation.record.id]));
-   await tx.objectStore('records').put(operation.record,[owner,operation.entity==='expediente'?'expedientes':'visitas',operation.record.id]);
+   operation=prepareMutation(operation,await tx.objectStore('records').get([owner,kindOf(operation.entity),operation.record.id]));
+   await tx.objectStore('records').put(operation.record,[owner,kindOf(operation.entity),operation.record.id]);
    const meta=await tx.objectStore('metadata').get(owner)??{last_sync:null,order:[]};
    const order:string[]=meta.order??(await this.snapshot(tx,owner)).pending.map(op=>op.id);
    await tx.objectStore('pending').put(operation,[owner,operation.id]);
@@ -221,10 +226,10 @@ export class SQLiteWorkspaceRepository implements WorkspaceLocalRepository{
   private change(owner:string,fn:(state:WorkspaceState)=>WorkspaceState){return this.serial(async()=>{const db=await this.db;await this.writeSnapshot(db,owner,fn(await this.raw(owner)))})}
   save(owner:string,operation:WorkspacePending){return this.serial(async()=>{
    const db=await this.db;
-   const previous=await db.query('SELECT payload FROM workspace_records WHERE owner=? AND kind=? AND id=?',[owner,operation.entity==='expediente'?'expedientes':'visitas',operation.record.id]);
+   const previous=await db.query('SELECT payload FROM workspace_records WHERE owner=? AND kind=? AND id=?',[owner,kindOf(operation.entity),operation.record.id]);
    operation=prepareMutation(operation,previous.values?.[0]?JSON.parse(previous.values[0].payload):undefined);
    await db.executeSet([
-    {statement:'INSERT INTO workspace_records(owner,kind,id,payload) VALUES(?,?,?,?) ON CONFLICT(owner,kind,id) DO UPDATE SET payload=excluded.payload',values:[owner,operation.entity==='expediente'?'expedientes':'visitas',operation.record.id,JSON.stringify(operation.record)]},
+    {statement:'INSERT INTO workspace_records(owner,kind,id,payload) VALUES(?,?,?,?) ON CONFLICT(owner,kind,id) DO UPDATE SET payload=excluded.payload',values:[owner,kindOf(operation.entity),operation.record.id,JSON.stringify(operation.record)]},
     {statement:'INSERT INTO workspace_pending(owner,id,position,payload) VALUES(?,?,(SELECT COALESCE(MAX(position),-1)+1 FROM workspace_pending WHERE owner=?),?) ON CONFLICT(owner,id) DO UPDATE SET payload=excluded.payload',values:[owner,operation.id,owner,JSON.stringify(operation)]},
     {statement:'INSERT OR IGNORE INTO workspace_metadata(owner,last_sync) VALUES(?,NULL)',values:[owner]},
    ],true);

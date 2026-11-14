@@ -1,4 +1,4 @@
-import type { Visita, WorkspacePending } from '@archforms/domain';
+import { checklistCompleted, type Visita, type WorkspacePending } from '@archforms/domain';
 
 /** Freeze the intended change inside the same transaction that saves its entity. */
 export function prepareMutation(operation: WorkspacePending, previous: unknown): WorkspacePending {
@@ -17,8 +17,7 @@ export function prepareMutation(operation: WorkspacePending, previous: unknown):
 
 export function answerOperation(record: Visita, patch: Record<string, string | number | null>): WorkspacePending {
   const answers = { ...record.checklist_respuestas_json, ...patch };
-  const completed = record.checklist_esquema_json.sections.flatMap(section => section.fields)
-    .every(field => answers[field.id] !== undefined && answers[field.id] !== null && answers[field.id] !== '');
+  const completed = checklistCompleted(record.checklist_esquema_json, answers);
   const stamp = new Date().toISOString();
   return {
     id: crypto.randomUUID(), entity: 'visita', created_at: stamp, answer_patch: patch,

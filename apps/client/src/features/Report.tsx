@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Capacitor } from '@capacitor/core';
 import { Directory, Filesystem } from '@capacitor/filesystem';
@@ -7,11 +7,17 @@ import { Share } from '@capacitor/share';
 import {
   initReportDocument, parseReportDocument, moveReportBlock, removeReportBlock,
   restoreGroupBlock, addTextBlock, setBlockPhotos, setBlockComment, setTextContent,
-  type ReportDocumentV1, type ReportBlock,
+  setReportSigners, type ReportDocumentV1, type ReportBlock,
 } from '@archforms/domain';
 import type { Expediente, LocalState, Visita } from '@archforms/domain';
 import { loadCaptureGroups, photoDataUrl, type CaptureGroup, type LabPhoto } from './lab-storage';
 import { loadReportPhotos } from './report-photos';
+import {SignersEditor} from './Signers';
+import {VisitHeaderDetails} from './VisitHeader';
+import {ReportChecklist} from './ReportChecklist';
+import {SerialAutosave,type SaveStatus} from './serial-autosave';
+import type {SaveBarrier} from './save-barrier';
+import {reportSource} from './report-source';
 
 function bytesToBase64(bytes: Uint8Array): string {
   let binary = '';
@@ -35,12 +41,14 @@ function orderedPhotos(group: CaptureGroup | undefined, photoIds: string[]): Lab
   });
 }
 
-export function VisitReport({ visita, expediente, profile, onSave,provisional=false }: {
+export function VisitReport({ visita, expediente, profile, onSave,onSaveAnswers,saveBarrier,ownerId,provisional=false }: {
   visita: Visita;
   expediente: Expediente;
   profile: LocalState['profile'];
   ownerId: string;
   onSave: (record: Visita) => Promise<void>;
+  onSaveAnswers:(id:string,patch:Record<string,string|number|null>)=>Promise<void>;
+  saveBarrier:SaveBarrier;
   provisional?:boolean;
 }) {
   const [groups, setGroups] = useState<CaptureGroup[]>([]);
@@ -57,6 +65,23 @@ export function VisitReport({ visita, expediente, profile, onSave,provisional=fa
   const initedFor = useRef<string | null>(null);
   const [loadError,setLoadError]=useState('');
   const [loadAttempt,setLoadAttempt]=useState(0);
+  const [generatedSource,setGeneratedSource]=useState<string|null>(null);
+  const source=reportSource(doc,visita,expediente,profile);
+  const pdfInput=useRef({doc,visita,expediente,profile,source});pdfInput.current={doc,visita,expediente,profile,source};
+  const pdfStale=generatedSource!==null&&source!==generatedSource;
+  const [saveStatus,setSaveStatus]=useState<SaveStatus>('saved');
+  const current=useRef({visita,onSave});current.current={visita,onSave};
+  const writer=useMemo(()=>new SerialAutosave<ReportDocumentV1>(async target=>{
+    await current.current.onSave({...current.current.visita,documento_json:target as unknown as Record<string,unknown>,updated_at:new Date().toISOString()});
+    setSavedRevision(target.revision);
+  },setSaveStatus),[visita.id]);
+  useEffect(()=>saveBarrier.register(()=>writer.flush()),[saveBarrier,writer]);
+  useEffect(()=>{if(!doc||doc.revision===savedRevision)return;void writer.save(doc)},[doc,writer]);
+  useEffect(()=>{
+    if(saveStatus==='saved')return;
+    const warn=(event:BeforeUnloadEvent)=>{event.preventDefault();event.returnValue=''};
+    window.addEventListener('beforeunload',warn);return()=>window.removeEventListener('beforeunload',warn);
+  },[saveStatus]);
 
   useEffect(() => {
     let cancelled = false;
@@ -126,8 +151,8 @@ export function VisitReport({ visita, expediente, profile, onSave,provisional=fa
     if (!target) return;
     setSaving(true);
     try {
-      await onSave({ ...visita, documento_json: target as unknown as Record<string, unknown>, updated_at: new Date().toISOString() });
-      setSavedRevision(target.revision);
+      await writer.save(target);
+      await writer.flush();
     } finally {
       setSaving(false);
     }
@@ -139,6 +164,10 @@ export function VisitReport({ visita, expediente, profile, onSave,provisional=fa
     setPdfMsg('');
     try {
       // Persist content, never the generated binary, before rendering this snapshot.
+      await saveBarrier.flush();
+      await new Promise<void>(resolve=>requestAnimationFrame(()=>resolve()));
+      const {doc,visita,expediente,profile,source}=pdfInput.current;
+      if(!doc)throw new Error('El documento no está disponible');
       await save(doc);
       // El stack PDF (pesado) se carga diferido: no enlentece el arranque.
       const [{ pdf }, { buildInformeDoc, informeFileName, stampPageNumbers }] = await Promise.all([
@@ -173,6 +202,7 @@ export function VisitReport({ visita, expediente, profile, onSave,provisional=fa
         a.href = url; a.download = filename; a.click();
         setTimeout(() => URL.revokeObjectURL(url), 5000);
       }
+      setGeneratedSource(source);
       setPdfMsg('PDF generado en este dispositivo. No se sube a la nube.');
       setFileSheetOpen(true);
     } catch (e) {
@@ -219,17 +249,18 @@ export function VisitReport({ visita, expediente, profile, onSave,provisional=fa
     <div className="page-enter">
       {provisional&&<p role="status">El número de visita es provisional hasta sincronizar. El PDF llevará esa advertencia.</p>}
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12, flexWrap: 'wrap' }}>
-        <span className="status active">PDF local · se genera en cada descarga</span>
+        <span className="status active">{pdfStale?'PDF anterior desactualizado · vuelve a generarlo':'PDF local · se genera en cada descarga'}</span>
         <span style={{ flex: 1 }} />
         <button className="btn btn-secondary" onClick={undo} disabled={!past.length}>←</button>
         <button className="btn btn-secondary" onClick={redo} disabled={!future.length}>→</button>
-        <button className="btn btn-secondary" onClick={() => void save()} disabled={saving || (!dirty && !fresh)}>
-          {saving ? 'Guardando…' : 'Guardar informe'}
+        <button className="btn btn-secondary" onClick={() => void save().catch(error=>setPdfMsg(`No se pudo guardar: ${String(error)}`))} disabled={saving || (saveStatus!=='error'&&!dirty && !fresh)}>
+          {saving ? 'Guardando…' : saveStatus==='error'?'Reintentar guardado':'Guardar informe'}
         </button>
         <button className="btn btn-primary" onClick={() => void generate()} disabled={busy}>
           {busy ? 'Generando…' : 'Generar PDF'}
         </button>
       </div>
+      <p role="status">{saveStatus==='saving'?'Guardando informe en el dispositivo…':saveStatus==='error'?'No se pudo guardar el informe. Reintenta antes de salir.':'Informe guardado en este dispositivo · se sincroniza al tener conexión'}</p>
       {pdfMsg && <div className="alert notice">{pdfMsg}</div>}
       {fileSheetOpen && savedFile && Capacitor.isNativePlatform() && createPortal(
         <>
@@ -244,14 +275,15 @@ export function VisitReport({ visita, expediente, profile, onSave,provisional=fa
               <button className="btn btn-secondary" aria-label="Cerrar" onClick={() => setFileSheetOpen(false)} style={{ padding: '6px 12px' }}>×</button>
             </div>
             <div style={{ display: 'flex', gap: 8, marginTop: 14 }}>
-              <button className="btn btn-primary" style={{ flex: 1 }} onClick={() => void openSavedPdf(savedFile.filename)} disabled={busy}>
+              <button className="btn btn-primary" style={{ flex: 1 }} onClick={() => void openSavedPdf(savedFile.filename)} disabled={busy||pdfStale}>
                 Abrir PDF
               </button>
-              <button className="btn btn-secondary" style={{ flex: 1 }} onClick={() => void shareSavedPdf(savedFile.filename)} disabled={busy}>
+              <button className="btn btn-secondary" style={{ flex: 1 }} onClick={() => void shareSavedPdf(savedFile.filename)} disabled={busy||pdfStale}>
                 Compartir
               </button>
             </div>
             {fileMsg && <p style={{ margin: '12px 0 0 0', fontSize: 12, color: 'var(--danger)' }}>{fileMsg}</p>}
+            {pdfStale&&<p role="status">La información cambió. Cierra este panel y genera un PDF actualizado.</p>}
           </div>
         </>,
         document.body,
@@ -287,6 +319,7 @@ export function VisitReport({ visita, expediente, profile, onSave,provisional=fa
             onComment={text => apply(d => setBlockComment(d, block.id, text))}
             onContent={text => apply(d => setTextContent(d, block.id, text))}
             onAddText={() => apply(d => addTextBlock(d, block.id))}
+            source={block.type==='header'?<VisitHeaderDetails expediente={expediente} visita={visita}/>:block.type==='checklist'?<ReportChecklist visita={visita} ownerId={ownerId} onSave={onSave} onSaveAnswers={onSaveAnswers} saveBarrier={saveBarrier}/>:block.type==='signatures'?<SignersEditor signers={doc.signers??[]} onChange={signers=>apply(d=>setReportSigners(d,signers))}/>:undefined}
           />
         ))}
       </div>
@@ -294,7 +327,8 @@ export function VisitReport({ visita, expediente, profile, onSave,provisional=fa
   );
 }
 
-function BlockCard({ block, index, total, group, onMove, onRemove, onPhotos, onComment, onContent, onAddText }: {
+function BlockCard({ block, index, total, group, onMove, onRemove, onPhotos, onComment, onContent, onAddText,source }: {
+  source?:React.ReactNode;
   block: ReportBlock;
   index: number;
   total: number;
@@ -327,9 +361,7 @@ function BlockCard({ block, index, total, group, onMove, onRemove, onPhotos, onC
         )}
       </div>
 
-      {block.type === 'header' && <p style={{ margin: 0, fontSize: 13, color: '#475569' }}>Se genera desde la cabecera del expediente y la visita. Para cambiarla, edita su fuente.</p>}
-      {block.type === 'checklist' && <p style={{ margin: 0, fontSize: 13, color: '#475569' }}>Se genera desde las respuestas del checklist. Para cambiarlo, vuelve a la pestaña 1.</p>}
-      {block.type === 'signatures' && <p style={{ margin: 0, fontSize: 13, color: '#475569' }}>Responsable de obra + profesional. Espacio físico si no hay firma digital.</p>}
+      {source}
 
       {block.type === 'capture-group' && (
         <>

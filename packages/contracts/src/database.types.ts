@@ -160,6 +160,7 @@ export type Database = {
           activo: boolean
           checklist_esquema_json: Json
           checklist_nombre: string
+          checklist_template_id: string | null
           created_at: string
           datos_cabecera_extra: Json | null
           departamento: string | null
@@ -190,6 +191,7 @@ export type Database = {
           activo?: boolean
           checklist_esquema_json: Json
           checklist_nombre: string
+          checklist_template_id?: string | null
           created_at?: string
           datos_cabecera_extra?: Json | null
           departamento?: string | null
@@ -220,6 +222,7 @@ export type Database = {
           activo?: boolean
           checklist_esquema_json?: Json
           checklist_nombre?: string
+          checklist_template_id?: string | null
           created_at?: string
           datos_cabecera_extra?: Json | null
           departamento?: string | null
@@ -551,6 +554,7 @@ export type Database = {
           checklist_esquema_json: Json
           checklist_nombre: string
           checklist_respuestas_json: Json
+          checklist_template_id: string | null
           codigo_informe: string | null
           conclusiones_audio_archivo_id: string | null
           conclusiones_texto: string | null
@@ -582,6 +586,7 @@ export type Database = {
           checklist_esquema_json: Json
           checklist_nombre: string
           checklist_respuestas_json: Json
+          checklist_template_id?: string | null
           codigo_informe?: string | null
           conclusiones_audio_archivo_id?: string | null
           conclusiones_texto?: string | null
@@ -613,6 +618,7 @@ export type Database = {
           checklist_esquema_json?: Json
           checklist_nombre?: string
           checklist_respuestas_json?: Json
+          checklist_template_id?: string | null
           codigo_informe?: string | null
           conclusiones_audio_archivo_id?: string | null
           conclusiones_texto?: string | null

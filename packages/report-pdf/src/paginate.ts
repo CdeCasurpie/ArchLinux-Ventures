@@ -41,31 +41,59 @@ export const LINE = 14.5;
 export const H = {
   header: 201.5,               // banda (descontando el margen negativo) + tarjeta de datos
   h2: 16 + LINE + 3 + 1.5 + 7,
-  ckHead: 8 + LINE,
-  ckSection: 6 + LINE + 0.5,
+  ckSection: 13 + 12 + 3 + 0.75, // título de sección: margen + línea + borde
   groupTitle: 10 + 16 + 5,
   commentFixed: 4 + 6 + 2,
   commentLine: LINE,
   missingNote: LINE,
+  avanceBand: 2 + 8 + 15.6 + 0.75 + 8, // fila de avance (márgenes + texto + borde)
 };
 
+/** Alturas de línea del checklist minimalista (ver informe.tsx). */
+const CK = { label: 8.8 * 1.3, desc: 7.3 * 1.3, value: 8.8 * 1.3, note: 8.6 * 1.35, pad: 7, border: 0.5 };
+
 export function estimateChecklistHeight(
-  sections: { title: string; fields: { id: string; label: string }[] }[],
+  sections: { title: string; fields: { id: string; label: string; type?: string; unit?: string | null; description?: string | null }[] }[],
   answers: Record<string, unknown>,
 ): number {
-  let h = H.h2 + H.ckHead;
+  const hasAvance = sections.some(sec => sec.fields.some(f => f.id === 'avance_obra'));
+  let h = H.h2 + (hasAvance ? H.avanceBand : 0);
   for (const sec of sections) {
+    const fields = sec.fields.filter(f => f.id !== 'avance_obra');
+    if (!fields.length) continue;
     h += H.ckSection;
-    for (const f of sec.fields) {
-      const raw = answers[f.id];
-      const isAns = raw === 'si' || raw === 'no' || raw === 'na';
-      const obs = raw === undefined || raw === null || raw === '' || isAns ? '' : String(raw);
-      const desc = countLines(f.label, 263, 9.5) * LINE;
-      const o = obs ? countLines(obs, 234, 8.5) * LINE : 11;
-      h += 7 + 0.5 + Math.max(desc, o);
+    for (const f of fields) {
+      const isBoolean = (f.type ?? 'boolean') === 'boolean';
+      // Anchos reales: boolean reserva 78pt para casillas; el resto 200pt para el valor.
+      const labelW = isBoolean ? CONTENT_W - 90 : f.type === 'textarea' ? CONTENT_W : CONTENT_W - 212;
+      const labelH = countLines(f.label, labelW, 8.8) * CK.label
+        + (f.description ? countLines(f.description, labelW, 7.3) * CK.desc + 1 : 0);
+      if (isBoolean) {
+        h += CK.pad + Math.max(labelH, 10) + CK.border;
+        continue;
+      }
+      const value = formatAnswerValue(f, answers[f.id]);
+      const fullWidth = f.type === 'textarea' || value.length > 60;
+      if (fullWidth) {
+        const lines = value ? countLines(value, CONTENT_W, 8.6) : 0;
+        h += CK.pad + labelH + (lines ? 2 + lines * CK.note : 0) + CK.border;
+      } else {
+        h += CK.pad + Math.max(labelH, countLines(value, 200, 8.8) * CK.value) + CK.border;
+      }
     }
   }
   return h;
+}
+
+/** Valor legible de un campo no booleano para el PDF y sus estimaciones. */
+export function formatAnswerValue(
+  field: { id: string; type?: string; unit?: string | null },
+  raw: unknown,
+): string {
+  if (raw === undefined || raw === null || raw === '') return '—';
+  if (field.type === 'percent') return `${raw} %`;
+  if (field.type === 'number') return field.unit ? `${raw} ${field.unit}` : String(raw);
+  return String(raw);
 }
 
 export function estimateTextHeight(text: string): number {

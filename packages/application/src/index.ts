@@ -1,4 +1,4 @@
-import { type Profile,type ProfileEdit,type LocalState,type Pending,validateProfile,type WorkspaceState,type WorkspacePending,type Expediente,type Visita,assertChecklist,type MediaOutboxItem,type EntityOutboxItem,type GrupoCapturaPayload,type MediaSyncStatus,type EntitySyncStatus,type RemoteArchivo,type RemoteFoto,type RemoteGrupo } from '@archforms/domain';
+import { type Profile,type ProfileEdit,type LocalState,type Pending,validateProfile,type WorkspaceState,type WorkspacePending,type Expediente,type Visita,type ChecklistTemplate,assertChecklist,withAvanceObra,type MediaOutboxItem,type EntityOutboxItem,type GrupoCapturaPayload,type MediaSyncStatus,type EntitySyncStatus,type RemoteArchivo,type RemoteFoto,type RemoteGrupo } from '@archforms/domain';
 export * from './answer-sync';
 export * from './sync-coordinator';
 export * from './transfer-queue';
@@ -91,16 +91,32 @@ export class WorkspaceSyncEngine {
 
 const now=()=>new Date().toISOString();
 const nullable=(value:FormDataEntryValue|null)=>{const text=String(value??'').trim();return text||null};
-export function buildExpediente(owner:string,data:FormData,schema:Expediente['checklist_esquema_json'],existing?:Expediente):Expediente{
- assertChecklist(schema);const nro=String(data.get('nro_expediente')??'').trim(),ubicacion=String(data.get('ubicacion')??'').trim();
- if(!nro)throw new Error('Ingresa el número de expediente.');if(!ubicacion)throw new Error('Ingresa la ubicación de la obra.');
+export function buildExpediente(owner:string,data:FormData,schema:Expediente['checklist_esquema_json'],existing?:Expediente,templateId?:string|null):Expediente{
+ // El avance de obra es un campo de sistema obligatorio (sección 4); se inyecta
+ // aquí y, como red de seguridad, también en cada visita.
+ const complete=assertChecklist(withAvanceObra(schema));const nro=String(data.get('nro_expediente')??'').trim(),ubicacion=String(data.get('ubicacion')??'').trim();
+  if(!nro)throw new Error('Ingresa el número de expediente.');if(!ubicacion)throw new Error('Ingresa la ubicación de la obra.');
+  const planned=nullable(data.get('total_visitas_programadas'));
+  if(planned!==null&&(!Number.isSafeInteger(Number(planned))||Number(planned)<1))throw new Error('El total de visitas programadas debe ser un entero mayor que cero, o quedar vacío si no se conoce.');
  const stamp=now();
- return {id:existing?.id??crypto.randomUUID(),profesional_id:owner,nro_expediente:nro,nro_licencia:nullable(data.get('nro_licencia')),modalidad:nullable(data.get('modalidad')),entidad_destinataria:nullable(data.get('entidad_destinataria')),fecha_emision_licencia:nullable(data.get('fecha_emision_licencia')),vigencia_desde:nullable(data.get('vigencia_desde')),vigencia_hasta:nullable(data.get('vigencia_hasta')),propietario:nullable(data.get('propietario')),ubicacion,distrito:nullable(data.get('distrito')),provincia:nullable(data.get('provincia')),departamento:nullable(data.get('departamento')),tipo_obra:nullable(data.get('tipo_obra')),uso_predio:nullable(data.get('uso_predio')),detalle_obra:nullable(data.get('detalle_obra')),valor_obra:data.get('valor_obra')?Number(data.get('valor_obra')):null,total_visitas_programadas:data.get('total_visitas_programadas')?Number(data.get('total_visitas_programadas')):null,responsable_obra_nombre:nullable(data.get('responsable_obra_nombre')),responsable_obra_colegiatura:nullable(data.get('responsable_obra_colegiatura')),poliza_car_json:{compania:nullable(data.get('poliza_compania')),desde:nullable(data.get('poliza_desde')),hasta:nullable(data.get('poliza_hasta'))},datos_cabecera_extra:null,checklist_nombre:String(data.get('checklist_nombre')??'Checklist').trim(),checklist_esquema_json:schema,activo:existing?.activo??true,created_at:existing?.created_at??stamp,updated_at:stamp};
+ return {id:existing?.id??crypto.randomUUID(),profesional_id:owner,nro_expediente:nro,nro_licencia:nullable(data.get('nro_licencia')),modalidad:nullable(data.get('modalidad')),entidad_destinataria:nullable(data.get('entidad_destinataria')),fecha_emision_licencia:nullable(data.get('fecha_emision_licencia')),vigencia_desde:nullable(data.get('vigencia_desde')),vigencia_hasta:nullable(data.get('vigencia_hasta')),propietario:nullable(data.get('propietario')),ubicacion,distrito:nullable(data.get('distrito')),provincia:nullable(data.get('provincia')),departamento:nullable(data.get('departamento')),tipo_obra:nullable(data.get('tipo_obra')),uso_predio:nullable(data.get('uso_predio')),detalle_obra:nullable(data.get('detalle_obra')),valor_obra:data.get('valor_obra')?Number(data.get('valor_obra')):null,total_visitas_programadas:data.get('total_visitas_programadas')?Number(data.get('total_visitas_programadas')):null,responsable_obra_nombre:nullable(data.get('responsable_obra_nombre')),responsable_obra_colegiatura:nullable(data.get('responsable_obra_colegiatura')),poliza_car_json:{compania:nullable(data.get('poliza_compania')),desde:nullable(data.get('poliza_desde')),hasta:nullable(data.get('poliza_hasta'))},datos_cabecera_extra:null,checklist_nombre:String(data.get('checklist_nombre')??'Checklist').trim(),checklist_esquema_json:complete,checklist_template_id:templateId===undefined?(existing?.checklist_template_id??null):templateId,activo:existing?.activo??true,created_at:existing?.created_at??stamp,updated_at:stamp};
 }
 export function buildVisita(expediente:Expediente,number:number,date:string):Visita{
- const stamp=now();return {id:crypto.randomUUID(),expediente_id:expediente.id,nro_visita:number,codigo_informe:null,fecha:date,estado:'BORRADOR',checklist_nombre:expediente.checklist_nombre,checklist_esquema_json:structuredClone(expediente.checklist_esquema_json),checklist_respuestas_json:{},checklist_completado:false,documento_json:{version:1,blocks:[]},estado_documento:'BORRADOR',pdf_archivo_id:null,responsable_obra_nombre:expediente.responsable_obra_nombre,responsable_obra_colegiatura:expediente.responsable_obra_colegiatura,created_at:stamp,updated_at:stamp};
+ const stamp=now();return {id:crypto.randomUUID(),expediente_id:expediente.id,nro_visita:number,codigo_informe:null,fecha:date,estado:'BORRADOR',checklist_nombre:expediente.checklist_nombre,checklist_esquema_json:withAvanceObra(structuredClone(expediente.checklist_esquema_json)),checklist_respuestas_json:{},checklist_completado:false,checklist_template_id:expediente.checklist_template_id,documento_json:{version:1,blocks:[]},estado_documento:'BORRADOR',pdf_archivo_id:null,responsable_obra_nombre:expediente.responsable_obra_nombre,responsable_obra_colegiatura:expediente.responsable_obra_colegiatura,created_at:stamp,updated_at:stamp};
 }
-export function workspaceOperation(entity:WorkspacePending['entity'],record:Expediente|Visita):WorkspacePending{return {id:crypto.randomUUID(),entity,record,created_at:now(),preserve_answers:entity==='visita',protocol:1}}
+/** Publica la copia editable de un expediente como plantilla nueva e inmutable.
+ *  No modifica el expediente ni sus visitas: el enlace original se conserva. */
+export function buildTemplateFromExpediente(owner:string,expediente:Expediente,nombre?:string):ChecklistTemplate{
+ const name=nombre?.trim()||expediente.checklist_nombre.trim()||'Checklist';
+ return {
+  id:crypto.randomUUID(),
+  codigo:`USR-${crypto.randomUUID().replace(/-/g,'').slice(0,8).toUpperCase()}`,
+  nombre:name,version:1,
+  esquema:withAvanceObra(structuredClone(expediente.checklist_esquema_json)),
+  profesional_id:owner,activa:true,
+ };
+}
+export function workspaceOperation(entity:WorkspacePending['entity'],record:Expediente|Visita|ChecklistTemplate):WorkspacePending{return {id:crypto.randomUUID(),entity,record,created_at:now(),preserve_answers:entity==='visita',protocol:1}}
 
 // ── Media Sync (Iteración 4) ──────────────────────────────────────────────────
 

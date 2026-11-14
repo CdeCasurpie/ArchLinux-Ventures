@@ -65,16 +65,31 @@ begin
     if answer<>'null'::jsonb then
       if field->>'type'='boolean' and answer not in ('"si"'::jsonb,'"no"'::jsonb,'"na"'::jsonb) then
         raise exception 'Invalid boolean answer' using errcode='22023';
-      elsif field->>'type' in ('text','date') and jsonb_typeof(answer)<>'string' then
+      elsif field->>'type' in ('text','textarea','date') and jsonb_typeof(answer)<>'string' then
         raise exception 'Invalid text answer' using errcode='22023';
-      elsif field->>'type'='number' then
+      elsif field->>'type' in ('number','percent') then
         if jsonb_typeof(answer) not in ('string','number') then
           raise exception 'Invalid numeric answer' using errcode='22023';
         end if;
-        if answer<>'""'::jsonb then perform (answer#>>'{}')::numeric; end if;
+        if answer<>'""'::jsonb then
+          if field->>'type'='percent' and not ((answer#>>'{}')::numeric between 0 and 100) then
+            raise exception 'Percent answer out of range' using errcode='22023';
+          end if;
+          if not ((answer#>>'{}')::numeric between
+              coalesce((field->>'min')::numeric,-'Infinity'::numeric) and
+              coalesce((field->>'max')::numeric,'Infinity'::numeric)) then
+            raise exception 'Numeric answer out of range' using errcode='22023';
+          end if;
+        end if;
+      elsif field->>'type'='select' then
+        if jsonb_typeof(answer)<>'string' or not exists (
+          select 1 from jsonb_array_elements_text(coalesce(field->'options','[]'::jsonb)) o
+          where o=answer#>>'{}') then
+          raise exception 'Invalid select answer' using errcode='22023';
+        end if;
       end if;
       if field->>'type'='date' and answer<>'""'::jsonb then perform (answer#>>'{}')::date; end if;
-      if field->>'type' not in ('boolean','text','date','number') then
+      if field->>'type' not in ('boolean','text','textarea','date','number','percent','select') then
         raise exception 'Unsupported field type' using errcode='22023';
       end if;
     end if;
@@ -84,9 +99,19 @@ begin
     checklist_completado=not exists (
       select 1 from jsonb_array_elements(target.checklist_esquema_json->'sections') s,
         jsonb_array_elements(s.value->'fields') f
-      where not (target.checklist_respuestas_json ? (f.value->>'id'))
-        or target.checklist_respuestas_json->(f.value->>'id') in ('null'::jsonb,'""'::jsonb)
+      where coalesce((f.value->>'required')::boolean,false)
+        and ( not (target.checklist_respuestas_json ? (f.value->>'id'))
+          or target.checklist_respuestas_json->(f.value->>'id') in ('null'::jsonb,'""'::jsonb))
     ) where v.id=visita_id;
+  -- El avance de obra se espeja en su columna de primera clase del modelo
+  -- aprobado (avance_general, CHECK 0–100). Única fuente de verdad para el
+  -- usuario: el campo del checklist; la columna es un reflejo de consulta.
+  if patch ? 'avance_obra' then
+    update public.visita v set avance_general=(
+      case when coalesce(patch->>'avance_obra','')='' then null
+      else (patch->>'avance_obra')::numeric end
+    ) where v.id=visita_id;
+  end if;
   update sync_internal.owner_cursor c set revision=c.revision+1 where c.owner=actor returning revision into revision_value;
   result_value:=jsonb_build_object('revision',revision_value,'visita_id',visita_id,'answers',target.checklist_respuestas_json);
   insert into sync_internal.changes values(actor,revision_value,visita_id,target.checklist_respuestas_json);

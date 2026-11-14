@@ -1,0 +1,7 @@
+import type {Expediente,Visita} from '@archforms/domain';
+
+export function VisitHeaderDetails({expediente,visita}:{expediente:Expediente;visita:Visita}){
+ const total=expediente.total_visitas_programadas;
+ const fields=[['Expediente',expediente.nro_expediente],['Visita',`${visita.nro_visita}${total?`/${total}`:' · total no definido'}`],['Fecha',visita.fecha],['Obra',expediente.detalle_obra],['Propietario',expediente.propietario],['Ubicación',expediente.ubicacion],['Distrito',expediente.distrito],['Provincia',expediente.provincia],['Departamento',expediente.departamento],['Licencia',expediente.nro_licencia],['Modalidad',expediente.modalidad],['Entidad',expediente.entidad_destinataria],['Emisión de licencia',expediente.fecha_emision_licencia],['Vigencia desde',expediente.vigencia_desde],['Vigencia hasta',expediente.vigencia_hasta],['Tipo de obra',expediente.tipo_obra],['Uso del predio',expediente.uso_predio],['Valor de obra',expediente.valor_obra],['Responsable de obra',visita.responsable_obra_nombre],['Colegiatura',visita.responsable_obra_colegiatura]];
+ return <><dl className="visit-header-details">{fields.map(([label,value])=><div key={label}><dt>{label}</dt><dd>{value??'—'}</dd></div>)}</dl>{total&&visita.nro_visita>total?<p role="status">Se superó el total de visitas previsto; se conserva la numeración real.</p>:null}<p>Cabecera de consulta. Los datos generales se modifican desde el expediente.</p></>;
+}

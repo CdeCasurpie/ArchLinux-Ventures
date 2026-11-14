@@ -1,17 +1,24 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Capacitor } from '@capacitor/core';
 import { loadCaptureGroups, photoDataUrl, type CaptureGroup, type LabPhoto } from './lab-storage';
 import {
   subscribeMediaSync, subscribeGroupCreated, triggerMediaSync, getMediaSyncDebugState, getGroupSyncDebug,
-  isMigrated, retryGroup, pullVisitaFromCloud, getLastPull,
-  type GroupSyncDebug, type SyncDebugState, type PullProgress,
+  isMigrated, retryGroup, getLastPull,
+  type GroupSyncDebug, type SyncDebugState,
 } from './media-sync';
-import { mediaOutbox, supabase } from '../platform';
-import { SupabaseCaptureReader } from '@archforms/data-supabase';
+import { mediaOutbox } from '../platform';
+import { SerialAutosave, type SaveStatus } from './serial-autosave';
+import { useDictation } from './dictation';
+import type { SaveBarrier } from './save-barrier';
+import {VisitSigners} from './VisitSigners';
+import {VisitHeaderDetails} from './VisitHeader';
+import {ChecklistForm} from './checklist';
+import type {Expediente} from '@archforms/domain';
+import {visitDocument} from './visit-document';
 
 // Pasa a true para mostrar el panel de diagnóstico de sync en el Resumen.
 const SHOW_SYNC_DEBUG = false;
-import type { Visita } from '@archforms/domain';
+import { parseReportDocument, setTextContent, type Visita } from '@archforms/domain';
 
 // ── Main component ────────────────────────────────────────────────────────────
 // Si la URL de archivo falla (p. ej. file server), se autocura con el dataURL
@@ -43,11 +50,15 @@ function timeAgo(iso: string | null): string {
   return `hace ${Math.floor(m / 60)}h`;
 }
 
-export function VisitSummary({ visita, onConclude, onEditReport, onGoChecklist }: {
+export function VisitSummary({ visita,expediente, onConclude, onEditReport, onGoChecklist, onSave, saveBarrier,onDownload }: {
+  onDownload:()=>Promise<void>;
+  expediente:Expediente;
   visita: Visita;
   onConclude: () => Promise<void>;
   onEditReport: () => void;
   onGoChecklist?: () => void;
+  onSave: (record: Visita) => Promise<void>;
+  saveBarrier?: SaveBarrier;
 }) {
   const [groups, setGroups] = useState<CaptureGroup[]>([]);
   const [debug, setDebug] = useState<Record<string, GroupSyncDebug>>({});
@@ -57,29 +68,32 @@ export function VisitSummary({ visita, onConclude, onEditReport, onGoChecklist }
   const [forcing, setForcing] = useState(false);
   const [retrying, setRetrying] = useState<string | null>(null);
   const [pulling, setPulling] = useState(false);
-  const [pullProgress, setPullProgress] = useState<PullProgress | null>(null);
   const [lastPull, setLastPull] = useState<string | null>(null);
   const [finishing, setFinishing] = useState(false);
   const [confirming, setConfirming] = useState(false);
+  const [actionError,setActionError]=useState('');
 
   const checklistFields = visita.checklist_esquema_json.sections.flatMap(s => s.fields);
-  const checklistAnswered = checklistFields.filter(f => { const v = visita.checklist_respuestas_json[f.id]; return v !== undefined && v !== ''; }).length;
-  const checklistComplete = checklistFields.length > 0 && checklistAnswered === checklistFields.length;
+  // 9.3: solo los campos obligatorios impiden concluir; los opcionales vacíos no avisan.
+  const missingRequired = checklistFields.filter(f => {
+    const v = visita.checklist_respuestas_json[f.id];
+    return f.required && (v === undefined || v === null || v === '');
+  }).length;
+  const checklistComplete = missingRequired === 0;
 
-  const doConclude = () => { setConfirming(false); setFinishing(true); onConclude().finally(() => setFinishing(false)); };
+  const doConclude = () => { setConfirming(false); setFinishing(true);setActionError(''); void onConclude().catch(error=>setActionError(String(error))).finally(() => setFinishing(false)); };
   const requestConclude = () => { if (checklistComplete) doConclude(); else setConfirming(true); };
 
   const doPull = () => {
     if (!navigator.onLine || pulling) return;
     setPulling(true);
-    setPullProgress(null);
-    const reader = new SupabaseCaptureReader(supabase);
-    pullVisitaFromCloud(mediaOutbox, reader, visita.id, setPullProgress)
+    setActionError('');
+    onDownload()
       .then(() => {
         return getLastPull(visita.id).then(setLastPull).catch(console.error);
       })
-      .catch(console.error)
-      .finally(() => { setPulling(false); setPullProgress(null); });
+      .catch(error=>setActionError(`No se pudo descargar: ${String(error)}`))
+      .finally(() => { setPulling(false); });
   };
 
   useEffect(() => {
@@ -98,7 +112,7 @@ export function VisitSummary({ visita, onConclude, onEditReport, onGoChecklist }
         const map: Record<string, GroupSyncDebug> = {};
         for (const [id, d] of entries) if (d) map[id] = d;
         setDebug(map);
-      });
+      }).catch(error=>{if(!cancelled)setActionError(`No se pudieron leer los hallazgos locales: ${String(error)}`)});
     };
     fetchAll();
     // Event-driven refresh: the sync manager emits after every outbox change.
@@ -114,7 +128,6 @@ export function VisitSummary({ visita, onConclude, onEditReport, onGoChecklist }
     // Pull-on-open: hydrate from the cloud on first open (or leave to reload).
     getLastPull(visita.id).then(stamp => {
       setLastPull(stamp);
-      if (!stamp && navigator.onLine) void doPull();
     }).catch(console.error);
     return () => { cancelled = true; unsub(); unsubGroup(); window.removeEventListener('online', onNet); window.removeEventListener('offline', onNet); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -122,11 +135,11 @@ export function VisitSummary({ visita, onConclude, onEditReport, onGoChecklist }
 
   const forceSync = () => {
     setForcing(true);
-    triggerMediaSync().catch(console.error).finally(() => setForcing(false));
+    setActionError('');triggerMediaSync().catch(error=>setActionError(`No se pudieron subir los archivos: ${String(error)}`)).finally(() => setForcing(false));
   };
   const retryOne = (group: CaptureGroup) => {
     setRetrying(group.id);
-    retryGroup(mediaOutbox, group).catch(console.error).finally(() => setRetrying(null));
+    setActionError('');retryGroup(mediaOutbox, group).catch(error=>setActionError(`No se pudo reintentar el hallazgo: ${String(error)}`)).finally(() => setRetrying(null));
   };
 
   // Outbox totals across this visita (from debug rows, not polling).
@@ -142,6 +155,9 @@ export function VisitSummary({ visita, onConclude, onEditReport, onGoChecklist }
 
   return (
     <article className="summary-layout">
+      {actionError&&<p role="alert" className="alert error">{actionError}</p>}
+      <section className="card summary-section"><h2>Revisión de la visita</h2><VisitHeaderDetails expediente={expediente} visita={visita}/></section>
+      <section className="card summary-section"><h3>{visita.checklist_nombre}</h3><ChecklistForm schema={visita.checklist_esquema_json} answers={visita.checklist_respuestas_json} readonly/><button className="btn btn-secondary" onClick={onGoChecklist}>Corregir respuestas</button></section>
       <p className="eyebrow" style={{ marginBottom: 16 }}>HISTORIAL DE HALLAZGOS</p>
 
       {groups.length > 0 && (
@@ -155,10 +171,11 @@ export function VisitSummary({ visita, onConclude, onEditReport, onGoChecklist }
           {!online
             ? `Sin conexión · ${pendingSync} pendiente${pendingSync === 1 ? '' : 's'} de subida`
             : pendingSync > 0
-              ? `En línea · subiendo ${pendingSync}…`
-              : 'En línea · todo sincronizado'}
+              ? `Hallazgos locales pendientes de envío: ${pendingSync}`
+              : 'Hallazgos locales enviados · descarga y datos se comprueban por separado'}
         </div>
       )}
+      {pendingSync>0&&<button className="btn btn-secondary" disabled={forcing||!online} onClick={forceSync}>{forcing?'Reintentando envíos…':'Reintentar subida de fotografías y audios'}</button>}
 
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12, fontSize: 12, color: '#475569' }}>
         <span>Nube: {lastPull ? `actualizado ${timeAgo(lastPull)}` : 'nunca descargado en este dispositivo'}</span>
@@ -169,7 +186,7 @@ export function VisitSummary({ visita, onConclude, onEditReport, onGoChecklist }
           style={{ padding: '6px 12px', borderRadius: 8, border: '1px solid #cbd5e1', background: 'white', fontWeight: 700, fontSize: 12, color: '#0c4a6e' }}
         >
           {pulling
-            ? (pullProgress?.phase === 'binaries' ? `Descargando ${pullProgress.done}/${pullProgress.total}…` : 'Leyendo nube…')
+            ? 'Actualizando archivos…'
             : '↓ Actualizar desde la nube'}
         </button>
       </div>
@@ -270,6 +287,7 @@ export function VisitSummary({ visita, onConclude, onEditReport, onGoChecklist }
                   Traída de la nube (este dispositivo no la transcribe).
                 </p>
               )}
+              {debug[group.id]?.media.some(media=>media.status==='error')&&<div className="alert error"><p>Hay archivos de este hallazgo pendientes por un error de subida. Los originales locales se conservan.</p><button className="btn btn-secondary" disabled={!online||retrying===group.id} onClick={()=>retryOne(group)}>Reintentar este hallazgo</button></div>}
 
               {SHOW_SYNC_DEBUG && (
               <DebugGroup
@@ -284,6 +302,7 @@ export function VisitSummary({ visita, onConclude, onEditReport, onGoChecklist }
         </div>
       )}
 
+      <section className="summary-section"><h3>Conclusiones y firmantes</h3><ConclusionsCard visita={visita} onSave={onSave} saveBarrier={saveBarrier}/><VisitSigners visita={visita} onSave={onSave} saveBarrier={saveBarrier}/></section>
       {/* Cierre de campo → edición de informe */}
       <div className="card" style={{ padding: 20, marginTop: groups.length ? 20 : 0, marginBottom: 20 }}>
         {visita.estado === 'FINALIZADA' ? (
@@ -299,7 +318,7 @@ export function VisitSummary({ visita, onConclude, onEditReport, onGoChecklist }
             {confirming ? (
               <div style={{ padding: 16, borderRadius: 12, background: 'white', border: '1px solid var(--line)' }}>
                 <p style={{ margin: '0 0 4px 0', fontSize: 14, fontWeight: 800, color: 'var(--navy)' }}>Checklist sin terminar</p>
-                <p style={{ margin: '0 0 14px 0', fontSize: 13, color: 'var(--danger)' }}>Te falta concluir el checklist antes de cerrar la visita.</p>
+                <p style={{ margin: '0 0 14px 0', fontSize: 13, color: 'var(--danger)' }}>Te falta{missingRequired === 1 ? '' : 'n'} {missingRequired} campo{missingRequired === 1 ? '' : 's'} obligatorio{missingRequired === 1 ? '' : 's'} del checklist antes de cerrar la visita.</p>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                   <button className="btn btn-primary" onClick={() => { setConfirming(false); onGoChecklist?.(); }}>
                     Terminar checklist
@@ -322,19 +341,120 @@ export function VisitSummary({ visita, onConclude, onEditReport, onGoChecklist }
         )}
       </div>
 
-      {/* Placeholders */}
-      <div style={{ marginTop: 32 }}>
-        <p className="eyebrow" style={{ marginBottom: 16 }}>CONCLUSIONES Y CIERRE</p>
-        <div style={{ background: 'white', borderRadius: 16, padding: 20, border: '1px solid var(--line)', marginBottom: 20 }}>
-          <h3 style={{ margin: '0 0 12px 0', fontSize: 15, color: 'var(--navy)' }}>Conclusiones</h3>
-          <p style={{ margin: 0, fontSize: 14, color: '#81909d' }}>Las conclusiones globales se redactarán en la próxima fase del MVP.</p>
-        </div>
-        <div style={{ background: 'white', borderRadius: 16, padding: 20, border: '1px solid var(--line)' }}>
-          <h3 style={{ margin: '0 0 12px 0', fontSize: 15, color: 'var(--navy)' }}>Firmantes y Adjuntos</h3>
-          <p style={{ margin: 0, fontSize: 14, color: '#81909d' }}>El panel para firmas y adjuntos estará disponible en futuras actualizaciones.</p>
-        </div>
-      </div>
     </article>
+  );
+}
+
+// ── Conclusiones (sección 6): edición directa + dictado por voz ───────────────
+// Comparte el bloque 'conclusions' del documento del informe con el editor:
+// escribir aquí o en el editor actualiza la misma fuente y el PDF la recoge.
+function ConclusionsCard({ visita, onSave, saveBarrier }: {
+  visita: Visita;
+  onSave: (record: Visita) => Promise<void>;
+  saveBarrier?: SaveBarrier;
+}) {
+  const [text, setText] = useState('');
+  const [saveStatus, setSaveStatus] = useState<SaveStatus>('saved');
+  const currentVisit = useRef(visita);
+  currentVisit.current = visita;
+  const savedText = useRef('');
+  const textRef = useRef('');
+  const dirty = useRef(false);
+  const blockId = useRef<string | null>(null);
+  const persist = useRef(onSave);
+  persist.current = onSave;
+
+  const conclusionsOf = (json: Record<string, unknown>): string => {
+    const doc = parseReportDocument(json);
+    const block = doc?.blocks.find(b => b.type === 'conclusions');
+    if (doc && block && block.type === 'conclusions') blockId.current = block.id;
+    return block && block.type === 'conclusions' ? block.content : '';
+  };
+
+  // Carga inicial por visita: el documento del prop manda una sola vez.
+  useEffect(() => {
+    const content = conclusionsOf(visita.documento_json);
+    savedText.current = content;
+    textRef.current = content;
+    setText(content);
+  }, [visita.id]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Re-sincronización solo cuando llega un documento nuevo del workspace
+  // (propio guardado o edición desde el editor del informe), y únicamente si
+  // no hay escritura en vuelo: nunca borrar lo que el usuario está tecleando.
+  useEffect(() => {
+    if (dirty.current) return;
+    const content = conclusionsOf(visita.documento_json);
+    if (content === textRef.current) return;
+    savedText.current = content;
+    textRef.current = content;
+    setSaveStatus('saved');
+    setText(content);
+  }, [visita.documento_json]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const writer = useMemo(() => new SerialAutosave<string>(async next => {
+    if (next === savedText.current) return;
+    // Si la visita nunca abrió el editor, el documento no existe todavía:
+    // se crea la estructura mínima. Los hallazgos que queden fuera los ofrece
+    // el editor («Hallazgos fuera del informe»), así que no se pierde nada.
+    const doc = await visitDocument(currentVisit.current);
+    const block = doc.blocks.find(b => b.type === 'conclusions');
+    if (!block || block.type !== 'conclusions') throw new Error('El informe no tiene bloque de conclusiones');
+    blockId.current = block.id;
+    await persist.current({
+      ...currentVisit.current,
+      documento_json: setTextContent(doc, block.id, next) as unknown as Record<string, unknown>,
+      updated_at: new Date().toISOString(),
+    });
+    savedText.current = next;
+    // El valor persistido manda solo si el usuario no siguió escribiendo.
+    if (next === textRef.current) dirty.current = false;
+  }, setSaveStatus), [visita.id]);
+
+  useEffect(() => saveBarrier?.register(() => writer.flush()), [saveBarrier, writer]);
+
+  // Dictado por voz: los fragmentos finales se añaden al texto; el resultado
+  // queda en el mismo textarea para revisarlo y corregirlo antes de guardar.
+  const dictation = useDictation(chunk => {
+    const base = textRef.current;
+    const next = base && !/\s$/.test(base) ? `${base} ${chunk}` : base + chunk;
+    textRef.current = next;
+    dirty.current = true;
+    setText(next);
+    void writer.save(next);
+  });
+
+  const native = Capacitor.isNativePlatform();
+  const statusLabel = saveStatus === 'saving' ? 'Guardando…' : saveStatus === 'error' ? 'No se pudo guardar' : 'Guardado en este dispositivo';
+  return (
+    <div style={{ background: 'white', borderRadius: 16, padding: 20, border: '1px solid var(--line)', marginBottom: 20 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12, gap: 8, flexWrap: 'wrap' }}>
+        {/* El dictado nativo (Whisper) llegará después: por ahora solo web. */}
+        <h3 style={{ margin: 0, fontSize: 15, color: 'var(--navy)' }}>Conclusiones</h3>
+        <button
+          className="btn btn-secondary"
+          disabled={native}
+          onClick={() => (dictation.state === 'listening' ? dictation.stop() : dictation.start())}
+        >
+          {dictation.state === 'listening' ? '■ Detener dictado' : '🎙 Dictar'}
+        </button>
+      </div>
+      <textarea
+        rows={5}
+        style={{ width: '100%' }}
+        value={text}
+        placeholder="Escribe o dicta las conclusiones globales de la visita…"
+        onChange={e => { textRef.current = e.target.value; dirty.current = true; setText(e.target.value); void writer.save(e.target.value); }}
+      />
+      <p role="status" style={{ margin: '8px 0 0 0', fontSize: 12, color: '#65758b' }}>
+        {dictation.state === 'listening' && 'Escuchando… toca «Detener dictado» al terminar. '}
+        {native && 'El dictado por voz estará disponible en la app más adelante; por ahora puedes escribirlo. '}
+        {dictation.state === 'unsupported' && 'El dictado por voz no está disponible aquí; escribe el texto. '}
+        {dictation.error && `${dictation.error} `}
+        {statusLabel} · se comparte con el editor del informe.
+      </p>
+      {saveStatus==='error'&&<button className="btn btn-secondary" onClick={()=>void writer.retry()}>Reintentar conclusiones</button>}
+    </div>
   );
 }
 

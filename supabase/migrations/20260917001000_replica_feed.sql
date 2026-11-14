@@ -11,20 +11,26 @@ create table sync_internal.replica_events (
 alter table sync_internal.replica_events enable row level security;
 create function sync_internal.capture_workspace_change() returns trigger
 language plpgsql security definer set search_path='' as $$
-declare value jsonb; owner_id uuid; revision_id bigint;
+declare value jsonb; owner_id uuid; revision_id bigint; entity_name text;
 begin
   if TG_OP='DELETE' then value:=to_jsonb(old); else value:=to_jsonb(new); end if;
+  -- El feed usa el nombre de entidad del protocolo (plantilla), no el de la tabla.
+  entity_name:=case TG_TABLE_NAME when 'plantilla_checklist' then 'plantilla' else TG_TABLE_NAME end;
   if TG_TABLE_NAME='expediente' then owner_id:=(value->>'profesional_id')::uuid;
+  elsif TG_TABLE_NAME='plantilla_checklist' then owner_id:=(value->>'profesional_id')::uuid;
   else select profesional_id into owner_id from public.expediente where id=(value->>'expediente_id')::uuid; end if;
   if owner_id is not null then
     insert into sync_internal.owner_cursor(owner) values(owner_id) on conflict do nothing;
     update sync_internal.owner_cursor set revision=revision+1 where owner=owner_id returning revision into revision_id;
-    insert into sync_internal.replica_events values(owner_id,revision_id,TG_TABLE_NAME,(value->>'id')::uuid,TG_OP='DELETE',value);
+    insert into sync_internal.replica_events values(owner_id,revision_id,entity_name,(value->>'id')::uuid,TG_OP='DELETE',value);
   end if;
   if TG_OP='DELETE' then return old; else return new; end if;
 end $$;
 create trigger replica_case after insert or update or delete on public.expediente for each row execute function sync_internal.capture_workspace_change();
 create trigger replica_visit after insert or update or delete on public.visita for each row execute function sync_internal.capture_workspace_change();
+-- Plantillas propias viajan por la misma réplica; las de plataforma (profesional_id
+-- nulo) se omiten y se leen directas de la tabla.
+create trigger replica_plantilla after insert or update or delete on public.plantilla_checklist for each row execute function sync_internal.capture_workspace_change();
 create function public.sync_replica_head_v1() returns bigint language sql stable security definer set search_path='' as $$
   select coalesce((select revision from sync_internal.owner_cursor where owner=auth.uid()),0)
 $$;
