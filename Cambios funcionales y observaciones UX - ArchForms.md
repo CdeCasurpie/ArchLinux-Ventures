@@ -40,6 +40,18 @@ gestor completos, manteniendo el nombre visible «Checklist». Ver detalles y li
 
 ### Ajustes de revisión 2026-11-13 — orden, resumen, firmas y Android
 
+**Corrección nativa de transcripción:** el fallo «`…ggml-tiny-q5_1.bin.bin is not in
+the app assets`» provenía de `capacitor-whisper` 0.2.1, que interpretaba la ruta de los
+pesos descargados como el nombre de un asset. El parche versionado
+`patches/capacitor-whisper+0.2.1.patch` abre primero los archivos absolutos/URI `file:`
+y conserva la búsqueda en assets para modelos por nombre. Se aplica al instalar
+dependencias. Los hallazgos que quedaron con ese error específico se reencolan al
+arrancar; otros fallos locales ofrecen «Reintentar transcripción» y el detalle técnico
+se consulta en un desplegable. Se mantiene la comprobación rápida de pesos en cada
+intento y su descarga si faltan. Validación: 151 pruebas de cliente, TypeScript/build
+y 4 pruebas JVM del resolver nativo correctos. El arreglo requiere actualizar la APK;
+la comprobación de inferencia en un teléfono queda pendiente de conectar el dispositivo.
+
 **Limpieza del resumen móvil (2026-11-13):** dentro de la pantalla de visita se
 oculta en móvil la barra superior global completa (flecha, título, sincronización y
 avatar). Se retiró el aviso de hallazgos locales enviados/pendientes y el título

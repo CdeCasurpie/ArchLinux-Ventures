@@ -25,7 +25,7 @@ export async function getCachedWhisperModel(): Promise<string | null> {
       directory: Directory.Data,
     });
     if (stat.size < MIN_BYTES) return null; // modelo truncado: tratar como ausente
-    // Remove file:// prefix for the plugin if needed, though plugin handles it
+    // Ruta absoluta: el parche Android abre el archivo descargado directamente.
     return stat.uri.replace('file://', '') || null;
   } catch {
     return null;

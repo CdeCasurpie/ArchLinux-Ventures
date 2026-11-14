@@ -15,6 +15,7 @@ import {VisitHeaderDetails} from './VisitHeader';
 import {ChecklistForm} from './checklist';
 import type {Expediente} from '@archforms/domain';
 import {visitDocument} from './visit-document';
+import {transcriptionService} from './transcription-service';
 import {orderObservations} from './observation-order';
 
 // Pasa a true para mostrar el panel de diagnóstico de sync en el Resumen.
@@ -265,9 +266,11 @@ export function VisitSummary({ visita,expediente, onConclude, onEditReport, onGo
                 </p>
               )}
               {failed && (
-                <p style={{ margin: '12px 0 0 0', fontSize: 12, color: '#c9415d' }}>
-                  No se pudo transcribir{group.transcripcionError ? `: ${group.transcripcionError}` : '.'}
-                </p>
+                <div className="transcription-error">
+                  <p>No se pudo transcribir esta nota de voz.</p>
+                  {Capacitor.isNativePlatform()&&<button type="button" onClick={()=>transcriptionService.enqueue(group.id)}>Reintentar transcripción</button>}
+                  {group.transcripcionError&&<details><summary>Ver detalle del error</summary><p>{group.transcripcionError}</p></details>}
+                </div>
               )}
               {remoteNoText && (
                 <p style={{ margin: '12px 0 0 0', fontSize: 12, color: '#81909d' }}>

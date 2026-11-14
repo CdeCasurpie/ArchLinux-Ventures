@@ -1,0 +1,124 @@
+diff --git a/node_modules/capacitor-whisper/android/src/main/java/com/olaysco/capacitorwhisper/WhisperEngine.java b/node_modules/capacitor-whisper/android/src/main/java/com/olaysco/capacitorwhisper/WhisperEngine.java
+index ac35297..469a381 100644
+--- a/node_modules/capacitor-whisper/android/src/main/java/com/olaysco/capacitorwhisper/WhisperEngine.java
++++ b/node_modules/capacitor-whisper/android/src/main/java/com/olaysco/capacitorwhisper/WhisperEngine.java
+@@ -32,6 +32,7 @@ final class WhisperEngine {
+ 
+     private long context;
+     private String loadedModel = "";
++    private String loadedModelPath = "";
+ 
+     boolean isLoaded() {
+         return context != 0;
+@@ -45,11 +46,15 @@ final class WhisperEngine {
+      * Loads the named model, or the only bundled .bin when no name is given.
+      */
+     synchronized String load(Context androidContext, String name) throws IOException {
+-        if (context != 0) {
++        File model = WhisperModelFile.downloaded(name);
++        if (model == null) {
++            String assetPath = findAsset(androidContext.getAssets(), name);
++            model = copyToFiles(androidContext, assetPath);
++        }
++        if (context != 0 && model.getAbsolutePath().equals(loadedModelPath)) {
+             return loadedModel;
+         }
+-        String assetPath = findAsset(androidContext.getAssets(), name);
+-        File model = copyToFiles(androidContext, assetPath);
++        release();
+ 
+         long ptr = WhisperNative.nativeInit(model.getAbsolutePath());
+         if (ptr == 0) {
+@@ -57,6 +62,7 @@ final class WhisperEngine {
+         }
+         context = ptr;
+         loadedModel = stripExtension(model.getName());
++        loadedModelPath = model.getAbsolutePath();
+         return loadedModel;
+     }
+ 
+@@ -102,6 +108,7 @@ final class WhisperEngine {
+             WhisperNative.nativeFree(context);
+             context = 0;
+             loadedModel = "";
++            loadedModelPath = "";
+         }
+     }
+ 
+diff --git a/node_modules/capacitor-whisper/android/src/main/java/com/olaysco/capacitorwhisper/WhisperModelFile.java b/node_modules/capacitor-whisper/android/src/main/java/com/olaysco/capacitorwhisper/WhisperModelFile.java
+new file mode 100644
+index 0000000..96689b0
+--- /dev/null
++++ b/node_modules/capacitor-whisper/android/src/main/java/com/olaysco/capacitorwhisper/WhisperModelFile.java
+@@ -0,0 +1,26 @@
++package com.olaysco.capacitorwhisper;
++
++import java.io.File;
++import java.io.IOException;
++import java.net.URI;
++
++/** Resolve downloaded checkpoints before attempting bundled asset lookup. */
++final class WhisperModelFile {
++    private WhisperModelFile() {}
++
++    static File downloaded(String model) throws IOException {
++        if (model == null || model.isEmpty()) return null;
++        final File file;
++        try {
++            file = model.startsWith("file:") ? new File(URI.create(model)) : new File(model);
++        } catch (IllegalArgumentException error) {
++            throw new IOException("Invalid model file URI", error);
++        }
++        // Bare model names keep the plugin's existing bundled-assets behavior.
++        if (!file.isAbsolute()) return null;
++        if (!file.isFile() || !file.canRead() || file.length() == 0) {
++            throw new IOException("Downloaded model is missing, empty or unreadable: " + file);
++        }
++        return file;
++    }
++}
+diff --git a/node_modules/capacitor-whisper/android/src/test/java/com/olaysco/capacitorwhisper/WhisperModelFileTest.java b/node_modules/capacitor-whisper/android/src/test/java/com/olaysco/capacitorwhisper/WhisperModelFileTest.java
+new file mode 100644
+index 0000000..55aeecf
+--- /dev/null
++++ b/node_modules/capacitor-whisper/android/src/test/java/com/olaysco/capacitorwhisper/WhisperModelFileTest.java
+@@ -0,0 +1,39 @@
++package com.olaysco.capacitorwhisper;
++
++import java.io.File;
++import java.io.IOException;
++import java.nio.file.Files;
++import org.junit.Rule;
++import org.junit.Test;
++import org.junit.rules.TemporaryFolder;
++import static org.junit.Assert.*;
++
++public class WhisperModelFileTest {
++    @Rule public TemporaryFolder temporary = new TemporaryFolder();
++
++    @Test public void opensDownloadedAbsolutePathWithoutLookingInAssets() throws Exception {
++        File model = temporary.newFile("ggml-tiny-q5_1.bin");
++        Files.write(model.toPath(), new byte[]{1, 2, 3});
++        assertEquals(model, WhisperModelFile.downloaded(model.getAbsolutePath()));
++        assertEquals(model, WhisperModelFile.downloaded(model.toURI().toString()));
++    }
++
++    @Test public void namedModelsStillUseBundledAssets() throws Exception {
++        assertNull(WhisperModelFile.downloaded("ggml-tiny-q5_1"));
++        assertNull(WhisperModelFile.downloaded(null));
++    }
++
++    @Test public void deletedDownloadedModelDoesNotFallBackToAssets() throws Exception {
++        File model = temporary.newFile("ggml-tiny-q5_1.bin");
++        Files.write(model.toPath(), new byte[]{1});
++        assertNotNull(WhisperModelFile.downloaded(model.getAbsolutePath()));
++        assertTrue(model.delete());
++        assertThrows(IOException.class, () -> WhisperModelFile.downloaded(model.getAbsolutePath()));
++    }
++
++    @Test public void rejectsEmptyFilesAndDirectories() throws Exception {
++        File empty = temporary.newFile("empty.bin");
++        assertThrows(IOException.class, () -> WhisperModelFile.downloaded(empty.getAbsolutePath()));
++        assertThrows(IOException.class, () -> WhisperModelFile.downloaded(temporary.getRoot().getAbsolutePath()));
++    }
++}

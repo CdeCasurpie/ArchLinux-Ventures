@@ -171,4 +171,14 @@ describe('transcription-service', () => {
     await flush(100);
     expect(whisper.calls).toBe(1);
   });
+
+  it('recupera el fallo de búsqueda en assets de los pesos descargados al actualizar la app', async () => {
+    store.groups.set('g-legacy',g('g-legacy',{transcripcionStatus:'error',transcripcionError:'/data/user/0/com.archventures.archforms/files/ggml-tiny-q5_1.bin.bin is not in the app assets. Put it under public/models and re-run `npx cap sync`.'}));
+    store.groups.set('g-other',g('g-other',{transcripcionStatus:'error',transcripcionError:'decode fail'}));
+    whisper.texts.set('/audio/g-legacy.wav','Hallazgo recuperado');
+    await transcriptionService.recover();
+    await flush(100);
+    expect(store.updated).toEqual([['g-legacy','Hallazgo recuperado']]);
+    expect(store.notified).toEqual(['g-legacy']);
+  });
 });

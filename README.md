@@ -41,6 +41,19 @@ npm ci
 cp apps/client/.env.example apps/client/.env.local
 ```
 
+`postinstall` aplica `patches/capacitor-whisper+0.2.1.patch`. Este parche permite que
+Android abra los pesos descargados por ruta absoluta o URI `file:`, en lugar de
+buscarlos como recursos empaquetados. Debe conservarse al actualizar dependencias;
+`patch-package --error-on-fail` detiene la instalación si deja de ser compatible.
+Después de cambiar el parche es necesario recompilar y actualizar la APK.
+
+Prueba nativa de resolución de pesos (Java 21 y Android SDK configurados):
+
+```bash
+cd apps/client/android
+./gradlew :capacitor-whisper:testDebugUnitTest --tests com.olaysco.capacitorwhisper.WhisperModelFileTest
+```
+
 ### 3. Levantar el Backend Local (Supabase)
 ```bash
 npx supabase start

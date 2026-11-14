@@ -52,11 +52,12 @@ export const transcriptionService = {
       .catch(e => console.error('transcription', e))
       .finally(() => active.delete(groupId));
   },
-  /** Al arrancar: reencola lo que quedó sin transcribir (incluye estados transitorios legacy). */
+  /** Recupera pendientes y el fallo de rutas descargadas del plugin anterior. */
   async recover() {
     for (const g of await loadAllGroups()) {
       const s = g.transcripcionStatus;
-      if (g.transcripcion || s === 'remote' || s === 'done' || s === 'error') continue;
+      const legacyModelError=s==='error'&&g.transcripcionError?.includes('is not in the app assets');
+      if (g.transcripcion || s === 'remote' || s === 'done' || (s === 'error'&&!legacyModelError)) continue;
       this.enqueue(g.id);
     }
   },

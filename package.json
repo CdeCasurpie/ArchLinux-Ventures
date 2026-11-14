@@ -7,6 +7,7 @@
     "packages/*"
   ],
   "scripts": {
+    "postinstall": "patch-package --error-on-fail",
     "supabase": "supabase",
     "dev": "npm run dev -w @archforms/client",
     "dev:local": "node scripts/client-local.mjs dev",
@@ -29,6 +30,7 @@
     "@vitejs/plugin-react": "^6.1.1",
     "fake-indexeddb": "^6.2.5",
     "oxlint": "^1.83.0",
+    "patch-package": "^8.0.1",
     "supabase": "^2.117.0",
     "typescript": "^7.0.2",
     "vite": "^8.3.0",
