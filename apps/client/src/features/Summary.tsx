@@ -74,6 +74,7 @@ export function VisitSummary({ visita,expediente, onConclude, onEditReport, onGo
   const [finishing, setFinishing] = useState(false);
   const [confirming, setConfirming] = useState(false);
   const [actionError,setActionError]=useState('');
+  const [transferError,setTransferError]=useState('');
 
   const checklistFields = visita.checklist_esquema_json.sections.flatMap(s => s.fields);
   // 9.3: solo los campos obligatorios impiden concluir; los opcionales vacíos no avisan.
@@ -94,7 +95,7 @@ export function VisitSummary({ visita,expediente, onConclude, onEditReport, onGo
       .then(() => {
         return getLastPull(visita.id).then(setLastPull).catch(console.error);
       })
-      .catch(error=>setActionError(`No se pudo descargar: ${String(error)}`))
+      .catch(error=>{setTransferError(String(error));setActionError('No se pudieron descargar los archivos. Puedes reintentar la descarga.')})
       .finally(() => { setPulling(false); });
   };
 
@@ -137,11 +138,11 @@ export function VisitSummary({ visita,expediente, onConclude, onEditReport, onGo
 
   const forceSync = () => {
     setForcing(true);
-    setActionError('');triggerMediaSync().catch(error=>setActionError(`No se pudieron subir los archivos: ${String(error)}`)).finally(() => setForcing(false));
+    setActionError('');triggerMediaSync().catch(error=>{setTransferError(String(error));setActionError('No se pudieron subir los archivos. Los originales locales se conservan.')}).finally(() => setForcing(false));
   };
   const retryOne = (group: CaptureGroup) => {
     setRetrying(group.id);
-    setActionError('');retryGroup(mediaOutbox, group).catch(error=>setActionError(`No se pudo reintentar el hallazgo: ${String(error)}`)).finally(() => setRetrying(null));
+    setActionError('');retryGroup(mediaOutbox, group).catch(error=>{setTransferError(String(error));setActionError('El hallazgo sigue pendiente de subir. Puedes reintentarlo.')}).finally(() => setRetrying(null));
   };
 
   // Outbox totals across this visita (from debug rows, not polling).
@@ -158,8 +159,9 @@ export function VisitSummary({ visita,expediente, onConclude, onEditReport, onGo
   return (
     <article className="summary-layout">
       {actionError&&<p role="alert" className="alert error">{actionError}</p>}
-      <section className="card summary-section"><h2>Revisión de la visita</h2><VisitHeaderDetails expediente={expediente} visita={visita}/></section>
-      <section className="card summary-section"><h3>{visita.checklist_nombre}</h3><ChecklistForm schema={visita.checklist_esquema_json} answers={visita.checklist_respuestas_json} readonly/><button className="btn btn-secondary" onClick={onGoChecklist}>Corregir respuestas</button></section>
+      <span hidden>{transferError}</span>
+      <details className="card summary-section summary-disclosure"><summary><div><span className="eyebrow">CABECERA</span><h2>Revisión de la visita</h2></div><svg className="summary-chevron" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg></summary><div className="summary-disclosure-body"><VisitHeaderDetails expediente={expediente} visita={visita}/></div></details>
+      <details className="card summary-section summary-disclosure"><summary><div><span className="eyebrow">CHECKLIST</span><h3>{visita.checklist_nombre}</h3></div><svg className="summary-chevron" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg></summary><div className="summary-disclosure-body"><ChecklistForm schema={visita.checklist_esquema_json} answers={visita.checklist_respuestas_json} readonly/><button className="btn btn-secondary" onClick={onGoChecklist}>Corregir respuestas</button></div></details>
       <p className="eyebrow" style={{ marginBottom: 16 }}>HISTORIAL DE HALLAZGOS</p>
 
       {groups.length > 0 && (

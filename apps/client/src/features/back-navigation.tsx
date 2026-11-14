@@ -21,8 +21,8 @@ export function useBackAction(action:BackAction,enabled=true){
 
 export function BackButton({onBack}:{onBack:BackAction}){
  const actions=useContext(BackContext);
- return <button type="button" className="btn btn-secondary navigation-back" onClick={()=>{
+ return <button type="button" className="navigation-back" aria-label="Volver" title="Volver" onClick={()=>{
   const action=actions&&[...actions.values()].at(-1);
   void (action??onBack)();
- }}>← Volver</button>;
+ }}><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="m10 5-7 7 7 7M3 12h18"/></svg></button>;
 }

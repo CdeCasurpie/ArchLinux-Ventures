@@ -273,18 +273,20 @@ function Workspace({session}:{session:Session}){
  }
  const title={dashboard:'Inicio',expedientes:'Expedientes',crear:'Nuevo expediente',detalle:selected?.nro_expediente??'Expediente',visita:visit?`Visita ${String(visit.nro_visita).padStart(2,'0')}`:'Visita',informe:visit?`Informe V${String(visit.nro_visita).padStart(2,'0')}`:'Informe',plantillas:'Plantillas de checklist',perfil:'Mi perfil'}[view];
   const counts={cases:data.expedientes.filter(item=>item.activo).length,drafts:data.visitas.filter(item=>item.estado==='BORRADOR').length};
+  const syncProps={online,running:syncing,pending:data.pending.length+(profile.pending?1:0),error:syncError,onRetry:()=>void retrySync()};
   if(!hydrated)return <main className="auth simple">{error?<><p role="alert">No se pudieron abrir los datos locales: {error}</p><button className="btn btn-secondary" onClick={()=>void refresh().catch(error=>setError(msg(error)))}>Reintentar apertura</button></>:<p role="status">Abriendo datos del dispositivo…</p>}</main>;
  return <BackNavigation><div className="app-shell"><aside className="sidebar">
   <button className="brand-button" onClick={()=>navigate('dashboard')}><Brand/></button>
   <nav className="sidebar-nav"><Nav active={view==='dashboard'} icon="⌂" onClick={()=>navigate('dashboard')}>Inicio</Nav><Nav active={['expedientes','crear','detalle'].includes(view)} icon="▤" count={counts.cases} onClick={()=>navigate('expedientes')}>Expedientes</Nav><Nav active={view==='plantillas'} icon="✓" onClick={()=>navigate('plantillas')}>Plantillas</Nav></nav>
-  <div className="sidebar-spacer"/><button className="sync-card" onClick={()=>void retrySync()} disabled={syncing}><span className="sync-icon">{data.pending.length?'↻':'✓'}</span><span><strong>{syncing?'Sincronizando…':data.pending.length?`${data.pending.length} cambios pendientes`:'Datos actualizados'}</strong><small>{online?'Sincronizar datos':'Sin conexión · reintentar'}</small></span></button>
+  <div className="sidebar-spacer"/><div className="sidebar-sync"><SyncStatus {...syncProps}/></div>
   <button className="profile-card" onClick={()=>navigate('perfil')}><span className="avatar">{initials(profile.profile?.nombre_completo)}</span><span><strong>{profile.profile?.nombre_completo||'Profesional'}</strong><small>{profile.profile?.cargo||session.user.email}</small></span><b>•••</b></button>
  </aside><section className="app-area">
-  {view!=='visita'&&<header className="topbar"><button className="mobile-brand-button" onClick={()=>navigate('dashboard')}><Brand mobile/></button><div className="breadcrumbs">Mi espacio <i>›</i> <b>{title}</b></div><div className="topbar-actions"><span className={`connection ${online?'':'offline'}`}>● {online?'Con conexión':'Sin conexión'}</span><button className="top-avatar" onClick={()=>navigate('perfil')}>{initials(profile.profile?.nombre_completo)}</button></div></header>}
+  <header className="topbar"><div className="topbar-location">
+   {view!=='dashboard'?<><BackButton onBack={goBack}/><span className="mobile-page-title">{title}</span></>:<button className="mobile-brand-button" onClick={()=>navigate('dashboard')}><Brand mobile/></button>}
+   <div className="breadcrumbs">Mi espacio <i>›</i> <b>{title}</b></div>
+  </div><div className="topbar-actions"><div className="mobile-sync"><SyncStatus {...syncProps}/></div><button className="top-avatar" onClick={()=>navigate('perfil')}>{initials(profile.profile?.nombre_completo)}</button></div></header>
   <main className="main-content">
-   {view!=='dashboard'&&<BackButton onBack={goBack}/>}
    {visit&&['visita','informe'].includes(view)&&<VisitDownload key={`download-${visit.id}`} visitaId={visit.id} queue={downloadService}/>}
-    <SyncStatus online={online} running={syncing} pending={data.pending.length+(profile.pending?1:0)} error={syncError} onRetry={()=>void retrySync()}/>
     <div hidden className="sync-error-details">{syncError}</div>
    {error&&<div className="alert error">{error}</div>}
    {view==='dashboard'&&<Dashboard data={data} profile={profile} onNavigate={navigate} onOpen={id=>navigate('detalle',id)}/>}

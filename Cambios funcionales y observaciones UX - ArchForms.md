@@ -40,6 +40,30 @@ gestor completos, manteniendo el nombre visible «Checklist». Ver detalles y li
 
 ### Ajustes de revisión 2026-11-13 — orden, resumen, firmas y Android
 
+**Tercera revisión de interfaz y transcripción (2026-11-13):**
+
+- Antes de cada intento de transcripción se consulta la existencia y el tamaño de
+  los pesos con `Filesystem.stat`. Se eliminó el atajo que confiaba en una ruta en
+  memoria tras el primer uso. Si se borraron o truncaron, se descargan de nuevo con
+  el flujo `.part` y validación existentes; sin conexión se espera a recuperarla.
+- El regreso es ahora únicamente una flecha discreta en la esquina izquierda del
+  encabezado, con etiqueta accesible «Volver», sin botón adicional dentro del contenido.
+- La sincronización se presenta en la sidebar de escritorio y como una cápsula pequeña
+  en el encabezado móvil. Se retira el panel global del contenido, incluido su fondo
+  rojo. El detalle técnico sigue en un nodo `hidden`; las descargas fallidas muestran
+  un aviso breve con reintento y conservan su diagnóstico oculto.
+- La cabecera y el checklist del resumen son desplegables, cerrados por defecto;
+  pulsar su encabezado permite consultarlos. El informe/PDF conserva todo su contenido.
+- Cada firmante conserva los controles y vista de firma, pero ya no tiene borde ni
+  caja exterior delimitadora; se separan por espacio.
+- Se elimina el mensaje permanente «Fotografías y audios comprobados en este
+  dispositivo…». Se conserva el progreso de descargas/comprobaciones en curso.
+
+Validación: 150 pruebas unitarias correctas, TypeScript y build correctos. Las pruebas
+de regresión verifican la recuperación de pesos borrados/truncados tras un uso previo.
+Los E2E comprueban error remoto oculto, estado en sidebar/móvil, regreso con flecha,
+secciones cerradas que se pueden abrir y firmantes sin borde.
+
 **Segunda revisión de interfaz (2026-11-13):** se unificó la navegación de regreso en
 un único botón «Volver». Se retiraron las flechas duplicadas de visita/informe,
 «Abrir visita», el retorno adicional de la biblioteca y los botones de cancelación

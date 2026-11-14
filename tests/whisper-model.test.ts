@@ -70,6 +70,24 @@ describe('whisper-service Fase 4', () => {
     expect(await w.getCachedWhisperModel()).toBeNull();
   });
 
+  it('si se borran los pesos después de usarlos, comprueba el disco y los descarga de nuevo', async () => {
+    const w=await freshWhisper();
+    await w.ensureWhisperModel();
+    mocks.files.delete('DATA|ggml-tiny-q5_1.bin');
+    expect(await w.getCachedWhisperModel()).toBeNull();
+    expect((await w.ensureWhisperModel()).cached).toBe(false);
+    expect(mocks.downloads).toBe(2);
+  });
+
+  it('detecta pesos truncados después de un acierto previo y los recupera', async () => {
+    const w=await freshWhisper();
+    await w.ensureWhisperModel();
+    mocks.files.set('DATA|ggml-tiny-q5_1.bin',{uri:'file:///mock/ggml-tiny-q5_1.bin',size:1000});
+    expect((await w.ensureWhisperModel()).cached).toBe(false);
+    expect(mocks.files.get('DATA|ggml-tiny-q5_1.bin')?.size).toBe(31_000_000);
+    expect(mocks.downloads).toBe(2);
+  });
+
   it('ausente devuelve null', async () => {
     const w = await freshWhisper();
     expect(await w.getCachedWhisperModel()).toBeNull();

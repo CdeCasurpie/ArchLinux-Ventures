@@ -29,7 +29,7 @@ test('browser saves offline, reconnects and another browser reads server values'
     await context.setOffline(true);
     await page.locator('.check-item input').fill('Guardado offline desde Chromium');
     await expect(page.getByText('Guardado en este dispositivo',{exact:true}).first()).toBeVisible();
-    await expect(page.getByText('Modo offline',{exact:true})).toBeVisible();
+    await expect(page.getByRole('button',{name:'Sincronización: Sin conexión',exact:true})).toBeVisible();
     expect((await client.from('visita').select('checklist_respuestas_json').eq('id',visitId).single()).data?.checklist_respuestas_json).toEqual({});
     await context.setOffline(false);
     await expect.poll(async()=>(await client.from('visita').select('checklist_respuestas_json').eq('id',visitId).single()).data?.checklist_respuestas_json.note,{timeout:15000}).toBe('Guardado offline desde Chromium');

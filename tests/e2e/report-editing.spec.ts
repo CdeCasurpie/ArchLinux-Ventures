@@ -17,7 +17,21 @@ test('informe: respuestas, campos, firma y conclusiones offline; retorno conserv
   await page.locator('button.project-card').filter({hasText:label}).click();await page.getByRole('button',{name:'Abrir',exact:true}).click();
   await page.getByRole('button',{name:/3 Resumen/}).click();await page.getByRole('button',{name:/Concluir visita/}).click();
   await expect(page.getByRole('button',{name:'Generar PDF',exact:true})).toBeVisible();
-  await expect(page.getByRole('button',{name:'← Volver',exact:true})).toHaveCount(1);
+  await expect(page.getByRole('button',{name:'Volver',exact:true})).toHaveCount(1);
+  await expect(page.getByRole('button',{name:'Volver',exact:true})).toHaveText('');
+  await expect(page.locator('main .sync-indicator')).toHaveCount(0);
+  await expect(page.getByText('Fotografías y audios comprobados en este dispositivo. El PDF se genera aparte.',{exact:true})).toHaveCount(0);
+  await expect(page.locator('.sidebar-sync .sync-indicator')).toBeVisible();
+  const replicaRoute='**/rest/v1/rpc/sync_replica_pull_v1';
+  await page.route(replicaRoute,route=>route.fulfill({status:500,contentType:'application/json',body:JSON.stringify({message:'Error técnico de sincronización '.repeat(150)})}));
+  await expect(page.locator('.sidebar-sync .sync-indicator')).toBeEnabled();
+  await page.locator('.sidebar-sync .sync-indicator').click();
+  await expect(page.locator('.sync-error-details')).not.toHaveText('');
+  await expect(page.locator('.sync-error-details')).not.toBeVisible();
+  await expect(page.locator('main > .alert.error')).toHaveCount(0);
+  await page.unroute(replicaRoute);
+  await page.locator('.sidebar-sync .sync-indicator').click();
+  await expect(page.locator('.sync-error-details')).toHaveText('');
   await expect(page.locator('.back-button')).toHaveCount(0);
   await context.setOffline(true);
   await page.locator('.check-item input').fill('Respuesta offline');
@@ -42,9 +56,22 @@ test('informe: respuestas, campos, firma y conclusiones offline; retorno conserv
   const line=await page.locator('.signature-line').boundingBox();
   expect(signature!.y+signature!.height).toBeLessThanOrEqual(line!.y);
   await expect(page.getByText('Informe guardado en este dispositivo · se sincroniza al tener conexión',{exact:true})).toBeVisible();
-  await page.getByRole('button',{name:'← Volver',exact:true}).click();
+  await page.getByRole('button',{name:'Volver',exact:true}).click();
   await expect(page.getByRole('heading',{name:'Revisión de la visita'})).toBeVisible();
+  const disclosures=page.locator('.summary-disclosure');
+  await expect(disclosures).toHaveCount(2);
+  for(const section of await disclosures.all()){
+   await expect(section).not.toHaveAttribute('open','');
+   await expect(section.locator('.summary-disclosure-body')).not.toBeVisible();
+   await section.locator('summary').click();
+   await expect(section.locator('.summary-disclosure-body')).toBeVisible();
+   await section.locator('summary').click();
+  }
   await page.setViewportSize({width:390,height:844});
+  await expect(page.locator('.sidebar-sync .sync-indicator')).not.toBeVisible();
+  await expect(page.locator('.mobile-sync .sync-indicator')).toBeVisible();
+  expect(await page.locator('.signer-card').evaluate(el=>getComputedStyle(el).borderTopWidth)).toBe('0px');
+  await page.screenshot({path:'/tmp/opencode/archforms-summary-mobile.png'});
   const widths=await page.locator('.summary-layout').evaluate(root=>{
    const cards=[...root.querySelectorAll(':scope > .summary-section, :scope > .summary-conclusions > div, :scope > .summary-conclusions > section')];
    return cards.map(card=>card.getBoundingClientRect().width);
