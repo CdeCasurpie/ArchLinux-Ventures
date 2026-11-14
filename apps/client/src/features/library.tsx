@@ -1,4 +1,5 @@
 import {useState} from 'react';
+import {useBackAction} from './back-navigation';
 import {assertChecklist,withAvanceObra,AVANCE_OBRA_FIELD_ID,type ChecklistField,type ChecklistFieldType,type ChecklistSchema,type ChecklistSection,type ChecklistTemplate,type Expediente,type WorkspacePending} from '@archforms/domain';import {ChecklistForm} from './checklist';
 
 /** Borrador del expediente que sobrevive el ida y vuelta a la biblioteca (Hilo C). */
@@ -27,8 +28,10 @@ function syncBadge(templateId:string,pending:WorkspacePending[]):{label:string;c
 /** B3 — Biblioteca de formularios: gestor completo con sync offline-first.
  *  Las plantillas son inmutables: duplicar crea una nueva y nunca modifica las
  *  existentes. En modo retorno (Hilo C) crear regresa automáticamente al expediente. */
-export function TemplateLibrary({owner,templates,pending,returning,onCancelReturn,onSave,onReturn}:{owner:string;templates:ChecklistTemplate[];pending:WorkspacePending[];returning:boolean;onCancelReturn:()=>void;onSave:(template:ChecklistTemplate)=>Promise<void>;onReturn:(template:ChecklistTemplate)=>void}){
+export function TemplateLibrary({owner,templates,pending,returning,onSave,onReturn}:{owner:string;templates:ChecklistTemplate[];pending:WorkspacePending[];returning:boolean;onSave:(template:ChecklistTemplate)=>Promise<void>;onReturn:(template:ChecklistTemplate)=>void}){
  const [editor,setEditor]=useState<{source:ChecklistTemplate|null;mode:'create'|'duplicate'}|null>(null);
+ const [preview,setPreview]=useState<ChecklistTemplate|null>(null);
+ useBackAction(()=>setPreview(null),Boolean(preview)&&!editor);
  const [search,setSearch]=useState('');
  const [error,setError]=useState('');
  const active=templates.filter(item=>item.activa!==false&&item.nombre.toLowerCase().includes(search.toLowerCase()));
@@ -51,6 +54,12 @@ export function TemplateLibrary({owner,templates,pending,returning,onCancelRetur
  if(editor)return <div className="page-enter"><TemplateEditor owner={owner} source={editor.source} mode={editor.mode}
   onCancel={()=>setEditor(null)} onSave={saveTemplate}/></div>;
 
+ if(preview)return <div className="page-enter template-detail">
+  <header className="page-heading"><div><p className="eyebrow">VISTA PREVIA · SOLO LECTURA</p><h1>{preview.nombre}</h1><p>{preview.esquema.sections.length} secciones · Versión {preview.version} · {preview.profesional_id===null?'De la plataforma':'Formulario propio'}</p></div><button className="btn btn-primary" onClick={()=>{setPreview(null);openEditor(preview,'duplicate')}}>Duplicar y editar</button></header>
+  <div className="template-preview-note"><span aria-hidden="true">◇</span><p>Así se verá el checklist al completar una visita. Para personalizarlo, crea una copia.</p></div>
+  <section className="card template-detail-form" aria-label={`Vista previa de ${preview.nombre}`}><ChecklistForm schema={withAvanceObra(preview.esquema)} answers={{}} readonly/></section>
+ </div>;
+
  return <div className="page-enter">
   <header className="page-heading">
    <div>
@@ -62,17 +71,16 @@ export function TemplateLibrary({owner,templates,pending,returning,onCancelRetur
   </header>
   {returning&&<div className="return-banner">
    <span>Estás creando o editando un formulario para un expediente.</span>
-   <button className="btn btn-secondary" onClick={onCancelReturn}>Volver al expediente</button>
   </div>}
   {error&&<div className="alert error">{error}</div>}
   <div className="filterbar"><div className="search-field"><SearchIcon/><input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Buscar plantillas por nombre…"/></div></div>
-  <TemplateGroup title="De la plataforma" items={platform} pending={pending} owner={owner} onEdit={openEditor} onReactivate={reactivate} hint="No se pueden editar; se duplican para crear tu versión."/>
-  <TemplateGroup title="Mis formularios" items={mine} pending={pending} owner={owner} onEdit={openEditor} onReactivate={reactivate} empty="Aún no tienes formularios propios. Crea el primero o duplica una plantilla de la plataforma." hint="Inmutables: duplicar crea una plantilla nueva."/>
-  {inactive.length>0&&<TemplateGroup title="Desactivados" items={inactive} pending={pending} owner={owner} onEdit={openEditor} onReactivate={reactivate}/>}
+   <TemplateGroup title="De la plataforma" items={platform} pending={pending} owner={owner} onPreview={setPreview} onEdit={openEditor} onReactivate={reactivate} hint="No se pueden editar; se duplican para crear tu versión."/>
+   <TemplateGroup title="Mis formularios" items={mine} pending={pending} owner={owner} onPreview={setPreview} onEdit={openEditor} onReactivate={reactivate} empty="Aún no tienes formularios propios. Crea el primero o duplica una plantilla de la plataforma." hint="Inmutables: duplicar crea una plantilla nueva."/>
+   {inactive.length>0&&<TemplateGroup title="Desactivados" items={inactive} pending={pending} owner={owner} onPreview={setPreview} onEdit={openEditor} onReactivate={reactivate}/>}
  </div>;
 }
 
-function TemplateGroup({title,items,pending,owner,hint,empty,onEdit,onReactivate}:{title:string;items:ChecklistTemplate[];pending:WorkspacePending[];owner:string;hint?:string;empty?:string;onEdit:(source:ChecklistTemplate|null,mode:'create'|'duplicate')=>void;onReactivate:(template:ChecklistTemplate)=>Promise<void>}){
+function TemplateGroup({title,items,pending,owner,hint,empty,onPreview,onEdit,onReactivate}:{title:string;items:ChecklistTemplate[];pending:WorkspacePending[];owner:string;hint?:string;empty?:string;onPreview:(template:ChecklistTemplate)=>void;onEdit:(source:ChecklistTemplate|null,mode:'create'|'duplicate')=>void;onReactivate:(template:ChecklistTemplate)=>Promise<void>}){
  if(!items.length)return empty?<section className="section-heading" style={{marginTop:18}}><p className="eyebrow">{title.toUpperCase()}</p><p style={{color:'var(--muted)',fontSize:12}}>{empty}</p></section>:null;
  return <section style={{marginTop:18}}>
   <div className="section-heading"><h2 style={{fontSize:14}}>{title}</h2>{hint&&<span style={{color:'var(--muted)',fontSize:11}}>{hint}</span>}</div>
@@ -80,13 +88,16 @@ function TemplateGroup({title,items,pending,owner,hint,empty,onEdit,onReactivate
    {items.map(template=>{
     const own=template.profesional_id===owner,badge=syncBadge(template.id,pending);
     return <article className="card library-card" key={template.id}>
-     <div className="library-card-top">
+      <button type="button" className="library-preview-trigger" aria-label={`Ver plantilla ${template.nombre}`} onClick={()=>onPreview(template)}>
+      <div className="library-card-top">
       <span className="project-icon">✓</span>
       {badge&&<span className={`sync-badge ${badge.cls}`}>{badge.label}</span>}
       {!badge&&template.activa===false&&<span className="sync-badge inactive">Desactivada</span>}
      </div>
      <h3>{template.nombre}</h3>
-     <p>{template.esquema.sections.length===1?'1 sección':`${template.esquema.sections.length} secciones`} · {(() => { const n = template.esquema.sections.reduce((sum,s)=>sum+s.fields.length,0); return n===1?'1 campo':`${n} campos`; })()} · Versión {template.version}</p>
+      <p>{template.esquema.sections.length===1?'1 sección':`${template.esquema.sections.length} secciones`} · {(() => { const n = template.esquema.sections.reduce((sum,s)=>sum+s.fields.length,0); return n===1?'1 campo':`${n} campos`; })()} · Versión {template.version}</p>
+      <span className="library-preview-link">Ver plantilla <span aria-hidden="true">↗</span></span>
+      </button>
      <div className="library-actions">
       <button className="btn btn-secondary" onClick={()=>onEdit(template,'duplicate')}>{own?'Duplicar':'Duplicar y editar'}</button>
       {own&&template.activa!==false&&<button className="btn btn-ghost" onClick={()=>onReactivate({...template,activa:false})}>Desactivar</button>}
@@ -114,6 +125,7 @@ export function TemplateEditor({owner,source,mode,initialName,initialSchema,inst
  onCancel:()=>void;onSave:(result:TemplateEditorResult)=>Promise<void>|void;
 }){
  const instance=mode==='instance';
+ useBackAction(onCancel);
  const [name,setName]=useState(instance?(initialName??'Checklist'):source?`${source.nombre} (copia)`:'Checklist nuevo');
  const [sections,setSections]=useState<ChecklistSection[]>(()=>{
   const base=instance&&initialSchema?structuredClone(initialSchema):source?structuredClone(source.esquema):{version:2 as const,sections:[{id:uid('seccion'),title:'General',fields:[] as ChecklistField[]}]};
@@ -219,7 +231,6 @@ export function TemplateEditor({owner,source,mode,initialName,initialSchema,inst
     })}
     <button type="button" className="editor-add-section" onClick={addSection}>＋ Añadir sección</button>
     <div className="form-actions">
-     <button type="button" className="btn btn-secondary" onClick={onCancel}>{instance?'Descartar y volver':'Cancelar'}</button>
      <button type="button" className="btn btn-primary btn-lg" disabled={busy} onClick={submit}>{busy?'Guardando…':instance?'Usar esta versión →':mode==='duplicate'?'Crear copia →':'Guardar plantilla →'}</button>
     </div>
    </div>

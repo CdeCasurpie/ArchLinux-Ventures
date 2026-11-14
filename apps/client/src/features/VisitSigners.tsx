@@ -15,5 +15,5 @@ export function VisitSigners({visita,onSave,saveBarrier}:{visita:Visita;onSave:(
  },setStatus),[visita.id]);
  useEffect(()=>saveBarrier?.register(()=>writer.flush()),[saveBarrier,writer]);
  useEffect(()=>{if(status==='saved')setSigners(parseReportDocument(visita.documento_json)?.signers??[])},[visita.documento_json,status]);
- return <section className="card summary-section"><h3>Firmantes y firmas</h3><SignersEditor signers={signers} onChange={next=>{setSigners(next);void writer.save(next)}}/><p role="status">{status==='saving'?'Guardando firmantes…':status==='error'?'No se pudieron guardar los firmantes':'Firmantes guardados localmente · incluidos en el informe'}</p>{status==='error'&&<button className="btn btn-secondary" onClick={()=>void writer.retry()}>Reintentar firmantes</button>}</section>;
+ return <section className="card summary-section"><h3>Firmantes y firmas</h3><SignersEditor signers={signers} onChange={next=>{setSigners(next);void writer.save(next)}}/><p role="status" className="signers-save-status">{status==='saving'?'Guardando firmantes…':status==='error'?'No se pudieron guardar los firmantes':'Firmantes guardados localmente · incluidos en el informe'}</p>{status==='error'&&<button className="btn btn-secondary" onClick={()=>void writer.retry()}>Reintentar firmantes</button>}</section>;
 }

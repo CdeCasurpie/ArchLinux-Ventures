@@ -17,6 +17,8 @@ test('informe: respuestas, campos, firma y conclusiones offline; retorno conserv
   await page.locator('button.project-card').filter({hasText:label}).click();await page.getByRole('button',{name:'Abrir',exact:true}).click();
   await page.getByRole('button',{name:/3 Resumen/}).click();await page.getByRole('button',{name:/Concluir visita/}).click();
   await expect(page.getByRole('button',{name:'Generar PDF',exact:true})).toBeVisible();
+  await expect(page.getByRole('button',{name:'← Volver',exact:true})).toHaveCount(1);
+  await expect(page.locator('.back-button')).toHaveCount(0);
   await context.setOffline(true);
   await page.locator('.check-item input').fill('Respuesta offline');
   await page.getByPlaceholder('Conclusiones globales de la visita…').fill('Conclusión guardada offline');
@@ -27,11 +29,13 @@ test('informe: respuestas, campos, firma y conclusiones offline; retorno conserv
   await expect(page.getByText('Nota revisada',{exact:true})).toBeVisible();
   await page.getByRole('button',{name:/Añadir firmante/}).click();
   await page.getByLabel('Nombre completo',{exact:true}).fill('Ana Arquitecta');await page.getByLabel('Cargo',{exact:true}).fill('Supervisora');
+  await page.getByRole('button',{name:'Con imagen',exact:true}).click();
   await page.getByLabel('Adjuntar imagen de firma').setInputFiles({name:'firma.png',mimeType:'image/png',buffer:Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jRZkAAAAASUVORK5CYII=','base64')});
   await expect(page.getByAltText('Firma de Ana Arquitecta')).toBeVisible();
   await expect(page.getByLabel('Tomar foto de la firma')).toHaveAttribute('capture','environment');
   await page.getByRole('button',{name:'Dejar en blanco para firmar en papel'}).click();
   await expect(page.getByAltText('Firma de Ana Arquitecta')).not.toBeVisible();
+  await page.getByRole('button',{name:'Con imagen',exact:true}).click();
   await page.getByLabel('Tomar foto de la firma').setInputFiles({name:'foto.jpg',mimeType:'image/png',buffer:Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jRZkAAAAASUVORK5CYII=','base64')});
   await expect(page.getByAltText('Firma de Ana Arquitecta')).toBeVisible();
   const signature=await page.getByAltText('Firma de Ana Arquitecta').boundingBox();
@@ -47,6 +51,8 @@ test('informe: respuestas, campos, firma y conclusiones offline; retorno conserv
   });
   expect(widths.length).toBeGreaterThanOrEqual(4);
   expect(Math.max(...widths)-Math.min(...widths)).toBeLessThanOrEqual(1);
+  await page.locator('.signer-card').screenshot({path:'/tmp/opencode/archforms-signer-mobile.png'});
+  expect(await page.evaluate(()=>document.documentElement.scrollWidth<=window.innerWidth)).toBe(true);
   await expect(page.getByAltText('Firma de Ana Arquitecta')).toBeVisible();
   await expect(page.locator('textarea').filter({visible:true}).first()).toHaveValue('Conclusión guardada offline');
   await page.goForward();

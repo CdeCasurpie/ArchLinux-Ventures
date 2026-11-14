@@ -50,8 +50,22 @@ test('duplicar no cambia el expediente; editar la instancia exige guardar; la vi
 
   // 1) Duplicar desde la biblioteca crea otra plantilla y no toca el expediente.
   await page.locator('.sidebar-nav').getByRole('button',{name:'Plantillas'}).click();
+  await expect(page.getByRole('button',{name:'← Volver',exact:true})).toHaveCount(1);
+  await page.locator('.library-preview-trigger').first().click();
+  await expect(page.getByText('VISTA PREVIA · SOLO LECTURA',{exact:true})).toBeVisible();
+  await expect(page.locator('.template-detail-form .checklist-form')).toBeVisible();
+  await expect(page.locator('.template-detail-form input:enabled')).toHaveCount(0);
+  await page.getByRole('button',{name:'← Volver',exact:true}).click();
+  await expect(page.getByRole('heading',{name:'Plantillas de checklist'})).toBeVisible();
   const originalCard=page.locator('.library-card').filter({hasText:templateName});
   await expect(originalCard).toBeVisible();
+  await originalCard.getByRole('button',{name:`Ver plantilla ${templateName}`,exact:true}).click();
+  await expect(page.getByRole('heading',{name:templateName,exact:true})).toBeVisible();
+  await expect(page.getByText('Estado original',{exact:true})).toBeVisible();
+  await page.getByRole('button',{name:'← Volver',exact:true}).click();
+  await originalCard.getByRole('button',{name:'Duplicar',exact:true}).click();
+  await page.getByRole('button',{name:'← Volver',exact:true}).click();
+  await expect(page.getByRole('heading',{name:'Plantillas de checklist'})).toBeVisible();
   await originalCard.getByRole('button',{name:'Duplicar',exact:true}).click();
   await page.getByLabel('Nombre del checklist').fill(`${templateName} copia`);
   await page.getByRole('button',{name:/Crear copia/}).click();
@@ -71,7 +85,7 @@ test('duplicar no cambia el expediente; editar la instancia exige guardar; la vi
   await page.goBack();
   await expect(page.getByRole('heading',{name:'Hay cambios sin guardar en este expediente'})).toBeVisible();
   await page.getByRole('button',{name:'Seguir editando',exact:true}).click();
-  await page.getByRole('button',{name:'Cancelar',exact:true}).click();
+  await page.getByRole('button',{name:'← Volver',exact:true}).click();
   await expect(page.getByRole('heading',{name:'Hay cambios sin guardar en este expediente'})).toBeVisible();
   await page.getByRole('button',{name:'Descartar',exact:true}).click();
   await expect(page.getByRole('button',{name:'Editar expediente'})).toBeVisible();
@@ -98,7 +112,7 @@ test('duplicar no cambia el expediente; editar la instancia exige guardar; la vi
   }).toBe('Instancia editada');
 
   // 5) Publicar la instancia crea una plantilla y conserva el enlace original.
-  await page.locator('.back-button').click();
+  await page.getByRole('button',{name:'← Volver',exact:true}).click();
   await expect(page.getByRole('button',{name:/Publicar checklist como plantilla/})).toBeVisible();
   await page.getByRole('button',{name:/Publicar checklist como plantilla/}).click();
   await expect(page.getByText(/Plantilla publicada/)).toBeVisible();

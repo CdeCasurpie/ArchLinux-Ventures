@@ -40,6 +40,19 @@ gestor completos, manteniendo el nombre visible «Checklist». Ver detalles y li
 
 ### Ajustes de revisión 2026-11-13 — orden, resumen, firmas y Android
 
+**Segunda revisión de interfaz (2026-11-13):** se unificó la navegación de regreso en
+un único botón «Volver». Se retiraron las flechas duplicadas de visita/informe,
+«Abrir visita», el retorno adicional de la biblioteca y los botones de cancelación
+equivalentes. El mismo botón cierra primero la vista previa o el editor de checklist
+interno; en las pantallas principales utiliza el historial y la protección de guardado
+existentes. Las tarjetas de plantillas abren una vista previa de solo lectura con el
+formulario real, tanto para plantillas propias como de plataforma y desactivadas.
+Los firmantes se presentan en tarjetas con identidad, iniciales, datos agrupados y
+una vista de firma separada; un selector «En papel / Con imagen» organiza las opciones
+de adjuntar o tomar foto. Adaptación móvil sin desbordamiento horizontal. Validación:
+148 pruebas y build correctos; 3 E2E correctos, incluidos vista previa, regreso desde
+editores, guardia del expediente y las nuevas opciones de firma.
+
 - **Supabase remoto:** se volvió a ejecutar `supabase db push --linked`; respondió
   «Remote database is up to date». El historial local/remoto coincide hasta `013`.
   Estos ajustes de interfaz no requieren nuevas migraciones.
