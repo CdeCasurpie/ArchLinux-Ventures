@@ -12,6 +12,7 @@ import {
 import type { Expediente, LocalState, Visita } from '@archforms/domain';
 import { loadCaptureGroups, photoDataUrl, type CaptureGroup, type LabPhoto } from './lab-storage';
 import { loadReportPhotos } from './report-photos';
+import {PhotoThumbnail} from './PhotoViewer';
 import {SignersEditor} from './Signers';
 import {VisitHeaderDetails} from './VisitHeader';
 import {ReportChecklist} from './ReportChecklist';
@@ -70,7 +71,7 @@ export function VisitReport({ visita, expediente, profile, onSave,onSaveAnswers,
   const [loadError,setLoadError]=useState('');
   const [loadAttempt,setLoadAttempt]=useState(0);
   const [generatedSource,setGeneratedSource]=useState<string|null>(null);
-  const source=reportSource(doc,visita,expediente,profile);
+  const source=reportSource(doc,visita,expediente,profile,groups.flatMap(group=>group.photos));
   const pdfInput=useRef({doc,visita,expediente,profile,source});pdfInput.current={doc,visita,expediente,profile,source};
   const pdfStale=generatedSource!==null&&source!==generatedSource;
   const [saveStatus,setSaveStatus]=useState<SaveStatus>('saved');
@@ -213,7 +214,7 @@ export function VisitReport({ visita, expediente, profile, onSave,onSaveAnswers,
         setTimeout(() => URL.revokeObjectURL(url), 5000);
       }
       setGeneratedSource(source);
-      setPdfMsg('PDF generado en este dispositivo. No se sube a la nube.');
+      setPdfMsg('PDF generado.');
       setFileSheetOpen(true);
     } catch (e) {
       setPdfMsg(`No se pudo generar: ${e instanceof Error ? e.message : String(e)}`);
@@ -259,14 +260,14 @@ export function VisitReport({ visita, expediente, profile, onSave,onSaveAnswers,
     <div className="page-enter">
       {provisional&&<p role="status">El número de visita es provisional hasta sincronizar. El PDF llevará esa advertencia.</p>}
       <div className="report-toolbar" role="toolbar" aria-label="Acciones del informe">
-        <span className={`status ${pdfStale?'review':'active'}`}>{pdfStale?'PDF anterior desactualizado · vuelve a generarlo':'PDF local · se genera en cada descarga'}</span>
+        {pdfStale&&<span className="status review">PDF anterior desactualizado · vuelve a generarlo</span>}
         <IconButton icon="undo" label="Deshacer" onClick={undo} disabled={!past.length}/>
         <IconButton icon="redo" label="Rehacer" onClick={redo} disabled={!future.length}/>
         <button className="btn btn-secondary" onClick={() => void save().catch(error=>setPdfMsg(`No se pudo guardar: ${String(error)}`))} disabled={saving || (saveStatus!=='error'&&!dirty && !fresh)}>
           {saving ? 'Guardando…' : saveStatus==='error'?'Reintentar guardado':'Guardar informe'}
         </button>
         <button className="btn btn-primary" onClick={() => void generate()} disabled={busy}>
-          {busy ? 'Generando…' : 'Generar PDF'}
+          <span data-tour="pdf">{busy ? 'Generando…' : 'Generar PDF'}</span>
         </button>
       </div>
       <p className="report-save-status" role="status">{saveStatus==='saving'?'Guardando informe en el dispositivo…':saveStatus==='error'?'No se pudo guardar el informe. Reintenta antes de salir.':'Informe guardado en este dispositivo · se sincroniza al tener conexión'}</p>
@@ -317,7 +318,8 @@ export function VisitReport({ visita, expediente, profile, onSave,onSaveAnswers,
       <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
         {doc.blocks.map((block, i) => (
           <BlockCard
-            key={block.id}
+             key={block.id}
+             ownerId={ownerId}
             block={block}
             index={i}
             total={doc.blocks.length}
@@ -336,7 +338,8 @@ export function VisitReport({ visita, expediente, profile, onSave,onSaveAnswers,
   );
 }
 
-function BlockCard({ block, index, total, group, onMove, onRemove, onPhotos, onComment, onContent, onAddText,source }: {
+function BlockCard({ block, index, total, group, onMove, onRemove, onPhotos, onComment, onContent, onAddText,source,ownerId }: {
+  ownerId:string;
   source?:React.ReactNode;
   block: ReportBlock;
   index: number;
@@ -401,7 +404,7 @@ function BlockCard({ block, index, total, group, onMove, onRemove, onPhotos, onC
               const included = block.photoIds.includes(p.id);
               return (
                 <div key={p.id} className={`report-photo${included?' report-photo--included':''}`}>
-                  <img src={p.displayUrl} alt="Evidencia del hallazgo" />
+                  <PhotoThumbnail photo={p} visitaId={group!.visitaId} ownerId={ownerId}/>
                   <div className="report-photo-actions">
                     <IconButton icon={included?'check':'plus'} label={included?'Excluir foto del informe':'Incluir foto en el informe'} aria-pressed={included} onClick={() => {
                       const ids = included ? block.photoIds.filter(id => id !== p.id) : [...block.photoIds, p.id];

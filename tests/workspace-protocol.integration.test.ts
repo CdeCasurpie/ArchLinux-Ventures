@@ -16,6 +16,7 @@ describe('workspace protocol against local Postgres',()=>{
     expect(error).toBeNull();expect(data.session).not.toBeNull();
     const owner=data.user!.id;
     const form=new FormData();form.set('nro_expediente',crypto.randomUUID());form.set('ubicacion','Original');
+    form.set('urbanizacion','Los Olivos');form.set('manzana','B');form.set('lote','12');form.set('zonificacion','RDM');
     const record=buildExpediente(owner,form,{version:1,sections:[{id:'s',title:'Base',fields:[{id:'note',label:'Nota',type:'text'}]}]});
     const a=new IndexedWorkspaceRepository(`workspace-a-${crypto.randomUUID()}`);
     const b=new IndexedWorkspaceRepository(`workspace-b-${crypto.randomUUID()}`);
@@ -35,6 +36,7 @@ describe('workspace protocol against local Postgres',()=>{
       await new WorkspaceSyncEngine(a,lossy,owner).run();
       expect((await client.from('expediente').select('id').eq('id',record.id)).data).toHaveLength(1);
       await b.mergeRemote(owner,await remote.fetchAll());
+      expect((await b.read(owner)).expedientes[0]).toMatchObject({urbanizacion:'Los Olivos',manzana:'B',lote:'12',zonificacion:'RDM'});
 
       await a.save(owner,workspaceOperation('expediente',{...record,ubicacion:'A cambió ubicación'}));
       await b.save(owner,workspaceOperation('expediente',{...record,propietario:'B cambió propietario'}));

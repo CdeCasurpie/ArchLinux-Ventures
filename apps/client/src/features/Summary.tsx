@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Capacitor } from '@capacitor/core';
-import { loadCaptureGroups, photoDataUrl, type CaptureGroup, type LabPhoto } from './lab-storage';
+import { loadCaptureGroups, type CaptureGroup } from './lab-storage';
 import {
   subscribeMediaSync, subscribeGroupCreated, triggerMediaSync, getMediaSyncDebugState, getGroupSyncDebug,
   isMigrated, retryGroup, getLastPull,
@@ -18,31 +18,12 @@ import {visitDocument} from './visit-document';
 import {transcriptionService} from './transcription-service';
 import {orderObservations} from './observation-order';
 import {Icon} from './ui';
+import {PhotoThumbnail} from './PhotoViewer';
 
 // Pasa a true para mostrar el panel de diagnóstico de sync en el Resumen.
 const SHOW_SYNC_DEBUG = false;
 import { parseReportDocument, setTextContent, type Visita } from '@archforms/domain';
 
-// ── Main component ────────────────────────────────────────────────────────────
-// Si la URL de archivo falla (p. ej. file server), se autocura con el dataURL
-// leído del disco y deja el rastro para diagnosticar la URL rota.
-function PhotoImg({ photo }: { photo: LabPhoto }) {
-  const [src, setSrc] = useState(photo.thumbUrl ?? photo.displayUrl);
-  const [fellBack, setFellBack] = useState(false);
-  useEffect(() => { setSrc(photo.thumbUrl ?? photo.displayUrl); setFellBack(false); }, [photo]);
-  return (
-    <img
-      src={src} alt="Evidencia" loading="lazy" decoding="async"
-      style={{ width: '100%', aspectRatio: '1', objectFit: 'cover', borderRadius: 8, border: '1px solid #e2e8f0' }}
-      onError={() => {
-        if (fellBack) return;
-        console.warn(`[photo-debug] img falló: ${src} (path ${photo.path})`);
-        setFellBack(true);
-        photoDataUrl(photo.path, photo.mimeType).then(setSrc).catch(e => console.error('[photo-debug] fallback falló', e));
-      }}
-    />
-  );
-}
 function timeAgo(iso: string | null): string {
   if (!iso) return '—';
   const s = Math.max(0, Math.round((Date.now() - new Date(iso).getTime()) / 1000));
@@ -53,7 +34,8 @@ function timeAgo(iso: string | null): string {
   return `hace ${Math.floor(m / 60)}h`;
 }
 
-export function VisitSummary({ visita,expediente, onConclude, onEditReport, onGoChecklist, onSave, saveBarrier,onDownload }: {
+export function VisitSummary({ visita,expediente,ownerId, onConclude, onEditReport, onGoChecklist, onSave, saveBarrier,onDownload }: {
+  ownerId:string;
   onDownload:()=>Promise<void>;
   expediente:Expediente;
   visita: Visita;
@@ -250,7 +232,7 @@ export function VisitSummary({ visita,expediente, onConclude, onEditReport, onGo
                   </span>
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(80px, 1fr))', gap: 8 }}>
                     {group.photos.map(photo => (
-                      <PhotoImg key={photo.id} photo={photo} />
+                      <PhotoThumbnail key={photo.id} photo={photo} visitaId={visita.id} ownerId={ownerId}/>
                     ))}
                   </div>
                 </div>
@@ -325,7 +307,7 @@ export function VisitSummary({ visita,expediente, onConclude, onEditReport, onGo
                 disabled={finishing}
                 onClick={requestConclude}
               >
-                {finishing ? 'Concluyendo…' : 'Concluir visita →'}
+                <span data-tour="conclude-label">{finishing ? 'Concluyendo…' : 'Concluir visita →'}</span>
               </button>
             )}
           </>

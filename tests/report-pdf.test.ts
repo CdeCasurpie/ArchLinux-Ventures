@@ -97,8 +97,19 @@ describe('report-pdf',()=>{
    const blob=await pdf(buildInformeDoc({doc,visita,expediente,profesional,photos:{}})).toBlob();
    const bytes=new Uint8Array(await blob.arrayBuffer());
    const {text}=pdfText(bytes);
-   expect(text).toContain('02/3');
-   expect(text).toContain('Ana Supervisora');
+    expect(text).toContain('2 de 3');
+    expect(text).toContain('Ana Supervisora');
+    expect(text).not.toContain('Firmas');
    expect(Buffer.from(bytes).toString('latin1')).toContain('/Subtype /Image');
+  },30000);
+
+  it('exporta la cabecera completa y el crédito de ArchForms',async()=>{
+   const complete={...expediente,urbanizacion:'Urbanizacion Ejemplo',manzana:'MZ-AB',lote:'LT-55',zonificacion:'RDM',
+    entidad_destinataria:'Municipalidad de Barranco',fecha_emision_licencia:'2025-06-03',vigencia_desde:'2025-06-04',vigencia_hasta:'2028-06-03',
+    poliza_car_json:{compania:'Aseguradora Ejemplo',desde:'2025-11-03',hasta:'2027-09-03'},valor_obra:850000};
+   const blob=await pdf(buildInformeDoc({doc:initReportDocument([]),visita,expediente:complete,profesional,photos:{}})).toBlob();
+   const stamped=await stampPageNumbers(new Uint8Array(await blob.arrayBuffer()),(p,t)=>`${p}/${t}`,undefined,{useObjectStreams:false});
+   const {text}=pdfText(stamped);
+   for(const value of ['Urbanizacion Ejemplo','MZ-AB','LT-55','RDM','Municipalidad de Barranco','03 / 06 / 2025','04 / 06 / 2025','03 / 06 / 2028','Aseguradora Ejemplo','03 / 11 / 2025','03 / 09 / 2027','Creado por ArchForms','Residencial','Vivienda'])expect(text).toContain(value);
   },30000);
 });

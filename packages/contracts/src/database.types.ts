@@ -157,6 +157,10 @@ export type Database = {
       }
       expediente: {
         Row: {
+          urbanizacion: string | null
+          manzana: string | null
+          lote: string | null
+          zonificacion: string | null
           activo: boolean
           checklist_esquema_json: Json
           checklist_nombre: string
@@ -188,6 +192,10 @@ export type Database = {
           vigencia_hasta: string | null
         }
         Insert: {
+          urbanizacion?: string | null
+          manzana?: string | null
+          lote?: string | null
+          zonificacion?: string | null
           activo?: boolean
           checklist_esquema_json: Json
           checklist_nombre: string
@@ -219,6 +227,10 @@ export type Database = {
           vigencia_hasta?: string | null
         }
         Update: {
+          urbanizacion?: string | null
+          manzana?: string | null
+          lote?: string | null
+          zonificacion?: string | null
           activo?: boolean
           checklist_esquema_json?: Json
           checklist_nombre?: string
@@ -325,6 +337,7 @@ export type Database = {
       }
       foto: {
         Row: {
+          editada_at: string | null
           archivo_id: string
           capturada_at: string
           created_at: string
@@ -341,6 +354,7 @@ export type Database = {
         Insert: {
           archivo_id: string
           capturada_at: string
+          editada_at?: string | null
           created_at?: string
           grupo_captura_id?: string | null
           hash_perceptual?: string | null
@@ -355,6 +369,7 @@ export type Database = {
         Update: {
           archivo_id?: string
           capturada_at?: string
+          editada_at?: string | null
           created_at?: string
           grupo_captura_id?: string | null
           hash_perceptual?: string | null
@@ -692,6 +707,8 @@ export type Database = {
       }
       sync_profile_signature_v1: {Args:{operation_id:string;nombre:string;cargo:string|null;colegiatura:string|null;firma:string|null};Returns:Json}
       sync_delete_workspace_v1: {Args:{operation_id:string;entity:string;entity_id:string};Returns:Json}
+      begin_account_deletion_v1: {Args:{confirmation:string};Returns:Json}
+      delete_my_account_v1: {Args:{confirmation:string};Returns:undefined}
       sync_pull_answers_v1: {
         Args: { after_revision?: number; page_size?: number }
         Returns: Json

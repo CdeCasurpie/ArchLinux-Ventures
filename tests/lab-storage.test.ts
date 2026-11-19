@@ -108,6 +108,21 @@ const audio = (id = 'a-1'): AudioClip => ({
 const groupFile = (visita: string, id: string) => `DATA|archforms-lab/groups/${visita}/${id}.json`;
 
 describe('lab-storage Fase 1', () => {
+  it('edita sin sobrescribir el original, conserva ids y recupera la versión al reiniciar',async()=>{
+    const lab=await freshLab(),original=photo('p-edit');
+    const group=lab.createCaptureGroup('v-edit',[original],audio());
+    await lab.persistCaptureGroup({...group,syncStatus:'synced'});
+    mocks.fs.set(`DATA|${original.path}`,'original');
+    const next=await lab.replaceStoredPhoto('v-edit',original,'data:image/jpeg;base64,AQID');
+    expect(next.id).toBe(original.id);expect(next.archivoId).not.toBe(original.id);
+    expect(mocks.fs.get(`DATA|${original.path}`)).toBe('original');
+    expect(mocks.fs.get(`DATA|${next.path}`)).toBe('AQID');
+    expect(next.checksum).toBe('039058c6f2c0cb492c533b0a4d14ef77cc0f78abccced5287d84a1a2011cfb81');
+    await expect(lab.replaceStoredPhoto('v-edit',original,'data:image/jpeg;base64,BAUG')).rejects.toThrow('cambió');
+    const reboot=await freshLab(),[restored]=await reboot.loadCaptureGroups('v-edit');
+    expect(restored.syncStatus).toBe('pending');expect(restored.photos[0].archivoId).toBe(next.archivoId);
+    expect(restored.photos[0].editedAt).toBe(next.editedAt);
+  });
   it('persiste JSON de KB sin base64 y lo hidrata con URLs de archivo', async () => {
     const lab = await freshLab();
     const g = lab.createCaptureGroup('v-1', [photo('p-1'), photo('p-2')], audio());

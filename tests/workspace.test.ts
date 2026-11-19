@@ -1,7 +1,7 @@
 import 'fake-indexeddb/auto';
 import {openDB} from 'idb';
 import {describe,expect,it} from 'vitest';
-import {IndexedWorkspaceRepository} from '@archforms/data-local';
+import {IndexedWorkspaceRepository,IndexedRepository} from '@archforms/data-local';
 import {buildExpediente,buildVisita,workspaceOperation,WorkspaceSyncEngine,type WorkspaceRemoteRepository} from '@archforms/application';
 import type {ChecklistSchema,WorkspacePending,WorkspaceState} from '@archforms/domain';
 
@@ -14,6 +14,18 @@ class Remote implements WorkspaceRemoteRepository{
  async push(operation:WorkspacePending){this.calls.push(operation.id);if(operation.entity==='expediente')this.state.expedientes=[operation.record as never];else this.state.visitas=[operation.record as never]}
 }
 describe('workspace offline',()=>{
+  it('borra perfil, registros, cursor y pendientes de una cuenta sin tocar otra',async()=>{
+   const local=new IndexedWorkspaceRepository(`erase-${crypto.randomUUID()}`),profiles=new IndexedRepository(`erase-profile-${crypto.randomUUID()}`),record=expediente(),other=crypto.randomUUID();
+   for(const id of [owner,other]){
+    await local.save(id,workspaceOperation('expediente',{...record,id:crypto.randomUUID(),profesional_id:id}));
+    await profiles.acceptRemote(id,{id,email:`${id}@archforms.test`,nombre_completo:'Profesional',cargo:null,nro_colegiatura:null,updated_at:new Date().toISOString()});
+    await profiles.enqueue(id,{nombre_completo:'Profesional',cargo:'Test',nro_colegiatura:'1'},crypto.randomUUID());
+   }
+   await local.clear(owner);await profiles.clear(owner);
+   expect(await local.read(owner)).toEqual({expedientes:[],visitas:[],plantillas:[],pending:[],last_sync:null});
+   expect(await profiles.read(owner)).toEqual({profile:null,pending:null});
+   expect((await local.read(other)).pending).toHaveLength(1);expect((await local.read(other)).expedientes).toHaveLength(1);expect((await profiles.read(other)).pending).not.toBeNull();
+  });
   it('quarantines permanent validation failures until an explicit retry',async()=>{
    const local=new IndexedWorkspaceRepository(`blocked-${crypto.randomUUID()}`),record=expediente();
    await local.save(owner,workspaceOperation('expediente',record));

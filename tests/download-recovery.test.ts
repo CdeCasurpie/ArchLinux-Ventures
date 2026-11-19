@@ -10,6 +10,7 @@ vi.mock('@capacitor/filesystem',()=>({Directory:{Data:'DATA'},Filesystem:{
 }}));
 vi.mock('@capacitor/preferences',()=>({Preferences:{get:async()=>({value:null}),set:async()=>{}}}));
 vi.mock('../apps/client/src/features/lab-storage',()=>({
+  photoFileId:(photo:any)=>photo.archivoId??photo.id,
   loadCaptureGroups:async()=>disk.groups,
   loadCaptureGroup:async(id:string)=>disk.groups.find(group=>group.id===id),
   updateCaptureGroupSyncStatus:async()=>{},

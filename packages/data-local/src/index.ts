@@ -33,7 +33,8 @@ async function openNativeDatabase(name:string){
 export class IndexedRepository implements LocalRepository {
  private db:Promise<IDBPDatabase>;
  constructor(name='archforms-v1'){this.db=openDB(name,1,{upgrade(db){db.createObjectStore('profiles')}})}
- async read(owner:string):Promise<LocalState>{return (await (await this.db).get('profiles',owner))??empty();}
+  async read(owner:string):Promise<LocalState>{return (await (await this.db).get('profiles',owner))??empty();}
+  async clear(owner:string){await (await this.db).delete('profiles',owner)}
  private async change(owner:string,fn:(s:LocalState)=>LocalState){
   const tx=(await this.db).transaction('profiles','readwrite');
   const state=(await tx.store.get(owner))??empty();
@@ -60,7 +61,8 @@ export class SQLiteRepository implements LocalRepository {
   const rows=await (await this.db).query('SELECT payload FROM profile_state WHERE owner = ?',[owner]);
   return rows.values?.[0]?JSON.parse(rows.values[0].payload) as LocalState:empty();
  }
- read(owner:string){return this.serial(()=>this.readRaw(owner))}
+  read(owner:string){return this.serial(()=>this.readRaw(owner))}
+  clear(owner:string){return this.serial(async()=>{await (await this.db).run('DELETE FROM profile_state WHERE owner=?',[owner])})}
  private change(owner:string,fn:(s:LocalState)=>LocalState){
   return this.serial(async()=>{
    const db=await this.db;
@@ -115,6 +117,13 @@ function mergeWorkspace(state:WorkspaceState,remote:Pick<WorkspaceState,'expedie
  return {expedientes:[...cases.values()],visitas:[...visits.values()],plantillas:[...templates.values()],pending,last_sync:new Date().toISOString(),...(replica?{sync_cursor:replica.cursor}:state.sync_cursor===undefined?{}:{sync_cursor:state.sync_cursor})};
 }
 export class IndexedWorkspaceRepository implements WorkspaceLocalRepository{
+  async clear(owner:string){
+   const tx=(await this.db).transaction(['workspace','records','pending','metadata'],'readwrite');
+   await tx.objectStore('workspace').delete(owner);
+   await tx.objectStore('records').delete(IDBKeyRange.bound([owner,''],[owner,'\uffff']));
+   await tx.objectStore('pending').delete(IDBKeyRange.bound([owner,''],[owner,'\uffff']));
+   await tx.objectStore('metadata').delete(owner);await tx.done;
+  }
  private db:Promise<IDBPDatabase>;
   constructor(name='archforms-workspace-v1'){
    this.db=openDB(name,2,{upgrade(db,oldVersion,_version,tx){
@@ -204,6 +213,7 @@ export class IndexedWorkspaceRepository implements WorkspaceLocalRepository{
   }
 }
 export class SQLiteWorkspaceRepository implements WorkspaceLocalRepository{
+  clear(owner:string){return this.serial(async()=>{await (await this.db).executeSet(['workspace_state','workspace_records','workspace_pending','workspace_metadata','workspace_cursor'].map(table=>({statement:`DELETE FROM ${table} WHERE owner=?`,values:[owner]})),true)})}
  private db:Promise<SQLiteDBConnection>;private tail:Promise<unknown>=Promise.resolve();
   constructor(){this.db=(async()=>{
    const db=await openNativeDatabase('archforms_workspace');

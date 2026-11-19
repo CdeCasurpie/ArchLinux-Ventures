@@ -95,7 +95,7 @@ Capacitor requiere sincronizar los assets web antes de compilar nativo. Si está
 El siguiente comando construye la app de React, inyecta los assets en Android, compila el APK y la instala en tu dispositivo conectado por USB (`adb`), forzando además su ejecución:
 
 ```bash
-JAVA_HOME=/usr/lib/jvm/java-21-temurin ANDROID_HOME=$HOME/Android/Sdk PATH=/usr/lib/jvm/java-21-temurin/bin:$HOME/Android/Sdk/platform-tools:$PATH npm run android:build -w @archforms/client && adb install -r apps/client/android/app/build/outputs/apk/debug/app-debug.apk && adb shell am force-stop com.archventures.archforms && adb shell monkey -p com.archventures.archforms -c android.intent.category.LAUNCHER 1
+JAVA_HOME=/usr/lib/jvm/java-21-temurin ANDROID_HOME=$HOME/Android/Sdk PATH=/usr/lib/jvm/java-21-temurin/bin:$HOME/Android/Sdk/platform-tools:$PATH npm run android:build -w @archforms/client && adb install -r apps/client/android/app/build/outputs/apk/debug/app-debug.apk && adb shell am force-stop com.karen.archforms && adb shell monkey -p com.karen.archforms -c android.intent.category.LAUNCHER 1
 ```
 
 ### Paso a paso (Manual):

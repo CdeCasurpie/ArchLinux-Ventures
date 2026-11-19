@@ -26,7 +26,7 @@ vi.mock('@capacitor-community/sqlite', () => ({
   },
 }));
 
-import { SQLiteWorkspaceRepository,SQLiteMediaOutboxRepository } from '@archforms/data-local';
+import { SQLiteWorkspaceRepository,SQLiteMediaOutboxRepository,SQLiteRepository } from '@archforms/data-local';
 import { buildExpediente, buildVisita, workspaceOperation } from '@archforms/application';
 
 describe('workspace on real SQLite SQL engine (not Android plugin)', () => {
@@ -73,6 +73,20 @@ describe('workspace on real SQLite SQL engine (not Android plugin)', () => {
      db.exec('DROP TRIGGER reject_pending');
      const deletion={...workspaceOperation('expediente',record),workspace_mutation:{type:'delete' as const,payload:{}}};
      await local.save(owner,deletion);
-     expect(await new SQLiteWorkspaceRepository().read(owner)).toMatchObject({expedientes:[],visitas:[],pending:[deletion]});
+      expect(await new SQLiteWorkspaceRepository().read(owner)).toMatchObject({expedientes:[],visitas:[],pending:[deletion]});
+  });
+  it('elimina el estado y perfil de una cuenta sin resucitar la copia antigua ni borrar otra cuenta',async()=>{
+   const repository=new SQLiteWorkspaceRepository(),profiles=new SQLiteRepository(),owner=crypto.randomUUID(),other=crypto.randomUUID();
+   for(const id of [owner,other]){
+    const form=new FormData();form.set('nro_expediente',id);form.set('ubicacion','Lima');
+    const record=buildExpediente(id,form,{version:2,sections:[]});
+    await repository.save(id,workspaceOperation('expediente',record));
+    await profiles.acceptRemote(id,{id,email:`${id}@archforms.test`,nombre_completo:'Profesional',cargo:null,nro_colegiatura:null,updated_at:new Date().toISOString()});
+    await profiles.enqueue(id,{nombre_completo:'Cambio',cargo:null,nro_colegiatura:null},crypto.randomUUID());
+   }
+   await repository.clear(owner);await profiles.clear(owner);
+   expect(await new SQLiteWorkspaceRepository().read(owner)).toEqual({expedientes:[],visitas:[],plantillas:[],pending:[],last_sync:null});
+   expect(await profiles.read(owner)).toEqual({profile:null,pending:null});
+   expect((await repository.read(other)).expedientes).toHaveLength(1);expect((await profiles.read(other)).pending).not.toBeNull();
   });
 });

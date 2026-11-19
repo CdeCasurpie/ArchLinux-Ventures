@@ -19,6 +19,8 @@ import { transcriptionService } from './transcription-service';
 import { mediaOutbox } from '../platform';
 import type { Visita } from '@archforms/domain';
 import type { NativeRecording } from './native-audio';
+import {PhotoThumbnail} from './PhotoViewer';
+import {photoFileId} from './lab-storage';
 
 const MicIcon = () => (
   <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
@@ -105,6 +107,8 @@ export function VisitCapture({
   const captureChain = useRef<Promise<void>>(Promise.resolve());
   const savedTimer   = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const setPile = (next: LabPhoto[]) => { pileRef.current = next; setPhotosState(next); };
+  async function preparePhoto(photo:LabPhoto){const result=await ingestJobs.current.get(photo.id);return result?{...photo,...result}:photo}
+  function editedPhoto(photo:LabPhoto){ingestJobs.current.delete(photo.id);setPile(pileRef.current.map(p=>p.id===photo.id?photo:p))}
 
   // Altura real del mobile-nav (incluye safe-area): la capa fija termina justo encima.
   const [navH, setNavH] = useState(0);
@@ -308,7 +312,7 @@ export function VisitCapture({
     void idleQueue.enqueue(`thumbs:${group.id}`, async () => {
       let changed = false;
       for (const p of photos) {
-        const t = await writePhotoThumbnail(p.id, p.mimeType);
+        const t = await writePhotoThumbnail(photoFileId(p), p.mimeType);
         if (t) { await setPhotoThumbUrl(p.id, t); changed = true; }
         if (RUN_FEATURE_EXTRACTION) {
           await extractPhotoFeatures(p.id, await fileUrl(p.path, p.mimeType));
@@ -374,7 +378,7 @@ export function VisitCapture({
             <div className="photos-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 25 }}>
               {photos.map((photo) => (
                 <div key={photo.id} style={{ borderRadius: 12, overflow: 'hidden', background: 'white', border: '1px solid var(--line)', animation: 'pop 0.3s ease both' }}>
-                  <img src={photo.displayUrl} alt="Foto actual" style={{ width: '100%', aspectRatio: '1', objectFit: 'cover', display: 'block' }} />
+                  <PhotoThumbnail photo={photo} visitaId={visita.id} ownerId={ownerId} prepare={()=>preparePhoto(photo)} onUpdated={editedPhoto}/>
                 </div>
               ))}
             </div>
@@ -402,7 +406,7 @@ export function VisitCapture({
           <div className="capture-pile">
             {pile.map((photo, i) => (
               <div key={photo.id} className="capture-pile-thumb">
-                <img src={photo.displayUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
+                <PhotoThumbnail photo={photo} visitaId={visita.id} ownerId={ownerId} prepare={()=>preparePhoto(photo)} onUpdated={editedPhoto}/>
                 {i === 4 && pileOverflow > 0 && (
                   <span style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,0.55)', color: 'white', fontWeight: 800, fontSize: 13 }}>
                     +{pileOverflow}

@@ -27,6 +27,7 @@ export class SyncCoordinator {
 
   start() { this.stopped = false; void this.run(); }
   stop() { this.stopped = true; clearTimeout(this.timer); }
+  async pause(){this.stop();await this.active;await Promise.all(this.background.values())}
   /** A local edit/reconnection during a pass must not wait for the polling timer. */
   request():Promise<void>{if(this.active)this.requested=true;return this.run()}
 

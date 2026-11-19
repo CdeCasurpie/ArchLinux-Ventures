@@ -1,5 +1,5 @@
 import { Filesystem, Directory } from '@capacitor/filesystem'
-import { supabase, workspaceLocal } from '../platform'
+import { supabase, workspaceLocal,mediaOutbox } from '../platform'
 import type { GrupoCapturaPayload } from '@archforms/domain'
 import { MediaSyncEngine, exponentialBackoff, planCapturePull, scopeMediaOutbox } from '@archforms/application'
 import type { MediaOutboxRepository, MediaRemoteRepository, CaptureRemoteReader, LocalCaptureSnapshot } from '@archforms/application'
@@ -11,7 +11,10 @@ import {
   type CaptureGroup,
   type LabPhoto,
   type AudioClip,
+  photoFileId,
+  replaceStoredPhoto,
 } from './lab-storage'
+import {withCaptureLock} from './capture-lock';
 import { Preferences } from '@capacitor/preferences'
 import { Capacitor } from '@capacitor/core'
 import { captureActivity } from './activity'
@@ -163,9 +166,9 @@ export async function enqueueGroupToOutbox(
   // Enqueue photos
   for (const photo of group.photos) {
     if (!photo.checksum) throw new Error(`Foto ${photo.id} sin checksum: no se encola.`)
-    mediaIds.push(photo.id)
+    mediaIds.push(photoFileId(photo))
     await outbox.enqueueMedia({
-      id:          photo.id,
+      id:          photoFileId(photo),
       entity_type: 'foto',
       entity_id:   photo.id,
       grupo_id:    group.id,
@@ -208,7 +211,8 @@ export async function enqueueGroupToOutbox(
     transcripcion:  group.transcripcion ?? null,
     fotos: group.photos.map((p, i) => ({
       id:             p.id,
-      archivo_id:     p.id,
+      archivo_id:     photoFileId(p),
+      editada_at:     p.editedAt??null,
       orden_en_grupo: i + 1,
       capturada_at:   p.createdAt,
       local_path:     p.path,
@@ -250,9 +254,9 @@ async function buildLivePayload(
   if (!group) return null;
   const fotos: GrupoCapturaPayload['fotos'] = [];
   for (const [i, p] of group.photos.entries()) {
-    const m = await outbox.mediaStatus(p.id);
+    const m = await outbox.mediaStatus(photoFileId(p));
     fotos.push({
-      id: p.id, archivo_id: p.id, orden_en_grupo: i + 1, capturada_at: p.createdAt,
+      id: p.id, archivo_id: photoFileId(p), editada_at:p.editedAt??null, orden_en_grupo: i + 1, capturada_at: p.createdAt,
       local_path: p.path, remote_path: m?.bucket_path ?? null,
       mime_type: p.mimeType, size_bytes: p.sizeBytes, checksum: p.checksum,
     });
@@ -282,7 +286,7 @@ export async function notifyTranscriptionReady(
   if(activeManager)await activeManager.freezeGroup(groupId);
   else{
     const group=await loadCaptureGroup(groupId);
-    if(group)await outbox.enqueueEntity({id:groupId,entity_type:'grupo_captura',payload:'{}',depends_on:[...group.photos.map(photo=>photo.id),group.audio.id],created_at:new Date().toISOString()});
+    if(group)await outbox.enqueueEntity({id:groupId,entity_type:'grupo_captura',payload:'{}',depends_on:[...group.photos.map(photoFileId),group.audio.id],created_at:new Date().toISOString()});
   }
   emitMediaSync();
   await triggerMediaSync();
@@ -328,6 +332,9 @@ export async function pullVisitaFromCloud(
   onProgress?: (p: PullProgress) => void,
   signal?: AbortSignal,
 ): Promise<PullResult> {
+  return withCaptureLock(visitaId,()=>pullCaptureUnlocked(outbox,reader,visitaId,onProgress,signal));
+}
+async function pullCaptureUnlocked(outbox:MediaOutboxRepository,reader:CaptureRemoteReader,visitaId:string,onProgress?: (p:PullProgress)=>void,signal?:AbortSignal):Promise<PullResult>{
   signal?.throwIfAborted();
   const remote = await reader.fetchCapture([visitaId]);
   signal?.throwIfAborted();
@@ -337,8 +344,8 @@ export async function pullVisitaFromCloud(
   const groups = await loadCaptureGroups(visitaId);
   const snapshots: LocalCaptureSnapshot[] = [];
   for (const g of groups) {
-    const ids = [...g.photos.map(p => p.id), g.audio.id];
-    let hasPending = false;
+    const ids = [...g.photos.map(photoFileId), g.audio.id];
+    let hasPending = g.syncStatus!=='synced';
     for (const id of ids) {
       const m = await outbox.mediaStatus(id).catch(() => null);
       if (m && m.status !== 'synced') { hasPending = true; break; }
@@ -349,7 +356,7 @@ export async function pullVisitaFromCloud(
     }
     const present:string[]=[];
     if(!hasPending)for(const item of [...g.photos,g.audio]){
-      try{const bytes=await readLocalFile(item.path);await verifyDownload(bytes,item.sizeBytes,item.checksum||null);present.push(item.id)}catch{/* Missing/corrupt local copies must be repaired. */}
+       try{const bytes=await readLocalFile(item.path);await verifyDownload(bytes,item.sizeBytes,item.checksum||null);present.push('archivoId' in item?photoFileId(item as LabPhoto):item.id)}catch{/* Missing/corrupt local copies must be repaired. */}
     }
     snapshots.push({ groupId: g.id, mediaIds: hasPending?ids:present, hasPending });
   }
@@ -364,7 +371,7 @@ export async function pullVisitaFromCloud(
     // Sin displayUrl: se hidrata en upsertRemoteGroup (Fase 1, sin base64 en el JSON).
     const known=groups.find(group=>group.id===u.grupo.id);
     const wantedPhotos=new Set(u.fotos.map(photo=>photo.archivo_id));
-    const photos: Omit<LabPhoto, 'displayUrl'>[] = (known?.photos??[]).filter(photo=>wantedPhotos.has(photo.id));
+    const photos: Omit<LabPhoto, 'displayUrl'>[] = (known?.photos??[]).filter(photo=>wantedPhotos.has(photoFileId(photo)));
     let audio: Omit<AudioClip, 'displayUrl'> | null = known?.audio.id===u.grupo.audio_archivo_id?known.audio:null;
     const fotoByArchivo = new Map(u.fotos.map(f => [f.archivo_id, f]));
     for (const a of u.archivos) {
@@ -390,9 +397,9 @@ export async function pullVisitaFromCloud(
         const path = `archforms-lab/photos/${a.id}.jpg`;
         await Filesystem.writeFile({ path, data: b64, directory: Directory.Data, recursive: true });
         const f = fotoByArchivo.get(a.id);
-        const previous=photos.findIndex(photo=>photo.id===a.id);if(previous>=0)photos.splice(previous,1);
+        const previous=photos.findIndex(photo=>photoFileId(photo)===a.id);if(previous>=0)photos.splice(previous,1);
         photos.push({
-          id: a.id, path, mimeType: a.mime_type, features: [],
+          id: f?.id??a.id, archivoId:a.id, editedAt:f?.editada_at??undefined, path, mimeType: a.mime_type, features: [],
           sizeBytes: bytes.length, checksum: a.checksum_sha256 ?? '',
           createdAt: f?.capturada_at ?? u.grupo.iniciado_at,
         });
@@ -405,8 +412,8 @@ export async function pullVisitaFromCloud(
 
     // 2. Espejar el grupo local como 'synced'.
     photos.sort((p1, p2) => {
-      const o1 = u.fotos.find(f => f.archivo_id === p1.id)?.orden_en_grupo ?? 0;
-      const o2 = u.fotos.find(f => f.archivo_id === p2.id)?.orden_en_grupo ?? 0;
+      const o1 = u.fotos.find(f => f.id === p1.id)?.orden_en_grupo ?? 0;
+      const o2 = u.fotos.find(f => f.id === p2.id)?.orden_en_grupo ?? 0;
       return o1 - o2;
     });
     await upsertRemoteGroup({
@@ -429,10 +436,10 @@ export async function pullVisitaFromCloud(
       await outbox.markMediaSynced(id, remotePath).catch(() => undefined);
     };
     for (const p of photos) {
-      const remotePath = u.archivos.find(a => a.id === p.id)?.storage_key ?? '';
-      await seed(p.id, 'foto', p.path, p.mimeType, p.sizeBytes, p.checksum, remotePath, p.createdAt);
+      const remotePath = remote.archivos.find(a => a.id === photoFileId(p))?.storage_key ?? '';
+      await seed(photoFileId(p), 'foto', p.path, p.mimeType, p.sizeBytes, p.checksum, remotePath, p.createdAt);
     }
-    const audioRemote = u.archivos.find(a => a.id === audio.id)?.storage_key ?? '';
+    const audioRemote = remote.archivos.find(a => a.id === audio.id)?.storage_key ?? '';
     await seed(audio.id, 'audio', audio.path, audio.mimeType, audio.sizeBytes, audio.checksum, audioRemote, audio.createdAt);
   }
 
@@ -505,7 +512,7 @@ export class MediaSyncManager {
     const workspace=await workspaceLocal.read(this.ownerId);
     if(!workspace.visitas.some(visit=>visit.id===group.visitaId))return;
     const payload=await buildLivePayload(this.outbox,id,this.ownerId);
-    if(payload)await this.outbox.enqueueEntity({id,entity_type:'grupo_captura',payload:JSON.stringify(payload),depends_on:[...group.photos.map(photo=>photo.id),group.audio.id],created_at:new Date().toISOString()});
+    if(payload)await this.outbox.enqueueEntity({id,entity_type:'grupo_captura',payload:JSON.stringify(payload),depends_on:[...group.photos.map(photoFileId),group.audio.id],created_at:new Date().toISOString()});
   }
   requestSync(){return this.schedule?.()??this.sync()}
   async sync():Promise<void>{
@@ -518,13 +525,19 @@ export class MediaSyncManager {
 
   isRunning(): boolean { return this.engine.active(); }
   async pause(){this.stop();await this.engine.whenIdle()}
+  async withPaused<T>(task:()=>Promise<T>):Promise<T>{const schedule=this.schedule;await this.pause();try{return await task()}finally{this.start(schedule)}}
 
   start(schedule?:()=>Promise<void>):void{
     if(this.started)return;
     this.started=true;this.schedule=schedule;
     // eslint-disable-next-line no-this-alias -- registry forwards feature events to the account coordinator
     activeManager=this;
-    this.initialization=this.outbox.resetStuck();
+    this.initialization=this.outbox.resetStuck().then(async()=>{
+      const workspace=await workspaceLocal.read(this.ownerId);
+      for(const visit of workspace.visitas)for(const group of await loadCaptureGroups(visit.id)){
+        if(group.syncStatus!=='synced'&&group.photos.some(photo=>photo.editedAt))await enqueueGroupToOutbox(this.outbox,group,this.ownerId);
+      }
+    });
   }
   stop():void{
     this.started=false;this.schedule=undefined;
@@ -543,6 +556,22 @@ export class MediaSyncManager {
 let activeManager: MediaSyncManager | null = null;
 export function triggerMediaSync(): Promise<void> {
   return activeManager?.requestSync() ?? Promise.resolve();
+}
+
+/** Persist before enqueue; recoverable after a crash or an offline app restart. */
+export async function saveEditedPhoto(ownerId:string,visitaId:string,photo:LabPhoto,dataUrl:string):Promise<LabPhoto>{
+ const workspace=await workspaceLocal.read(ownerId);
+ if(!workspace.visitas.some(visit=>visit.id===visitaId))throw new Error('La visita ya no está disponible en esta cuenta.');
+ const manager=activeManager;
+ const commit=()=>withCaptureLock(visitaId,async()=>{
+  const next=await replaceStoredPhoto(visitaId,photo,dataUrl);
+  const group=(await loadCaptureGroups(visitaId)).find(group=>group.photos.some(p=>p.id===photo.id));
+  if(group)await enqueueGroupToOutbox(mediaOutbox,group,ownerId);
+  notifyLocalChange();return next;
+ });
+ const next=manager?await manager.withPaused(commit):await commit();
+ void triggerMediaSync().catch(console.error);
+ return next;
 }
 
 // ── Debug helpers (panel de diagnóstico) ─────────────────────────────────────
@@ -587,7 +616,7 @@ export async function getGroupSyncDebug(
 ): Promise<GroupSyncDebug> {
   const media: MediaDebugRow[] = [];
   for (const [kind, id, localPath] of [
-    ...group.photos.map(p => ['foto', p.id, p.path] as const),
+    ...group.photos.map(p => ['foto', photoFileId(p), p.path] as const),
     ['audio', group.audio.id, group.audio.path] as const,
   ]) {
     const row = await outbox.mediaStatus(id);
@@ -619,7 +648,7 @@ export async function retryGroup(
   outbox: MediaOutboxRepository,
   group: CaptureGroup,
 ): Promise<void> {
-  await outbox.forceRetry([group.id, ...group.photos.map(p => p.id), group.audio.id]);
+  await outbox.forceRetry([group.id, ...group.photos.map(photoFileId), group.audio.id]);
   await triggerMediaSync();
 }
 

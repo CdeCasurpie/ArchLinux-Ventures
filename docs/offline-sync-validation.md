@@ -142,7 +142,7 @@ APK local:
 JAVA_HOME=/usr/lib/jvm/java-21-temurin ANDROID_HOME=$HOME/Android/Sdk npm run android:build:local
 adb reverse tcp:54321 tcp:54321
 adb install -r apps/client/android/app/build/outputs/apk/debug/app-debug.apk
-adb shell am start -n com.archventures.archforms/.MainActivity
+adb shell am start -n com.karen.archforms/.MainActivity
 ```
 
 Prueba física opt-in: `ANDROID_SERIAL=SERIAL node scripts/test-android-local.mjs`.

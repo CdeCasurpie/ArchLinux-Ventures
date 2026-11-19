@@ -67,6 +67,10 @@ async function compressPhoto(base64: string): Promise<{
 // ── Storage types (exportados sin cambios) ───────────────────────────────────
 export type LabPhoto = {
   id:         string
+  /** Stable photo id; each edited binary has its own immutable archivo id. */
+  archivoId?: string
+  editedAt?:  string
+  previousFiles?: string[]
   path:       string
   mimeType:   string
   features:   LocalFeature[]
@@ -109,6 +113,9 @@ type StoredGroup = Omit<CaptureGroup, 'photos' | 'audio'> &
 // Lista explícita de campos: nunca se cuela un displayUrl ni nada pesado.
 const photoRow = (p: StoredPhoto): StoredPhoto => ({
   id: p.id, path: p.path, mimeType: p.mimeType,
+  ...(p.archivoId ? { archivoId:p.archivoId } : {}),
+  ...(p.editedAt ? { editedAt:p.editedAt } : {}),
+  ...(p.previousFiles?.length ? {previousFiles:p.previousFiles} : {}),
   sizeBytes: p.sizeBytes, checksum: p.checksum, createdAt: p.createdAt,
   ...(p.thumbUrl ? { thumbUrl: p.thumbUrl } : {}),
 })
@@ -153,9 +160,9 @@ const deleteQuiet = (path: string) =>
   Filesystem.deleteFile({ path, directory: Directory.Data }).catch(() => undefined)
 export async function deleteVisitCapture(visitaId:string){
  const captured=await loadCaptureGroups(visitaId);
- for(const group of captured){for(const photo of group.photos){await deleteQuiet(photo.path);await deleteQuiet(thumbPath(photo.id));thumbCache.delete(thumbPath(photo.id))}await deleteQuiet(group.audio.path);groups.delete(group.id);runtimeStatus.delete(group.id)}
+  for(const group of captured){for(const photo of group.photos){for(const path of new Set([photo.path,photoPath(photo.id),...(photo.previousFiles??[])])){await deleteQuiet(path);await deleteQuiet(path.replace(/\.jpg$/,'.thumb.jpg'));thumbCache.delete(path.replace(/\.jpg$/,'.thumb.jpg'))}}await deleteQuiet(group.audio.path);groups.delete(group.id);runtimeStatus.delete(group.id)}
  const draft=await loadDraftPhotos(visitaId);
- for(const photo of draft){await deleteQuiet(photo.path);await deleteQuiet(thumbPath(photo.id))}
+  for(const photo of draft){for(const path of new Set([photo.path,photoPath(photo.id),...(photo.previousFiles??[])])){await deleteQuiet(path);await deleteQuiet(path.replace(/\.jpg$/,'.thumb.jpg'))}}
  await Filesystem.rmdir({path:groupDir(visitaId),directory:Directory.Data,recursive:true}).catch(()=>undefined);
  await deleteQuiet(draftFile(visitaId));
  drafts.delete(visitaId);loadedVisitas.delete(visitaId);
@@ -225,7 +232,7 @@ async function hydrate(s: StoredGroup): Promise<CaptureGroup> {
     ...rest,
     photos: await Promise.all(photos.map(async p =>
       ({ ...p, features: [],
-         thumbUrl: p.thumbUrl ? await fileUrl(thumbPath(p.id), p.mimeType) : undefined,
+          thumbUrl: p.thumbUrl ? await fileUrl(thumbPath(photoFileId(p)), p.mimeType) : undefined,
          displayUrl: await fileUrl(p.path, p.mimeType) }))),
     audio: { ...audio, displayUrl: await fileUrl(audio.path, audio.mimeType) },
   }
@@ -448,6 +455,37 @@ export async function savePhoto(input: {
     createdAt: new Date().toISOString(),
     displayUrl: `data:image/jpeg;base64,${compressed.base64}`,
   }
+}
+
+export const photoFileId=(photo:Pick<LabPhoto,'id'|'archivoId'>)=>photo.archivoId??photo.id;
+
+/** Write a new binary first, then atomically publish its reference. Never overwrite
+ * a file which an upload, a PDF export or an open editor may still be reading. */
+export async function replaceStoredPhoto(visitaId:string,original:LabPhoto,dataUrl:string):Promise<LabPhoto>{
+ await ready();await ensureVisita(visitaId);
+ const group=[...groups.values()].find(g=>g.visitaId===visitaId&&g.photos.some(p=>p.id===original.id));
+ const draft=(await loadDraftPhotos(visitaId)).find(p=>p.id===original.id);
+ const current=group?.photos.find(p=>p.id===original.id)??draft??original;
+ if(original.checksum&&current.checksum!==original.checksum)throw new Error('La foto cambió mientras la editabas. Ábrela de nuevo para continuar.');
+ if(!dataUrl.startsWith('data:image/jpeg;base64,'))throw new Error('Formato de imagen no válido.');
+ const base64=dataUrl.slice('data:image/jpeg;base64,'.length),bytes=Uint8Array.from(atob(base64),c=>c.charCodeAt(0));
+ if(!bytes.length||bytes.length>10_000_000)throw new Error('La imagen debe ocupar menos de 10 MB.');
+ const checksum=await sha256(bytes),archivoId=crypto.randomUUID(),path=photoPath(archivoId);
+ const editedAt=new Date(Math.max(Date.now(),Date.parse(current.editedAt??current.createdAt)+1)).toISOString();
+ const next:LabPhoto={...current,archivoId,path,editedAt,previousFiles:[...new Set([...(current.previousFiles??[]),current.path])],checksum,sizeBytes:bytes.length,features:[],mimeType:'image/jpeg',thumbUrl:undefined,displayUrl:dataUrl};
+ await Filesystem.writeFile({path,data:base64,directory:Directory.Data,recursive:true});
+ try{
+  if(group){
+   const latest=groups.get(group.id)!;
+   groups.set(group.id,{...latest,photos:latest.photos.map(p=>p.id===original.id?next:p),syncStatus:'pending'});
+   try{await persistGroup(group.id)}catch(error){groups.set(group.id,latest);throw error}
+  }else{
+   const previous=drafts.get(visitaId)??[];
+   drafts.set(visitaId,[photoRow(next),...previous.filter(p=>p.id!==next.id)]);
+   try{await persistDraft(visitaId)}catch(error){drafts.set(visitaId,previous);throw error}
+  }
+ }catch(error){await deleteQuiet(path);throw error}
+ return {...next,displayUrl:await fileUrl(path,next.mimeType)};
 }
 
 // ── Audio ────────────────────────────────────────────────────────────────────

@@ -43,7 +43,7 @@ test('duplicar y editar plantillas no cambia el expediente; editar su copia exig
    await target.locator('.editor-field-toggle').first().click();
    await target.getByLabel('Etiqueta del campo').fill(label);
    await target.getByRole('button',{name:/Usar esta versión/}).click();
-    await expect(target.getByText('Cambios en la plantilla sin guardar',{exact:false})).toBeVisible();
+     await expect(target.getByText('Cambios sin guardar. Guarda el expediente para conservarlos.',{exact:true})).toBeVisible();
   }
 
   await login(page);

@@ -36,6 +36,7 @@ export interface Expediente {
  id:string;profesional_id:string;nro_expediente:string;nro_licencia:string|null;modalidad:string|null;
  entidad_destinataria:string|null;fecha_emision_licencia:string|null;vigencia_desde:string|null;vigencia_hasta:string|null;
  propietario:string|null;ubicacion:string;distrito:string|null;provincia:string|null;departamento:string|null;
+ urbanizacion?:string|null;manzana?:string|null;lote?:string|null;zonificacion?:string|null;
  tipo_obra:string|null;uso_predio:string|null;detalle_obra:string|null;valor_obra:number|null;
  total_visitas_programadas:number|null;responsable_obra_nombre:string|null;responsable_obra_colegiatura:string|null;
  poliza_car_json:Record<string,unknown>|null;datos_cabecera_extra:Record<string,unknown>|null;
@@ -161,6 +162,7 @@ export interface RemoteGrupo {
 export interface RemoteFoto {
  id:string;visita_id:string;grupo_captura_id:string|null;archivo_id:string;
  orden_en_grupo:number|null;capturada_at:string;
+ editada_at?:string|null;
 }
 
 // ── ReportDocumentV1 (Iteración 5) ───────────────────────────────────────────
@@ -314,6 +316,7 @@ export interface GrupoCapturaPayload {
  fotos:Array<{
   id:string;archivo_id:string;orden_en_grupo:number;capturada_at:string;
   local_path:string;remote_path:string|null;
-  mime_type:string;size_bytes:number;checksum:string;
+   mime_type:string;size_bytes:number;checksum:string;
+   editada_at?:string|null;
  }>;
 }

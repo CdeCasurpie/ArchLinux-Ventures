@@ -8,14 +8,14 @@ export function HomeIcon({kind}:{kind:'obra'|'pending'|'template'|'more'|'person
  const paths={obra:<path d="M4 21V7l8-4 8 4v14M9 21v-5h6v5M8 8h2m4 0h2M8 12h2m4 0h2M2 21h20"/>,pending:<><rect x="5" y="4" width="14" height="17" rx="2"/><path d="M9 4V2h6v2M9 10h6m-6 4h6m-6 4h3"/></>,template:<><rect x="4" y="3" width="16" height="18" rx="2"/><path d="m7 8 1 1 2-2m2 1h5M7 13h2m3 0h5m-10 4h2m3 0h5"/></>,more:<><circle cx="12" cy="12" r="9"/><path d="M12 7v10M7 12h10"/></>,person:<><circle cx="12" cy="7" r="4"/><path d="M4 23v-3a8 8 0 0 1 16 0v3Z"/></>,spark:<path d="m12 2 3 7 7 3-7 3-3 7-3-7-7-3 7-3ZM20 2v4m-2-2h4"/>};
  return <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">{paths[kind]}</svg>;
 }
-export function MobileHome({obras,visitas,name,onNavigate,onOpen}:{obras:Expediente[];visitas:Visita[];name?:string;onNavigate:(view:HomeDestination)=>void;onOpen:(id:string)=>void}){
+export function MobileHome({obras,visitas,name,onNavigate,onOpen,onTutorial}:{obras:Expediente[];visitas:Visita[];name?:string;onNavigate:(view:HomeDestination)=>void;onOpen:(id:string)=>void;onTutorial:()=>void}){
  const visited=new Set(visitas.map(v=>v.expediente_id));
  const recent=recentWorks(obras,visitas).filter(o=>visited.has(o.id)).slice(0,2);
  const count=visitsToReview(visitas).filter(v=>obras.some(o=>o.activo&&o.id===v.expediente_id)).length;
  const links=[{view:'expedientes',icon:'obra',label:'Mis expedientes'},{view:'pendientes',icon:'pending',label:'Visitas pendientes'},{view:'plantillas',icon:'template',label:'Mis plantillas'},{view:'mas',icon:'more',label:'Ver más'}] as const;
  return <div className="mobile-home">
   <section className="hero-card home-mobile-blue">
-   <header className="home-mobile-header"><h1 className="home-greeting">Hola{name?.trim()?`, ${name.trim().split(/\s+/)[0]}`:''}</h1><button className="home-profile-button" aria-label="Mi perfil" onClick={()=>onNavigate('perfil')}><HomeIcon kind="person"/></button></header>
+    <header className="home-mobile-header"><div className="home-greeting-brand"><img src="/archforms-mark.png" alt="ArchForms"/><h1 className="home-greeting">Hola{name?.trim()?`, ${name.trim().split(/\s+/)[0]}`:''}</h1></div><div className="home-profile-actions"><button className="tutorial-trigger" aria-label="Ver tutorial" title="Ver tutorial" onClick={onTutorial}>?</button><button className="home-profile-button" aria-label="Mi perfil" onClick={()=>onNavigate('perfil')}><HomeIcon kind="person"/></button></div></header>
    <p className="home-mobile-caption">Tu próxima visita, tu próximo informe.</p>
    <nav className="home-shortcuts" aria-label="Accesos rápidos">{links.map(link=><button key={link.view} onClick={()=>onNavigate(link.view)}><span className="home-shortcut-icon"><HomeIcon kind={link.icon}/>{link.view==='pendientes'&&count>0&&<span className="home-shortcut-count">{count}</span>}</span><span>{link.label}</span></button>)}</nav>
    <aside className="home-news" aria-label="Novedades de ArchForms"><div><span className="eyebrow">NOVEDADES · ARCHFORMS</span><h2>Más tiempo en obra.<br/>Menos tiempo redactando.</h2><p>Tu trabajo de campo, listo para convertirse en informe.</p></div><span className="home-news-icon"><HomeIcon kind="spark"/></span></aside>

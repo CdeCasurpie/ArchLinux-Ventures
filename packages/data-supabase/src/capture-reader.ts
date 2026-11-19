@@ -10,7 +10,7 @@ export class SupabaseCaptureReader implements CaptureRemoteReader{
     if(!visitaIds.length)return {grupos:[],fotos:[],archivos:[]};
     const [grupos,fotos]=await Promise.all([
       readPages((after,size)=>{let q=this.client.from('grupo_captura').select('id,visita_id,orden,audio_archivo_id,transcripcion_original,audio_duracion_ms,iniciado_at,confirmado_at').in('visita_id',visitaIds).order('id').limit(size);if(after)q=q.gt('id',after);return q}),
-      readPages((after,size)=>{let q=this.client.from('foto').select('id,visita_id,grupo_captura_id,archivo_id,orden_en_grupo,capturada_at').in('visita_id',visitaIds).order('id').limit(size);if(after)q=q.gt('id',after);return q}),
+       readPages((after,size)=>{let q=this.client.from('foto').select('id,visita_id,grupo_captura_id,archivo_id,orden_en_grupo,capturada_at,editada_at').in('visita_id',visitaIds).order('id').limit(size);if(after)q=q.gt('id',after);return q}),
     ]);
     const ids=[...new Set([...fotos.map(photo=>photo.archivo_id),...grupos.flatMap(group=>group.audio_archivo_id?[group.audio_archivo_id]:[])])];
     const archivos:RemoteArchivo[]=[];

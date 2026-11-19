@@ -14,6 +14,7 @@ describe('atomic capture acceptance',()=>{
     const payload={id:groupId,visita_id:visitId,profesional_id:owner,iniciado_at:stamp,confirmado_at:stamp,transcripcion:'original',
       audio:{id:audioId,remote_path:paths[0],mime_type:'audio/wav',size_bytes:3,checksum:'039058c6f2c0cb492c533b0a4d14ef77cc0f78abccced5287d84a1a2011cfb81',duration_ms:100},
       fotos:[{id:photoId,archivo_id:photoId,remote_path:paths[1],mime_type:'image/jpeg',size_bytes:3,checksum:'039058c6f2c0cb492c533b0a4d14ef77cc0f78abccced5287d84a1a2011cfb81',orden_en_grupo:1,capturada_at:stamp}]};
+    const editedId=crypto.randomUUID();paths.push(`${owner}/${visitId}/${editedId}`);
     try{
       expect((await client.from('expediente').insert({id:caseId,profesional_id:owner,nro_expediente:caseId,ubicacion:'Test',checklist_nombre:'Test',checklist_esquema_json:{}})).error).toBeNull();
       expect((await client.from('visita').insert({id:visitId,expediente_id:caseId,nro_visita:1,fecha:'2026-11-10',checklist_nombre:'Test',checklist_esquema_json:{},checklist_respuestas_json:{},documento_json:{}})).error).toBeNull();
@@ -29,12 +30,25 @@ describe('atomic capture acceptance',()=>{
       expect((await client.rpc('sync_capture_v1',{operation_id:operationId,payload})).data).toEqual(first.data);
       expect((await client.from('grupo_captura').select('transcripcion_original').eq('id',groupId).single()).data?.transcripcion_original).toBe('new transcription');
       expect((await client.from('foto').select('id').eq('grupo_captura_id',groupId)).data).toHaveLength(1);
+      const edit={...payload,fotos:[{...payload.fotos[0],archivo_id:editedId,remote_path:paths[2],editada_at:new Date(Date.now()+1000).toISOString()}]};
+      expect((await client.rpc('sync_capture_v1',{operation_id:crypto.randomUUID(),payload:edit})).error).toBeNull();
+      // A late original capture/transcription push cannot replace edited bytes.
+      expect((await client.rpc('sync_capture_v1',{operation_id:crypto.randomUUID(),payload})).error).toBeNull();
+      const saved=(await client.from('foto').select('id,archivo_id,editada_at').eq('id',photoId).single()).data;
+      expect(saved?.id).toBe(photoId);expect(saved?.archivo_id).toBe(editedId);
+      expect(Date.parse(saved!.editada_at)).toBe(Date.parse(edit.fotos[0].editada_at));
+      const overwrite={...edit,fotos:[{...edit.fotos[0],checksum:'a'.repeat(64)}]};
+      expect((await client.rpc('sync_capture_v1',{operation_id:crypto.randomUUID(),payload:overwrite})).error).not.toBeNull();
+      const deletion=await client.rpc('sync_delete_workspace_v1',{operation_id:crypto.randomUUID(),entity:'expediente',entity_id:caseId});
+      expect(deletion.error).toBeNull();
+      expect(deletion.data.storage_paths.sort()).toEqual([...paths].sort());
+      expect((await client.from('archivo').select('id').in('id',[audioId,photoId,editedId])).data).toEqual([]);
     }finally{
       await client.from('foto').delete().eq('visita_id',visitId);
       await client.from('grupo_captura').delete().eq('visita_id',visitId);
       await client.from('visita').delete().eq('id',visitId);
       await client.from('expediente').delete().eq('id',caseId);
-      await client.from('archivo').delete().in('id',[audioId,photoId]);
+      await client.from('archivo').delete().in('id',[audioId,photoId,editedId]);
       await client.storage.from('visita-media').remove(paths);
       await client.auth.signOut();
     }

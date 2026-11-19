@@ -40,7 +40,17 @@ const s = StyleSheet.create({
   value: { fontSize: 10, color: C.ink },
 
   // Títulos
-  h2: { fontSize: 12, fontWeight: 'bold', color: C.navy, marginTop: 16, marginBottom: 7, paddingBottom: 3, borderBottomWidth: 1.5, borderBottomColor: C.navy },
+  h2: { fontSize: 11, fontWeight: 'bold', color: C.navy, marginTop: 16, marginBottom: 7, paddingBottom: 3, borderBottomWidth: 0.75, borderBottomColor: C.line },
+  headerTop: { flexDirection:'row', alignItems:'center', marginBottom:10, gap:12 },
+  identity: { width:'36%', fontSize:9, lineHeight:1.3 },
+  headerMeta: { flex:1, flexDirection:'row', borderTopWidth:1, borderTopColor:C.navy },
+  reportTitle: { backgroundColor:'#d0dbe5', padding:9, fontSize:12, fontWeight:'bold', marginBottom:2 },
+  tableTitle: { fontSize:9, fontWeight:'bold', color:C.navy, marginTop:11, marginBottom:4 },
+  tableRow: { flexDirection:'row', borderLeftWidth:0.6, borderTopWidth:0.6, borderColor:'#bfccda' },
+  table: { borderBottomWidth:0.6, borderColor:'#bfccda' },
+  tableCell: { flex:1, paddingHorizontal:7, paddingVertical:5, borderRightWidth:0.6, borderColor:'#bfccda', minWidth:0 },
+  tableLabel: { fontSize:7.2, lineHeight:1.2, color:C.muted, marginBottom:2 },
+  tableValue: { fontSize:9.2, lineHeight:1.25, color:C.ink },
   para: { marginBottom: 6 },
 
   // Checklist minimalista: sin bloques de color, solo tipografía y líneas finas.
@@ -64,8 +74,8 @@ const s = StyleSheet.create({
 
   // Hallazgos y mosaico
   groupTitle: { flexDirection: 'row', alignItems: 'center', marginTop: 10, marginBottom: 5 },
-  badge: { width: 16, height: 16, borderRadius: 8, backgroundColor: C.navy, alignItems: 'center', justifyContent: 'center', marginRight: 6 },
-  badgeTxt: { color: '#ffffff', fontSize: 8.5, fontWeight: 'bold', lineHeight: 1 },
+  badge: { width: 18, height: 18, borderRadius: 9, borderWidth:0.8, borderColor:C.navy, alignItems: 'center', justifyContent: 'center', marginRight: 6 },
+  badgeTxt: { color: C.navy, fontSize: 8.5, fontWeight: 'bold', lineHeight: 1 },
   groupTitleTxt: { fontSize: 10.5, fontWeight: 'bold', color: C.navy },
   mosaicRow: { flexDirection: 'row', gap: MOSAIC.gap, marginBottom: MOSAIC.gap },
   photo: { overflow: 'hidden', borderRadius: 2, backgroundColor: '#eef1f5' },
@@ -98,39 +108,37 @@ function Mark({ kind, on }: { kind: 'si' | 'no' | 'na'; on: boolean }) {
 
 // ── Bloques ─────────────────────────────────────────────────────────────────
 function HeaderBlock({ visita, expediente, profesional }: { visita: Visita; expediente: Expediente; profesional: Profile | null }) {
-  const item = (label: string, value: string | null | undefined) => (
-    <View style={s.cell}>
-      <Text style={s.label}>{label}</Text>
-      <Text style={s.value}>{value || '—'}</Text>
-    </View>
-  );
-  const sub = [expediente.detalle_obra || expediente.propietario, expediente.ubicacion].filter(Boolean).join('  ·  ');
-  return (
-    <View>
-      <View style={s.band}>
-        <Text style={s.brand}>ARCHFORMS · INFORME DE VISITA</Text>
-        <Text style={s.bandTitle}>Visita {String(visita.nro_visita).padStart(2, '0')}{expediente.total_visitas_programadas?`/${expediente.total_visitas_programadas}`:''} · Exp. {expediente.nro_expediente}</Text>
-        {sub ? <Text style={s.bandSub}>{sub}</Text> : null}
-      </View>
-      <View style={s.card}>
-        <View style={s.row}>
-          {item('Fecha', visita.fecha)}
-          {item('Licencia', expediente.nro_licencia)}
-          {item('Modalidad', expediente.modalidad)}
-        </View>
-        <View style={s.row}>
-          {item('Propietario', expediente.propietario)}
-          {item('Responsable de obra', visita.responsable_obra_nombre)}
-          {item('CIP / Colegiatura', visita.responsable_obra_colegiatura)}
-        </View>
-        <View style={[s.row, { marginBottom: 0 }]}>
-          {item('Profesional', profesional?.nombre_completo)}
-          {item('Cargo', profesional?.cargo)}
-          {item('Colegiatura', profesional?.nro_colegiatura)}
-        </View>
-      </View>
-    </View>
-  );
+  const date=(value:unknown)=>typeof value==='string'&&/^\d{4}-\d{2}-\d{2}$/.test(value)?value.split('-').reverse().join(' / '):value;
+  const item = (label:string,value:unknown,flex=1)=><View key={label} style={[s.tableCell,{flex}]}><Text style={s.tableLabel}>{label}</Text><Text style={s.tableValue}>{value===null||value===undefined||value===''?'—':String(value)}</Text></View>;
+  const row=(...cells:React.ReactNode[])=><View style={s.tableRow} wrap={false}>{cells}</View>;
+  const policy=expediente.poliza_car_json;
+  return <View>
+   <View style={s.headerTop} wrap={false}>
+    <View style={s.identity}><Text style={{fontWeight:'bold'}}>{profesional?.nombre_completo||'Profesional responsable'}</Text><Text style={s.tableLabel}>{[profesional?.cargo,profesional?.nro_colegiatura?`Col. ${profesional.nro_colegiatura}`:null].filter(Boolean).join(' · ')}</Text></View>
+    <View style={s.headerMeta}>{item('Expediente',expediente.nro_expediente)}{item('Licencia',expediente.nro_licencia)}{item('Fecha de inspección',date(visita.fecha))}{item('Visita',`${visita.nro_visita}${expediente.total_visitas_programadas?` de ${expediente.total_visitas_programadas}`:''}`)}</View>
+   </View>
+   <Text style={s.reportTitle}>INFORME DE VERIFICACIÓN TÉCNICA</Text>
+   <Text style={s.tableTitle}>LICENCIA DE OBRA</Text>
+   <View style={s.table}>
+    {row(item('Modalidad',expediente.modalidad),item('Fecha de emisión',date(expediente.fecha_emision_licencia)),item('Vigencia desde',date(expediente.vigencia_desde)),item('Vigencia hasta',date(expediente.vigencia_hasta)))}
+    {row(item('Municipalidad / entidad',expediente.entidad_destinataria))}
+   </View>
+   <Text style={s.tableTitle}>OBRA</Text>
+   <View style={s.table}>
+    {row(item('Ubicación',expediente.ubicacion))}
+    {row(item('Distrito',expediente.distrito),item('Provincia',expediente.provincia),item('Departamento',expediente.departamento),item('Zonificación',expediente.zonificacion))}
+    {row(item('Urbanización',expediente.urbanizacion,2),item('Mz.',expediente.manzana),item('Lote',expediente.lote))}
+    {row(item('Tipo de obra',expediente.tipo_obra),item('Uso del predio',expediente.uso_predio,2),item('Valor de obra',expediente.valor_obra===null?null:`S/ ${new Intl.NumberFormat('es-PE').format(expediente.valor_obra)}`))}
+    {row(item('Detalle de obra',expediente.detalle_obra))}
+   </View>
+   <Text style={s.tableTitle}>PÓLIZA CAR</Text>
+   <View style={s.table}>{row(item('Compañía',policy?.compania,2),item('Inicio de póliza',date(policy?.desde)),item('Fin de póliza',date(policy?.hasta)))}</View>
+   <Text style={s.tableTitle}>PROPIETARIO Y RESPONSABLE</Text>
+   <View style={s.table}>
+    {row(item('Propietario / razón social',expediente.propietario))}
+    {row(item('Responsable de obra',visita.responsable_obra_nombre??expediente.responsable_obra_nombre,3),item('CIP / colegiatura',visita.responsable_obra_colegiatura??expediente.responsable_obra_colegiatura))}
+   </View>
+  </View>;
 }
 
 function ChecklistBlock({ visita }: { visita: Visita }) {
@@ -259,7 +267,6 @@ function SignaturesBlock({ visita, profesional,doc }: { visita: Visita; profesio
   );
   return (
     <View wrap={false}>
-      <Text style={s.h2}>Firmas</Text>
       <View style={s.signBox}>
         {doc.signers?.length?doc.signers.map(person=><View key={person.id} style={s.signCell}><View style={s.signSpace}>{person.image?<Image src={person.image} style={{width:150,height:60,objectFit:'contain'}}/>:null}</View><View style={s.signIdentity}><Text style={s.value}>{person.nombre||'—'}</Text><Text style={s.label}>{person.cargo||'Firmante'}</Text><Text style={s.label}>{person.colegiatura}</Text></View></View>):<>
         {signer(visita.responsable_obra_nombre, 'Responsable de obra', visita.responsable_obra_colegiatura)}
@@ -365,7 +372,7 @@ export function buildInformeDoc(input: InformeInput) {
 export async function stampPageNumbers(
   pdfBytes: Uint8Array,
   rightText: (page: number, total: number) => string,
-  leftText = 'ARCHFORMS',
+  leftText = 'Creado por ArchForms',
   opts: { useObjectStreams?: boolean } = {},
 ): Promise<Uint8Array> {
   const doc = await PDFDocument.load(pdfBytes);

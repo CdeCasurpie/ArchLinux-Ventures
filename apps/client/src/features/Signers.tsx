@@ -44,7 +44,7 @@ export function SignersEditor({signers,onChange,self,profileMode=false}:{signers
  };
    return <section className="signers-editor">
     {cameraId&&<SignatureCamera onClose={()=>setCameraId(null)} onUse={async file=>{update(cameraId,{image:await signatureImage(file)})}}/>}
-    {!profileMode&&<div className="signers-intro"><p>Las personas que suscriben este informe.</p><span>{signers.length} de 6 firmantes</span></div>}
+     {!profileMode&&<div className="signers-intro"><p>Las personas que suscriben este informe.</p></div>}
       {self&&!profileMode&&<button type="button" className="signer-self-add" disabled={busy||signers.length>=6||signers.some(s=>s.id===self.id)} onClick={()=>onChange([...signers,structuredClone(self)])}><span className="signer-self-icon"><SignatureIcon kind="person"/></span><span>Añadirme como firmante</span><Icon name="plus"/></button>}
    {error&&<p role="alert" className="alert error">{error}</p>}
    {!signers.length&&<div className="signers-empty"><span className="signers-empty-icon"><SignatureIcon kind="person"/></span><div><strong>¿Quiénes firman el informe?</strong><p>Añade sus datos y elige cómo aparecerá cada firma.</p></div></div>}

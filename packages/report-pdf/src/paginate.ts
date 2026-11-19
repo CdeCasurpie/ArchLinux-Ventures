@@ -39,10 +39,10 @@ export function countLines(text: string, width: number, fontSize: number): numbe
 export const LINE = 14.5;
 
 export const H = {
-  header: 201.5,               // banda (descontando el margen negativo) + tarjeta de datos
+  header: 545,                 // cabecera tabulada, con todos los datos del expediente
   h2: 16 + LINE + 3 + 1.5 + 7,
   ckSection: 13 + 12 + 3 + 0.75, // título de sección: margen + línea + borde
-  groupTitle: 10 + 16 + 5,
+  groupTitle: 10 + 18 + 5,
   commentFixed: 4 + 6 + 2,
   commentLine: LINE,
   missingNote: LINE,
