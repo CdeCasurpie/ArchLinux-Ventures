@@ -14,7 +14,7 @@ Convertimos un trabajo fragmentado entre el celular, apuntes físicos, Word y Ex
 
 ### Por qué ahora
 
-Hoy podemos construir y mantener un producto de este tipo con un costo mínimo: desarrollamos la primera versión en 48–65 horas con asistentes de IA, y la transcripción de voz funciona dentro del propio celular. Al mismo tiempo, aparecen competidores que usan la IA para redactar el informe completo, lo que traslada al inspector un riesgo de responsabilidad profesional. Existe un espacio para una herramienta que automatice la organización sin reemplazar el criterio del profesional.
+Hoy podemos construir y mantener un producto de este tipo con costos bajos, y la transcripción de voz funciona dentro del propio celular. Al mismo tiempo, aparecen competidores que usan la IA para redactar el informe completo, lo que traslada al inspector un riesgo de responsabilidad profesional. Existe un espacio para una herramienta que automatice la organización sin reemplazar el criterio del profesional.
 
 ### Razones para considerar la inversión
 
@@ -31,7 +31,7 @@ Hoy podemos construir y mantener un producto de este tipo con un costo mínimo: 
 
 ### Preguntas difíciles y riesgos clave
 
-1. **¿Pagarán?** Nadie ha pagado todavía. S/ 200 mensuales les pareció excesivo. Pagaron S/ 60 por una alternativa, y algunos condicionan su pago a ver resultados claros. Si el churn mensual fuera de 4,8 % en lugar de 3 %, nuestra valoración del negocio actual bajaría de S/ 85 400 a S/ 72 100; con el 6,1 % que ChartMogul reporta para suscripciones de menos de USD 25, bajaría a S/ 65 200 (sección 6).
+1. **¿Pagarán?** Nadie ha pagado por ArchForms todavía. En nuestras entrevistas, los arquitectos señalaron que S/ 200 mensuales les parecía excesivo; algunos ya habían pagado S/ 60 por una alternativa. Ese antecedente respalda el precio propuesto, pero aún debemos comprobar que paguen por nuestra aplicación y renueven al ver resultados claros. También importa cuántos clientes dejan de pagar cada mes: nuestro escenario base supone que se van unos 3 de cada 100. Si se fueran cerca de 5 de cada 100 (4,8 %), el valor estimado del negocio actual bajaría de S/ 85 400 a S/ 72 100; si fueran unos 6 de cada 100 (6,1 %, referencia de ChartMogul para suscripciones de menos de USD 25), bajaría a S/ 65 200. En otras palabras, necesitamos que los usuarios se queden, además de conseguir nuevos clientes (sección 6).
 2. **¿Podemos sostener el negocio solo nosotros dos?** Trabajaremos sin retiros durante 18 meses y luego con retiros inferiores a un sueldo de mercado. ArchForms depende de nuestra dedicación. Además, somos pareja; lo mitigamos formalizando roles y acuerdos societarios (sección 10).
 3. **¿El nicho es suficiente?** Estimamos unos 842 inspectores municipales de obra en el Perú. El negocio actual es rentable pero pequeño; escalar exige ingresar a otros países y construir la suite, que todavía no existe.
 
