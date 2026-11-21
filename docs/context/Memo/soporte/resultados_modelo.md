@@ -1,21 +1,21 @@
-# Resultados automáticos del modelo
+# Resultados automáticos del modelo (v2)
 
-Todos son escenarios hipotéticos. Caja negativa = financiación faltante; la operación posterior está condicionada a cubrirla.
+Todos son escenarios hipotéticos. Caja negativa = financiación faltante.
 
 | Escenario | Año | Clientes cierre* | Ingreso neto | Flujo neto | Caja cierre |
 |---|---:|---:|---:|---:|---:|
-| Conservador | 1 | 9.2 | 3,322 | -3,318 | 6,682 |
-| Conservador | 2 | 32.5 | 14,049 | -25,859 | -19,177 |
-| Conservador | 3 | 63.6 | 31,063 | -43,324 | -62,501 |
-| Base | 1 | 30.6 | 10,683 | 224 | 10,224 |
-| Base | 2 | 82.5 | 36,775 | -11,112 | -889 |
-| Base | 3 | 159.3 | 77,121 | -12,143 | -13,031 |
-| Expansivo | 1 | 64.6 | 22,136 | 7,309 | 17,309 |
-| Expansivo | 2 | 179.9 | 78,914 | 18,584 | 35,894 |
-| Expansivo | 3 | 356.4 | 170,255 | 55,841 | 91,735 |
+| Pesimista | 1 | 46.0 | 16,611 | 5,517 | 15,517 |
+| Pesimista | 2 | 70.8 | 37,022 | 12,126 | 27,643 |
+| Pesimista | 3 | 84.2 | 48,051 | 0 | 27,643 |
+| Base | 1 | 71.4 | 24,926 | 13,132 | 23,132 |
+| Base | 2 | 121.0 | 60,883 | 34,157 | 57,289 |
+| Base | 3 | 155.4 | 85,832 | 21,192 | 78,482 |
+| Expansivo | 1 | 107.6 | 36,893 | 24,108 | 34,108 |
+| Expansivo | 2 | 192.1 | 94,630 | 65,316 | 99,424 |
+| Expansivo | 3 | 258.4 | 139,937 | 71,148 | 170,572 |
 
-*Valores esperados del modelo de churn: pueden ser fraccionarios; no representan personas observadas.
+*Valores esperados del modelo de churn: pueden ser fraccionarios.
 
-- Conservador: primera caja negativa = 15; financiación adicional mínima hasta mes 36 = S/ 62,501; flujo mensual no negativo desde mes no alcanzado hasta el cierre del horizonte.
-- Base: primera caja negativa = 21; financiación adicional mínima hasta mes 36 = S/ 13,486; flujo mensual no negativo desde mes 35 hasta el cierre del horizonte.
-- Expansivo: primera caja negativa = None; financiación adicional mínima hasta mes 36 = S/ 0; flujo mensual no negativo desde mes 15 hasta el cierre del horizonte.
+- Pesimista: CAC derivado = S/ 133; primera caja negativa = mes None; financiación adicional mínima = S/ 0; primer pico de clientes con Supabase Pro = mes 3.
+- Base: CAC derivado = S/ 95; primera caja negativa = mes None; financiación adicional mínima = S/ 0; primer pico de clientes con Supabase Pro = mes 2.
+- Expansivo: CAC derivado = S/ 67; primera caja negativa = mes None; financiación adicional mínima = S/ 0; primer pico de clientes con Supabase Pro = mes 1.

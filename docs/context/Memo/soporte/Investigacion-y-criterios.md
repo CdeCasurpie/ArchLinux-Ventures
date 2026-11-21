@@ -1,3 +1,5 @@
+> **Nota (20/11/2026):** las cifras financieras de este archivo corresponden a una versión anterior del modelo. Las vigentes están en `resultados_modelo.md`, `valuacion_resultados.md` y `mercado_resultados.md`. Este archivo sigue siendo la fuente de los padrones IMO [M1–M8].
+
 # Investigación y criterios editoriales — ArchForms
 
 **Corte de consulta: 20 de noviembre de 2026.** Este archivo respalda el memo; no añade secciones a la plantilla académica. Los conteos son elaboración propia a partir de fuentes institucionales, no estadísticas publicadas por los colegios. Una publicación institucional acredita la existencia del padrón; no prueba actividad comercial, disposición de pago ni habilitación individual al día de hoy.
